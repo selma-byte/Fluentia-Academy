@@ -1,0 +1,130 @@
+import React, { useState } from 'react';
+
+const Login = ({ onLogin, onBack }) => {
+  const [step, setStep] = useState(1);
+  const [selectedRole, setSelectedRole] = useState(null);
+
+  const roles = [
+    { id: 'admin', title: 'Admin', desc: 'Manage all system settings', icon: '⚙️', color: 'text-red-600', bg: 'bg-red-50' },
+    { id: 'secretary', title: 'Secretary', desc: 'Manage registrations & payments', icon: '💼', color: 'text-[#2D428B]', bg: 'bg-blue-50' },
+    { id: 'teacher', title: 'Teacher', desc: 'Manage students & classes', icon: '👨‍🏫', color: 'text-green-600', bg: 'bg-green-50' },
+    { id: 'student', title: 'Student', desc: 'View attendance & assignments', icon: '🎓', color: 'text-blue-600', bg: 'bg-blue-50' },
+    { id: 'parent', title: 'Parent', desc: "Monitor child's progress", icon: '❤️', color: 'text-pink-600', bg: 'bg-pink-50' },
+  ];
+
+  const handleRoleSelect = (roleId) => {
+    setSelectedRole(roleId);
+    setStep(2);
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onLogin(selectedRole);
+  };
+
+  return (
+    <div className="min-h-screen bg-[#f3f4f6] flex flex-col items-center py-12 px-4 font-sans relative">
+      
+      {/* زر العودة */}
+      <button onClick={onBack} className="absolute top-8 left-8 text-gray-500 hover:text-[#2D428B] font-bold flex items-center cursor-pointer transition-colors z-10">
+        <span className="mr-2">←</span> Back to Home
+      </button>
+
+      {/* محتوى اختيار الرتبة (الخلفية) */}
+      <div className={`w-full max-w-md flex flex-col items-center animate-fade-in transition-all ${step === 2 ? 'blur-sm pointer-events-none' : ''}`}>
+        <div className="w-16 h-16 bg-[#2D428B] rounded-full flex items-center justify-center text-3xl mb-4 text-white shadow-md">
+          🎓
+        </div>
+        <h2 className="text-2xl font-bold text-[#0A1128] mb-1">Polyglot Portal</h2>
+        <p className="text-gray-500 text-sm mb-8 text-center">Choose your role to continue</p>
+
+        <div className="w-full space-y-4">
+          {roles.map((role) => (
+            <div key={role.id} className="bg-white/80 backdrop-blur-sm p-4 rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-all">
+              <div className="flex items-center mb-4">
+                <div className={`w-10 h-10 rounded-full ${role.bg} ${role.color} flex items-center justify-center mr-4 text-lg`}>
+                  {role.icon}
+                </div>
+                <div>
+                  <h3 className="text-[#0A1128] font-bold text-sm">{role.title}</h3>
+                  <p className="text-gray-500 text-xs mt-0.5">{role.desc}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => handleRoleSelect(role.id)}
+                className="w-full bg-[#2D428B] text-white py-3 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors cursor-pointer shadow-sm"
+              >
+                Continue as {role.title}
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* =======================================
+          النافذة العائمة (Login Modal) باللون الأزرق الموحد
+          ======================================= */}
+      {step === 2 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0A1128]/40 backdrop-blur-sm p-4 animate-fade-in">
+          
+          <div className="bg-white w-full max-w-md rounded-[2.5rem] p-10 relative shadow-2xl animate-fade-in-up border border-gray-100">
+            
+            <button onClick={() => setStep(1)} className="absolute top-8 left-8 text-gray-500 hover:text-[#2D428B] text-sm font-bold flex items-center transition-colors cursor-pointer">
+              <span className="mr-2">←</span> Back
+            </button>
+            
+            <div className="flex items-center mb-10 pb-6 border-b border-gray-100 mt-6">
+               <div className={`w-14 h-14 rounded-2xl ${roles.find(r => r.id === selectedRole).bg} ${roles.find(r => r.id === selectedRole).color} flex items-center justify-center mr-4 text-2xl shadow-sm`}>
+                  {roles.find(r => r.id === selectedRole).icon}
+               </div>
+               <div>
+                 <h2 className="text-2xl font-bold text-[#0A1128]">Welcome Back!</h2>
+                 <p className="text-gray-500 text-sm font-medium capitalize">{selectedRole} Login</p>
+               </div>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div>
+                <label className="block text-xs font-bold text-gray-600 mb-2 uppercase tracking-widest">Username / ID</label>
+                <input 
+                  type="text" 
+                  required 
+                  placeholder="Enter your ID" 
+                  className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 text-gray-900 outline-none focus:border-[#2D428B] focus:bg-white transition-all text-sm" 
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-600 mb-2 uppercase tracking-widest">Password</label>
+                <input 
+                  type="password" 
+                  required 
+                  placeholder="••••••••" 
+                  className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-6 py-4 text-gray-900 outline-none focus:border-[#2D428B] focus:bg-white transition-all text-sm" 
+                />
+              </div>
+              
+              <div className="flex justify-between items-center px-2">
+                <label className="flex items-center text-xs text-gray-500 cursor-pointer font-semibold">
+                  <input type="checkbox" className="mr-2 rounded border-gray-300 text-[#2D428B] focus:ring-[#2D428B] w-4 h-4" />
+                  Remember me
+                </label>
+                <a href="#" className="text-xs text-[#2D428B] hover:text-blue-800 font-bold transition-colors">Forgot Password?</a>
+              </div>
+
+              {/* الزر الأزرق الموحد */}
+              <button 
+                type="submit" 
+                className="w-full bg-[#2D428B] hover:bg-blue-700 py-4.5 rounded-2xl font-bold text-white shadow-lg shadow-blue-900/20 transition-all mt-4 cursor-pointer text-base active:scale-[0.98]"
+              >
+                Login
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+};
+
+export default Login;
