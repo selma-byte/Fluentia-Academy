@@ -1,4 +1,6 @@
+import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import React, { useState } from 'react';
+
 import './App.css';
 import heroBgImage from './assets/dark-hero-3-cover sec-.png'; 
       
@@ -9,46 +11,17 @@ import spanishImg from './assets/spn.jpg';
 
 // استيراد الصفحات الجديدة
 import SecretaryDashboard from './components/secretery/dashboard';
+import AdminDashboard from './components/admin/dashboardA';
+import TeacherDashboard from './components/teacher/Dashboardt';
+
 import Login from './components/login';
 import Join from './components/join';
 
-function App() {
-  // الحالة الجديدة للتحكم في الصفحات
-  const [currentView, setCurrentView] = useState('home');
+const HomePage = () => {
+  const navigate = useNavigate();
 
-  // ==========================================
-  // توجيه الصفحات (Routing)
-  // ==========================================
-
-  // 1. عرض لوحة السكرتيرة
-  if (currentView === 'secretary') {
-    return <SecretaryDashboard />;
-  }
-
-  // 2. عرض صفحة تسجيل الدخول الجديدة (Login.jsx)
-  if (currentView === 'login') {
-    return (
-      <Login 
-        onBack={() => setCurrentView('home')} 
-        onLogin={(role) => {
-          if (role === 'secretary') {
-            setCurrentView('secretary');
-          } else {
-            alert(`Logged in as ${role}`);
-          }
-        }} 
-      />
-    );
-  }
-
-  // 3. عرض صفحة التسجيل الجديدة (Join.jsx)
-  if (currentView === 'join') {
-    return <Join onBack={() => setCurrentView('home')} />;
-  }
-
-  // ==========================================
-  // 4. عرض الصفحة الرئيسية الأصلية (كود مروة وملاك وسلمى)
-  // ==========================================
+  
+  
   return (
     <div className="min-h-screen font-sans bg-[#0A1128]"> 
 
@@ -68,9 +41,9 @@ function App() {
             </div>
             <div className="flex items-center space-x-5">
               {/* تم تعديل هذا الزر ليفتح صفحة Login */}
-              <button onClick={() => setCurrentView('login')} className="text-sm font-semibold hover:text-blue-300 cursor-pointer text-white">Login</button>
+              <button onClick={() => navigate('/login')} className="text-sm font-semibold hover:text-blue-300 cursor-pointer text-white">Login</button>
               {/* تم تعديل هذا الزر ليفتح صفحة Join */}
-              <button onClick={() => setCurrentView('join')} className="bg-[#2D428B] hover:bg-blue-600 px-5 py-2 rounded-md text-sm font-bold flex items-center transition-all cursor-pointer text-white">
+              <button onClick={() => navigate('/join')} className="bg-[#2D428B] hover:bg-blue-600 px-5 py-2 rounded-md text-sm font-bold flex items-center transition-all cursor-pointer text-white">
                 JOIN US <span className="ml-2">→</span>
               </button>
             </div>
@@ -82,7 +55,7 @@ function App() {
               <p className="text-gray-300 text-base max-w-md pt-2">Master a New Language, Open a New World.</p>
               <div className="flex space-x-4 pt-4">
                 {/* تم تعديل هذا الزر ليفتح صفحة Join */}
-                <button onClick={() => setCurrentView('join')} className="bg-[#2D428B] hover:bg-blue-600 text-white px-7 py-3 rounded-md font-semibold transition-all cursor-pointer">Join Us</button>
+                <button onClick={() => navigate('/login')} className="bg-[#2D428B] hover:bg-blue-600 text-white px-7 py-3 rounded-md font-semibold transition-all cursor-pointer">Join Us</button>
                 <button className="border border-white/70 hover:bg-white hover:text-[#0A1128] text-white px-7 py-3 rounded-md font-semibold transition-all cursor-pointer">Learn More</button>
               </div>
             </div>
@@ -293,5 +266,23 @@ function App() {
     </div>
   );
 }
+function App() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/join" element={<Join />} />
+        
+        {/* صفحة السكرتيرة */}
+        <Route path="/secretary/dashboard" element={<SecretaryDashboard />} />
 
+        {/* 💡 زيدي هاد السطر باش يولي يشوف صفحة المدير */}
+        <Route path="/admin/dashboard" element={<AdminDashboard />} />
+        <Route path="/teacher/dashboard" element={<TeacherDashboard />} />
+      </Routes>
+    </Router>
+    
+  );
+}
 export default App;

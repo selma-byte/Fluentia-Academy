@@ -1,11 +1,32 @@
 import React, { useState } from 'react';
-import Payment from './payment'; // استيراد صفحة الدفع
+import Payment from './payment';
+import Topbar from './Topbar';
+import Exams from './exams';
+import Appointments from './Appointments'; // تأكدي من المسار الصحيح // استيراد صفحة الدفع
+import Enrollment from './Enrollment';
+import ParentPortal from './ParentPortal';
+import Documents from './Documents';
+import SchoolSchedule from './SchoolSchedule';
+import StudentRegistration from './StudentRegistration';
+import StudentRecords from './StudentRecords';
+import AttendanceRecords from './AttendanceRecords';
+import RegistrationRequests from './RegistrationRequests';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '../../supabaseClient';
 
-const SecretaryDashboard = () => {
+const SecretaryDashboard = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState('Dashboard');
+  // داخل مكون SecretaryDashboard مباشرة
+  const navigate = useNavigate();
 
+  const handleLogout = async () => {
+  await supabase.auth.signOut(); // هادي هي اللي تخرجك من السيستام
+  navigate('/login'); // ومبعد ترجعك لصفحة الدخول
+  };
+  const [examView, setExamView] = useState('home'); // أضيفي هذا السطر
   const menuItems = [
     { icon: "🏠", text: "Dashboard" },
+    { icon: "📩", text: "Registration Requests" },
     { icon: "🎓", text: "Student Registration" },
     { icon: "👥", text: "Student Records" },
     { icon: "📋", text: "Attendance Records" },
@@ -44,14 +65,15 @@ const SecretaryDashboard = () => {
                 `}
               >
                 <span className="mr-3">{item.icon}</span> {item.text}
-              </button>
+              </button> 
+          
             ))}
           </nav>
         </div>
 
         <div className="p-4 border-t border-white/10 mt-2">
           <button 
-            onClick={() => window.location.reload()}
+             onClick={handleLogout}
             className="flex items-center justify-between w-full px-4 py-3 bg-white text-[#0A1128] rounded-lg text-sm font-bold hover:bg-gray-200 transition-colors cursor-pointer"
           >
             <span>Log Out</span>
@@ -66,35 +88,8 @@ const SecretaryDashboard = () => {
       <main className="flex-1 flex flex-col overflow-hidden">
         
         {/* Top Header */}
-        <header className="flex items-center justify-between px-8 py-5 bg-white border-b border-gray-200">
-          <div className="flex items-center flex-1">
-            <button 
-              onClick={() => {}} 
-              className="mr-4 p-2 text-gray-500 hover:text-[#0A1128] hover:bg-gray-200 bg-white rounded-md shadow-sm transition-colors cursor-pointer"
-            >
-              ←
-            </button>
-            <div className="relative w-96 group">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 group-focus-within:text-purple-500">🔍</span>
-              <input 
-                type="text" 
-                placeholder="Search students, teachers..." 
-                className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-purple-200 outline-none text-sm transition-all" 
-              />
-            </div>
-          </div>
-          <div className="flex items-center space-x-4">
-            <button onClick={() => {}} className="text-gray-400 hover:text-purple-600 bg-white p-2 rounded-full shadow-sm hover:shadow transition-all cursor-pointer">🔔</button>
-            <button onClick={() => {}} className="text-gray-400 hover:text-purple-600 bg-white p-2 rounded-full shadow-sm hover:shadow transition-all cursor-pointer">✉️</button>
-            <button onClick={() => {}} className="text-gray-400 hover:text-purple-600 bg-white p-2 rounded-full shadow-sm hover:shadow transition-all cursor-pointer">⚙️</button>
-            <div 
-              onClick={() => {}}
-              className="w-9 h-9 bg-purple-300 rounded-full border-2 border-white shadow-md overflow-hidden cursor-pointer hover:ring-2 hover:ring-purple-400 transition-all"
-            >
-                <img src="https://ui-avatars.com/api/?name=Marwa&background=A78BFA&color=fff" alt="Profile" className="w-full h-full object-cover"/>
-            </div>
-          </div>
-        </header>
+        
+        <Topbar setActiveTab={setActiveTab} onLogout={onLogout} />
 
         {/* 1. Dashboard Content */}
         {activeTab === 'Dashboard' && (
@@ -234,7 +229,19 @@ const SecretaryDashboard = () => {
 
         {/* 2. Payment Content */}
         {activeTab === 'Payment' && <Payment />}
-
+        {/* 3. شرط صفحة الامتحانات */}
+        {activeTab === 'Exams' && <Exams examView={examView} setExamView={setExamView} />}
+        {activeTab === 'Appointments' && <Appointments />}
+        {activeTab === 'Class Enrollment' && <Enrollment />}
+        {activeTab === 'Communicate Parents' && <ParentPortal />}
+        {activeTab === 'Documents' && <Documents />}
+        {activeTab === 'School Schedule' && <SchoolSchedule />}
+        {activeTab === 'Student Registration' && <StudentRegistration />}
+        {activeTab === 'Student Records' && <StudentRecords />}
+        {activeTab === 'Attendance Records' && <AttendanceRecords />}
+        {activeTab === 'Registration Requests' && <RegistrationRequests />}
+        
+        
       </main>
     </div>
   );

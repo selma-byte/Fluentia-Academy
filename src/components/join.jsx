@@ -1,13 +1,74 @@
 import React, { useState } from 'react';
+import { supabase } from '../supabaseClient'; // تأكدي من المسار الصحيح لملف السوبابيز
 
 const Join = ({ onBack }) => {
   const [step, setStep] = useState(1);
   const [selectedRole, setSelectedRole] = useState(null);
 
+  // --- حالات حفظ البيانات من الفورم ---
+  const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    childName: '', // خاص بولي الأمر
+    childAge: '',  // خاص بولي الأمر
+    course: '',
+    level: '',
+    message: ''
+  });
+  
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const roles = [
     { id: 'student', title: 'Student', desc: 'Enroll in language courses', icon: '🎓', color: 'text-blue-600', bg: 'bg-blue-50' },
     { id: 'parent', title: 'Parent', desc: "Register your children", icon: '❤️', color: 'text-blue-500', bg: 'bg-blue-50' },
   ];
+
+  // دالة لتحديث البيانات عند الكتابة
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  // دالة إرسال البيانات لقاعدة البيانات
+  const handleSubmit = async (e) => {
+    e.preventDefault(); // لمنع إعادة تحميل الصفحة
+    setIsSubmitting(true);
+
+    const fullName = `${formData.lastName} ${formData.firstName}`;
+    
+    // تجهيز تفاصيل الابن إذا كان ولي أمر
+    const extraInfo = selectedRole === 'parent' 
+      ? `Child Name: ${formData.childName}, Age: ${formData.childAge}. ${formData.message}`
+      : formData.message;
+
+    const { error } = await supabase
+      .from('registration_requests')
+      .insert([
+        { 
+          full_name: fullName, 
+          email: formData.email, 
+          phone: formData.phone, 
+          role: selectedRole, 
+          course: formData.course || 'Non spécifié',
+          status: 'pending'
+          // إذا أضفتِ أعمدة إضافية مثل extraInfo مستقبلاً يمكنك وضعها هنا
+        }
+      ]);
+
+    setIsSubmitting(false);
+
+    if (error) {
+      alert("Erreur lors de l'envoi de la demande: " + error.message);
+    } else {
+      alert("Demande envoyée avec succès!");
+      setStep(1); // العودة للصفحة الأولى بعد النجاح
+      // تفريغ الفورم
+      setFormData({
+        firstName: '', lastName: '', email: '', phone: '', childName: '', childAge: '', course: '', level: '', message: ''
+      });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#f3f4f6] flex flex-col items-center py-12 px-4 font-sans relative">
@@ -63,26 +124,27 @@ const Join = ({ onBack }) => {
               <p className="text-gray-400 text-xs mt-1">S'inscrire en tant que <span className="font-bold text-[#2D428B] capitalize">{selectedRole}</span></p>
             </div>
 
-            <form className="space-y-6">
+            {/* تم تحويل الديف إلى فورم مع onSubmit */}
+            <form onSubmit={handleSubmit} className="space-y-6">
               {/* Informations personnelles */}
               <div className="space-y-4">
                 <h3 className="text-sm font-bold text-gray-700 border-b border-gray-100 pb-2">Informations personnelles</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-gray-600 mb-1">Prénom *</label>
-                    <input type="text" placeholder="Jean" className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 outline-none focus:border-[#2D428B] text-sm" />
+                    <input type="text" name="firstName" value={formData.firstName} onChange={handleChange} required placeholder="Jean" className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 outline-none focus:border-[#2D428B] text-sm" />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-gray-600 mb-1">Nom *</label>
-                    <input type="text" placeholder="Dupont" className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 outline-none focus:border-[#2D428B] text-sm" />
+                    <input type="text" name="lastName" value={formData.lastName} onChange={handleChange} required placeholder="Dupont" className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 outline-none focus:border-[#2D428B] text-sm" />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-gray-600 mb-1">Email *</label>
-                    <input type="email" placeholder="jean.dupont@exemple.fr" className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 outline-none focus:border-[#2D428B] text-sm" />
+                    <input type="email" name="email" value={formData.email} onChange={handleChange} required placeholder="jean.dupont@exemple.fr" className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 outline-none focus:border-[#2D428B] text-sm" />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-gray-600 mb-1">Téléphone *</label>
-                    <input type="tel" placeholder="+33 6 12 34 56 78" className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 outline-none focus:border-[#2D428B] text-sm" />
+                    <input type="tel" name="phone" value={formData.phone} onChange={handleChange} required placeholder="+33 6 12 34 56 78" className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 outline-none focus:border-[#2D428B] text-sm" />
                   </div>
                 </div>
               </div>
@@ -96,11 +158,11 @@ const Join = ({ onBack }) => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-bold text-[#2D428B] mb-1">Nom et Prénom de l'enfant *</label>
-                      <input type="text" placeholder="Nom complet de votre enfant" className="w-full bg-white border border-blue-200 rounded-lg p-2.5 outline-none focus:border-blue-400 text-sm" />
+                      <input type="text" name="childName" value={formData.childName} onChange={handleChange} required placeholder="Nom complet de votre enfant" className="w-full bg-white border border-blue-200 rounded-lg p-2.5 outline-none focus:border-blue-400 text-sm" />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-[#2D428B] mb-1">Âge de l'enfant *</label>
-                      <input type="number" placeholder="Âge" className="w-full bg-white border border-blue-200 rounded-lg p-2.5 outline-none focus:border-blue-400 text-sm" />
+                      <input type="number" name="childAge" value={formData.childAge} onChange={handleChange} required placeholder="Âge" className="w-full bg-white border border-blue-200 rounded-lg p-2.5 outline-none focus:border-blue-400 text-sm" />
                     </div>
                   </div>
                 </div>
@@ -112,20 +174,20 @@ const Join = ({ onBack }) => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-gray-600 mb-1">Formation souhaitée *</label>
-                    <select className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 outline-none focus:border-[#2D428B] text-sm cursor-pointer">
-                      <option>Sélectionnez une formation</option>
-                      <option>Anglais</option>
-                      <option>Allemand</option>
-                      <option>Français</option>
+                    <select name="course" value={formData.course} onChange={handleChange} required className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 outline-none focus:border-[#2D428B] text-sm cursor-pointer">
+                      <option value="">Sélectionnez une formation</option>
+                      <option value="Anglais">Anglais</option>
+                      <option value="Allemand">Allemand</option>
+                      <option value="Français">Français</option>
                     </select>
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-gray-600 mb-1">Niveau actuel</label>
-                    <select className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 outline-none focus:border-[#2D428B] text-sm cursor-pointer">
-                      <option>Sélectionnez votre niveau</option>
-                      <option>Débutant (A1)</option>
-                      <option>Intermédiaire (B1)</option>
-                      <option>Avancé (C1)</option>
+                    <select name="level" value={formData.level} onChange={handleChange} className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 outline-none focus:border-[#2D428B] text-sm cursor-pointer">
+                      <option value="">Sélectionnez votre niveau</option>
+                      <option value="Débutant">Débutant (A1)</option>
+                      <option value="Intermédiaire">Intermédiaire (B1)</option>
+                      <option value="Avancé">Avancé (C1)</option>
                     </select>
                   </div>
                 </div>
@@ -134,15 +196,15 @@ const Join = ({ onBack }) => {
               {/* Message */}
               <div>
                 <label className="block text-xs font-bold text-gray-600 mb-1">Message ou questions (optionnel)</label>
-                <textarea rows="3" placeholder="Avez-vous des questions..." className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 outline-none focus:border-[#2D428B] text-sm resize-none"></textarea>
+                <textarea name="message" value={formData.message} onChange={handleChange} rows="3" placeholder="Avez-vous des questions..." className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 outline-none focus:border-[#2D428B] text-sm resize-none"></textarea>
               </div>
 
               <button 
-                type="button" 
-                onClick={() => { alert("Demande envoyée مع النجاح!"); setStep(1); }}
-                className="w-full bg-[#2D428B] hover:bg-blue-700 py-3.5 rounded-xl font-bold text-white shadow-md transition-all cursor-pointer"
+                type="submit" 
+                disabled={isSubmitting}
+                className={`w-full py-3.5 rounded-xl font-bold text-white shadow-md transition-all cursor-pointer ${isSubmitting ? 'bg-gray-400' : 'bg-[#2D428B] hover:bg-blue-700'}`}
               >
-                Envoyer ma demande
+                {isSubmitting ? 'Envoi en cours...' : 'Envoyer ma demande'}
               </button>
             </form>
           </div>
