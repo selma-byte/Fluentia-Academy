@@ -16,6 +16,11 @@ import TeacherDashboard from './components/teacher/Dashboardt';
 
 import Login from './components/login';
 import Join from './components/join';
+// import MyStudents from './MyStudents';
+// import EnterGrades from './EnterGrades';
+// import UploadCourse from './UploadCourse';
+// import Messages from './Messages';
+// import Libraries from './Libraries';
 
 const HomePage = () => {
   const navigate = useNavigate();
