@@ -46,7 +46,21 @@ const Login = () => {
       setLoading(false); return;
     }
 
-    // 2. التحقق من قاعدة البيانات (Supabase Auth)
+    // 🚨 2. حماية التلميذ (التحقق من أنه Course وليس Placement) 🚨
+    if (selectedRole === 'student') {
+      const { data: studentData, error: fetchError } = await supabase
+        .from('students')
+        .select('exam_type')
+        .eq('email', email.trim())
+        .single();
+
+      if (studentData && studentData.exam_type === 'Placement') {
+        setErrorMsg("🛑 Access Denied: You must complete your placement test before accessing the dashboard.");
+        setLoading(false); return;
+      }
+    }
+
+    // 3. التحقق من قاعدة البيانات (Supabase Auth)
     const { data, error } = await supabase.auth.signInWithPassword({
       email: email,
       password: password,
@@ -57,10 +71,11 @@ const Login = () => {
     if (error) {
       setErrorMsg("❌ Invalid email or password!");
     } else {
-      // 3. توجيه المستخدم لمكانه الصحيح بعد نجاح الدخول
+      // 4. توجيه المستخدم لمكانه الصحيح بعد نجاح الدخول
       if (selectedRole === 'admin') navigate('/admin/dashboard');
       else if (selectedRole === 'secretary') navigate('/secretary/dashboard');
       else if (selectedRole === 'teacher') navigate('/teacher/dashboard');
+      else if (selectedRole === 'student') navigate('/student'); // 🟢 زدنا التوجيه للداشبورد تاع التلميذ 🟢
       else navigate('/');
     }
   };

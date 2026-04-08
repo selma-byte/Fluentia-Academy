@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import TeacherAttendance from './TeacherAttendance';
+//import TeacherAttendance from './TeacherAttendance';
 import TeacherSchedule from './TeacherSchedule';
 import TeacherClasses from './TeacherClasses';
 import TeacherGrades from './TeacherGrades';

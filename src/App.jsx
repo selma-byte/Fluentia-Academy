@@ -13,6 +13,7 @@ import spanishImg from './assets/spn.jpg';
 import SecretaryDashboard from './components/secretery/dashboard';
 import AdminDashboard from './components/admin/dashboardA';
 import TeacherDashboard from './components/teacher/Dashboardt';
+import StudentDashboard from './components/student/StudentDashboard'; // بدلي المسار على حساب وين خبيتي الملف
 
 import Login from './components/login';
 import Join from './components/join';
@@ -285,6 +286,7 @@ function App() {
         {/* 💡 زيدي هاد السطر باش يولي يشوف صفحة المدير */}
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
         <Route path="/teacher/dashboard" element={<TeacherDashboard />} />
+        <Route path="/student" element={<StudentDashboard />} />
       </Routes>
     </Router>
     
