@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../supabaseClient';
 
 // --- 1. استيراد المكونات مع تصحيح المسارات ---
-import Topbar from '../Topbar'; 
+import Topbar from './Topbar'; 
 import RegistrationRequests from './RegistrationRequests';
 import StudentRegistration from './StudentRegistration';
 import StudentRecords from './StudentRecords';
