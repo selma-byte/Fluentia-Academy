@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const PaymentStaff = () => {
   const [activeTab, setActiveTab] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
+  // New state for modern notification
+  const [notification, setNotification] = useState({ show: false, message: '' });
 
-  // بيانات طاقم العمل والرواتب - مبرمجة لتكون قابلة للتعديل
   const [staffPayments, setStaffPayments] = useState([
     { id: 1, name: "Prof. Sarah Ahmed", role: "Teacher", salary: 45000, status: "Paid", date: "2026-04-05", method: "Bank Transfer", avatar: "SA" },
     { id: 2, name: "Mourad Slimani", role: "Secretary", salary: 35000, status: "Pending", date: "-", method: "-", avatar: "MS" },
@@ -16,18 +17,27 @@ const PaymentStaff = () => {
 
   const roles = ['All', 'Teacher', 'Secretary', 'Lady Cleaning', 'Security'];
 
-  // حساب الإحصائيات بشكل ديناميكي بناءً على البيانات
   const totalPaid = staffPayments.filter(s => s.status === 'Paid').reduce((sum, s) => sum + s.salary, 0);
   const totalPending = staffPayments.filter(s => s.status === 'Pending').reduce((sum, s) => sum + s.salary, 0);
 
-  // تصفية البيانات بناءً على البحث والتبويب المختار
   const filteredStaff = staffPayments.filter(staff => {
     const matchesTab = activeTab === 'All' || staff.role === activeTab;
     const matchesSearch = staff.name.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesTab && matchesSearch;
   });
 
-  // معالجة عملية الدفع
+  // Auto-hide notification after 3 seconds
+  useEffect(() => {
+    if (notification.show) {
+      const timer = setTimeout(() => setNotification({ show: false, message: '' }), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
+
+  const showToast = (msg) => {
+    setNotification({ show: true, message: msg });
+  };
+
   const handlePay = (id) => {
     setStaffPayments(staffPayments.map(staff => 
       staff.id === id ? { 
@@ -37,12 +47,23 @@ const PaymentStaff = () => {
         method: 'Cash' 
       } : staff
     ));
-    alert("Payment processed successfully!");
+    showToast("PAYMENT PROCESSED SUCCESSFULLY! 💸");
   };
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-10 duration-700 pb-20">
+    <div className="animate-in fade-in slide-in-from-bottom-10 duration-700 pb-20 relative">
       
+      {/* MODERN NOTIFICATION TOAST */}
+      {notification.show && (
+        <div className="fixed top-10 right-10 z-[100] animate-in slide-in-from-right-full fade-in duration-500">
+          <div className="bg-[#1A2252] border-l-4 border-pink-500 text-white px-8 py-5 rounded-2xl shadow-2xl flex items-center gap-4">
+            <span className="text-xl">✨</span>
+            <p className="font-black italic text-xs tracking-widest">{notification.message}</p>
+            <button onClick={() => setNotification({show: false})} className="ml-4 opacity-50 hover:opacity-100 italic font-black text-[10px]">CLOSE</button>
+          </div>
+        </div>
+      )}
+
       {/* Header & Financial Status Cards */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-12 gap-8">
         <div>
@@ -68,7 +89,7 @@ const PaymentStaff = () => {
         </div>
       </div>
 
-      {/* Control Center: Search and Filters */}
+      {/* Control Center */}
       <div className="bg-white p-5 rounded-[2.5rem] shadow-sm border border-gray-50 mb-10 flex flex-col md:flex-row gap-5 items-center">
         <div className="relative flex-1 w-full">
            <input 
@@ -147,7 +168,7 @@ const PaymentStaff = () => {
                     </button>
                   ) : (
                     <button 
-                      onClick={() => alert("Printing Receipt...")}
+                      onClick={() => showToast("PREPARING PDF DOWNLOAD...")}
                       className="bg-white border-2 border-gray-100 text-gray-300 px-8 py-3 rounded-2xl text-[10px] font-black italic hover:border-[#1A2252] hover:text-[#1A2252] transition-all cursor-pointer"
                     >
                       DOWNLOAD RECEIPT 📄
@@ -158,16 +179,9 @@ const PaymentStaff = () => {
             ))}
           </tbody>
         </table>
-
-        {filteredStaff.length === 0 && (
-          <div className="py-24 text-center">
-            <span className="text-6xl mb-4 block opacity-10">💸</span>
-            <p className="text-gray-400 font-bold italic">No payroll records found.</p>
-          </div>
-        )}
       </div>
 
-      {/* Footer Summary Bar */}
+      {/* Footer Summary */}
       <div className="mt-12 bg-[#1A2252] rounded-[3.5rem] p-10 text-white relative overflow-hidden shadow-2xl">
         <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
           <div>
@@ -179,15 +193,13 @@ const PaymentStaff = () => {
                 <p className="text-[10px] font-black opacity-50 uppercase mb-1">Total Payout</p>
                 <p className="text-2xl font-black">{(totalPaid + totalPending).toLocaleString()} دج</p>
              </div>
-             <button className="bg-white text-[#1A2252] px-10 py-5 rounded-3xl font-black italic text-sm shadow-xl hover:scale-105 transition-transform cursor-pointer">
+             <button onClick={() => showToast("EXPORTING TO PDF...")} className="bg-white text-[#1A2252] px-10 py-5 rounded-3xl font-black italic text-sm shadow-xl hover:scale-105 transition-transform cursor-pointer">
                EXPORT PAYROLL PDF 📥
              </button>
           </div>
         </div>
-        {/* Decorative Shapes */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32"></div>
       </div>
-
     </div>
   );
 };

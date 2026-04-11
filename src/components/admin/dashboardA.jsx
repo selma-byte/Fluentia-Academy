@@ -31,28 +31,49 @@ const AdminDashboard = () => {
     if (!error) navigate('/login');
   };
 
-  // Menu items including the missing ones from the first version
-  const menuItems = [
-    { icon: "🏠", text: "ADMIN Dashboard" },
-    { icon: "📩", text: "Registration Requests" },
-    { icon: "📝", text: "Student Registration" },
-    { icon: "📂", text: "Student Records" },
-    { icon: "📅", text: "Attendance Records" },
-    { icon: "⏰", text: "School Schedule" },
-    { icon: "🏫", text: "Enrollment" },
-    { icon: "💬", text: "Parent Portal" },
-    { icon: "🤝", text: "Appointments" },
-    { icon: "📄", text: "Documents" },
-    { icon: "✍️", text: "Exams" },
-    { icon: "💳", text: "Payment" },
-    { icon: "💰", text: "Payment Staff" },
-    { icon: "👩‍🏫", text: "Teacher Applicants" },
-    { icon: "📊", text: "Reports" },
-    { icon: "👤", text: "Users" },
-    { icon: "⚙️", text: "Settings" },
+  const menuSections = [
+    {
+      title: "Main",
+      items: [{ icon: "🏠", text: "ADMIN Dashboard" }]
+    },
+    {
+      title: "Management",
+      items: [
+        { icon: "📩", text: "Registration Requests" },
+        { icon: "📝", text: "Student Registration" },
+        { icon: "📂", text: "Student Records" },
+        { icon: "👩‍🏫", text: "Teacher Applicants" },
+      ]
+    },
+    {
+      title: "Academic",
+      items: [
+        { icon: "📅", text: "Attendance Records" },
+        { icon: "⏰", text: "School Schedule" },
+        { icon: "🏫", text: "Enrollment" },
+        { icon: "✍️", text: "Exams" },
+        { icon: "📄", text: "Documents" },
+      ]
+    },
+    {
+      title: "Finance & Portal",
+      items: [
+        { icon: "💳", text: "Payment" },
+        { icon: "💰", text: "Payment Staff" },
+        { icon: "💬", text: "Parent Portal" },
+        { icon: "🤝", text: "Appointments" },
+      ]
+    },
+    {
+      title: "System",
+      items: [
+        { icon: "📊", text: "Reports" },
+        { icon: "👤", text: "Users" },
+        { icon: "🏠", text: "School Profile" },
+      ]
+    }
   ];
 
-  // CENTRAL ROUTER LOGIC
   const renderTabContent = () => {
     switch (activeTab) {
       case 'ADMIN Dashboard': return <DashboardContent setActiveTab={setActiveTab} />;
@@ -71,14 +92,13 @@ const AdminDashboard = () => {
       case 'Teacher Applicants': return <TeacherApplicant />;
       case 'Reports': return <Reports />;
       case 'Users': return <Users />;
-      case 'Settings': return <Settings />;
+      case 'School Profile': return <Settings />;
       default: return <DashboardContent setActiveTab={setActiveTab} />;
     }
   };
 
   return (
     <div className="flex h-screen bg-[#F8FAFC] font-sans overflow-hidden text-gray-900">
-      {/* ASIDE - Styled like the first code */}
       <aside className="w-72 bg-[#1A2252] text-white flex flex-col m-4 rounded-[2.5rem] shadow-2xl shrink-0 z-20">
         <div className="p-8 flex items-center gap-3">
           <div className="bg-white p-2 rounded-xl shadow-lg">
@@ -87,27 +107,34 @@ const AdminDashboard = () => {
           <h1 className="text-2xl font-bold italic tracking-tight">Smansys</h1>
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-4 mt-4 custom-scrollbar">
-          <ul className="space-y-2 pb-10">
-            {menuItems.map((item) => (
-              <li key={item.text}>
-                <button
-                  onClick={() => setActiveTab(item.text)}
-                  className={`w-full flex items-center gap-4 px-6 py-3.5 rounded-2xl transition-all duration-300 font-bold italic text-sm cursor-pointer ${
-                    activeTab === item.text 
-                    ? 'bg-white text-[#1A2252] shadow-lg translate-x-2' 
-                    : 'text-gray-300 hover:bg-white/10 hover:text-white'
-                  }`}
-                >
-                  <span className="text-xl">{item.icon}</span>
-                  {item.text}
-                </button>
-              </li>
-            ))}
-          </ul>
+        <nav className="flex-1 overflow-y-auto px-4 mt-2 custom-scrollbar">
+          {menuSections.map((section, idx) => (
+            <div key={idx} className="mb-6">
+              <p className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] px-6 mb-2 italic">
+                {section.title}
+              </p>
+              <ul className="space-y-1">
+                {section.items.map((item) => (
+                  <li key={item.text}>
+                    <button
+                      onClick={() => setActiveTab(item.text)}
+                      className={`w-full flex items-center gap-4 px-6 py-3 rounded-2xl transition-all duration-300 font-bold italic text-sm cursor-pointer ${
+                        activeTab === item.text 
+                        ? 'bg-white text-[#1A2252] shadow-lg translate-x-2' 
+                        : 'text-gray-300 hover:bg-white/10 hover:text-white'
+                      }`}
+                    >
+                      <span className="text-lg">{item.icon}</span>
+                      {item.text}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </nav>
 
-        <div className="p-6 mt-auto">
+        <div className="p-6">
           <button onClick={handleLogout} className="flex items-center justify-between w-full bg-red-500 text-white px-6 py-4 rounded-2xl font-bold italic hover:bg-red-600 transition-all cursor-pointer shadow-lg">
             <span>Log Out</span>
             <span>➔</span>
@@ -115,7 +142,6 @@ const AdminDashboard = () => {
         </div>
       </aside>
 
-      {/* MAIN CONTENT AREA */}
       <main className="flex-1 flex flex-col overflow-hidden relative">
         <Topbar setActiveTab={setActiveTab} />
         
@@ -131,6 +157,11 @@ const AdminDashboard = () => {
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        input:focus, select:focus, textarea:focus {
+          ring: 2px;
+          ring-color: #f472b6;
+          outline: none;
+        }
       `}</style>
     </div>
   );
@@ -142,6 +173,11 @@ const DashboardContent = ({ setActiveTab }) => {
     { title: 'Total Teachers', value: '120', change: '+5%', icon: '👨‍🏫', color: 'text-green-600', bg: 'bg-green-50', target: 'Teacher Applicants' },
     { title: 'Pending Exams', value: '12', change: 'Urgent', icon: '📝', color: 'text-orange-600', bg: 'bg-orange-50', target: 'Exams' },
   ];
+
+  const notifications = [
+    { id: 1, title: 'New Registration', desc: 'Sarah Ahmed submitted a request', time: '2 mins ago', target: 'Registration Requests' },
+    { id: 2, title: 'Payment Alert', desc: 'Tuition received from Group 2', time: '1 hour ago', target: 'Payment' },
+  ];
   
   return (
     <div className="space-y-10">
@@ -149,10 +185,10 @@ const DashboardContent = ({ setActiveTab }) => {
         <h2 className="text-5xl font-black text-[#1A2252] mb-3 italic">
           Welcome back, <span className="text-blue-600 underline decoration-pink-500 decoration-4">Malak</span>
         </h2>
-        <p className="text-gray-400 font-bold italic text-lg">System status is normal.</p>
+        <p className="text-gray-400 font-bold italic text-lg">Platform Summary</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
         {stats.map((stat, i) => (
           <div key={i} onClick={() => setActiveTab(stat.target)} className="bg-white p-8 rounded-[3rem] shadow-sm border border-gray-50 flex flex-col justify-between h-64 hover:shadow-2xl hover:-translate-y-2 transition-all cursor-pointer group relative overflow-hidden">
             <div className={`w-16 h-16 ${stat.bg} rounded-2xl flex items-center justify-center text-3xl group-hover:scale-110 transition-transform relative z-10`}>{stat.icon}</div>
@@ -163,6 +199,28 @@ const DashboardContent = ({ setActiveTab }) => {
             <div className="absolute -right-4 -bottom-4 text-8xl opacity-5 group-hover:opacity-10 transition-opacity rotate-12">{stat.icon}</div>
           </div>
         ))}
+      </div>
+
+      <div id="notification-section" className="bg-white p-10 rounded-[3.5rem] shadow-xl border border-gray-100 scroll-mt-10">
+        <h3 className="text-2xl font-black text-[#1A2252] italic mb-8">Recent Notifications</h3>
+        <div className="space-y-4">
+          {notifications.map((n) => (
+            <div 
+              key={n.id} 
+              onClick={() => setActiveTab(n.target)}
+              className="flex items-center justify-between p-6 bg-gray-50 rounded-[2rem] hover:bg-pink-50 transition-all cursor-pointer group"
+            >
+              <div className="flex items-center gap-6">
+                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm">🔔</div>
+                <div>
+                  <p className="font-black text-[#1A2252] italic">{n.title}</p>
+                  <p className="text-sm text-gray-500 font-bold">{n.desc}</p>
+                </div>
+              </div>
+              <p className="text-xs font-black text-gray-300 italic uppercase">{n.time}</p>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
