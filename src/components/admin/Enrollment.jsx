@@ -1,96 +1,156 @@
 import React, { useState } from 'react';
 
 const Enrollment = () => {
-  const [modalView, setModalView] = useState(null); // null, 'createCourse', 'scheduleSession'
+  // --- Data State ---
+  const [groups, setGroups] = useState([
+    { 
+      id: 1, group: 'Groupe 1 - Débutant', language: 'Français', level: 'A1', 
+      room: 'Salle 12', teacher: 'Prof. Nadia', enr: 15, max: 20, 
+      duration: '12 Weeks', target: 'Adults', startDate: '2026-01-20', endDate: '2026-04-15'
+    },
+  ]);
 
-  // بيانات مجموعات اللغات (Language Groups & Levels)
-  const classesData = [
-    { group: 'Groupe 1 - Débutant', language: 'Français', level: 'Niveau A1', room: 'Salle 12', teacher: 'Prof. Nadia', enr: 15, max: 20, session: 'Session Automne', mode: 'Présentiel' },
-    { group: 'Group 3 - Intermediate', language: 'English', level: 'Level B1', room: 'Salle 05', teacher: 'Prof. Hassan', enr: 18, max: 20, session: 'Session Automne', mode: 'Présentiel' },
-    { group: 'Gruppe 2 - Fortgeschritten', language: 'Deutsch', level: 'Niveau B2', room: 'Lab 02', teacher: 'Prof. Karim', enr: 12, max: 15, session: 'Session Automne', mode: 'Hybride' },
-  ];
+  // --- UI States ---
+  const [modalView, setModalView] = useState(null); // 'create', 'schedule', 'confirmDelete'
+  const [isEditing, setIsEditing] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [alert, setAlert] = useState({ show: false, message: '' });
+  
+  // --- The "Saisir" (Form) State ---
+  const [formData, setFormData] = useState({ 
+    group: '', language: 'English', level: 'A1', duration: '', 
+    teacher: 'Prof. Nadia', room: 'Salle 05', target: 'General',
+    startDate: '', endDate: ''
+  });
 
-  const handleCreateCourse = (e) => {
-    e.preventDefault();
-    setModalView('scheduleSession');
+  const triggerAlert = (msg) => {
+    setAlert({ show: true, message: msg });
+    setTimeout(() => setAlert({ show: false, message: '' }), 3000);
   };
 
-  const handleScheduleSession = (e) => {
+  const openEdit = (group) => {
+    setSelectedGroup(group);
+    setFormData({ ...group });
+    setIsEditing(true);
+    setModalView('create');
+  };
+
+  const handleFinish = (e) => {
     e.preventDefault();
+    if (isEditing) {
+      setGroups(groups.map(g => g.id === selectedGroup.id ? { ...formData } : g));
+      triggerAlert("Group updated successfully!");
+    } else {
+      const newGroup = { ...formData, id: Date.now(), enr: 0, max: 25 };
+      setGroups([...groups, newGroup]);
+      triggerAlert("New group added to system!");
+    }
+    closeModals();
+  };
+
+  const handleDelete = () => {
+    setGroups(groups.filter(g => g.id !== selectedGroup.id));
     setModalView(null);
-    alert("Session Programmée avec succès !");
+    triggerAlert("Group deleted successfully."); // Now triggers BLUE alert
   };
+
+  const closeModals = () => {
+    setModalView(null);
+    setIsEditing(false);
+    setFormData({ group: '', language: 'English', level: 'A1', duration: '', teacher: 'Prof. Nadia', room: 'Salle 05', target: 'General', startDate: '', endDate: '' });
+  };
+
+  const filteredGroups = groups.filter(g => 
+    g.group.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    g.language.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
-    <div className="animate-fade-in w-full h-full flex flex-col relative">
+    <div className="w-full h-full flex flex-col bg-[#F8FAFC] p-8 font-sans">
       
-      <div className="flex justify-between items-end mb-6 border-b border-gray-200 pb-5 shrink-0">
+      {/* BLUE SYSTEM ALERT (Used for Delete and Add) */}
+      {alert.show && (
+        <div className="fixed top-8 right-8 z-[300] flex items-center bg-[#1E293B] border-l-4 border-[#3B82F6] px-6 py-4 rounded-2xl shadow-2xl animate-in slide-in-from-top-4">
+          <div className="bg-[#3B82F6] text-white p-1.5 rounded-full mr-4 text-[10px]">✓</div>
+          <div>
+            <p className="text-white font-bold text-xs uppercase tracking-widest">Notification</p>
+            <p className="text-gray-400 text-xs">{alert.message}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="flex justify-between items-center mb-10 border-b border-gray-200 pb-8 shrink-0">
         <div>
-          <h2 className="text-3xl font-bold text-[#0A1128] mb-2">Groups & Levels Management</h2>
-          <p className="text-sm text-gray-500">Manage language groups, levels, and classroom assignments</p>
+          <h2 className="text-3xl font-black text-[#0F172A] tracking-tight">Enrollment Management</h2>
+          <p className="text-sm text-slate-500 font-medium">Create and manage academic language groups</p>
         </div>
         <button 
-          onClick={() => setModalView('createCourse')}
-          className="bg-[#2563eb] hover:bg-blue-700 text-white px-6 py-3 rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center cursor-pointer"
+          onClick={() => { setIsEditing(false); setModalView('create'); }}
+          className="bg-[#3B82F6] hover:bg-[#2563EB] text-white px-10 py-4 rounded-[1.2rem] text-sm font-bold shadow-xl shadow-blue-100 transition-all active:scale-95"
         >
-          <span className="mr-2 text-lg">+</span> Add Group
+          + Add New Group
         </button>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm flex-1 flex flex-col min-h-0">
-        <div className="flex justify-between items-center mb-6 shrink-0">
-          <div>
-            <h3 className="font-bold text-[#0A1128] text-lg">Active Groups (3)</h3>
-            <p className="text-xs text-gray-500 mt-1">All currently active language groups in the institute</p>
-          </div>
-        </div>
-
-        <div className="mb-6 relative w-[400px] shrink-0">
-          <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-400">🔍</span>
+      {/* Table Section */}
+      <div className="bg-white border border-slate-100 rounded-[2.5rem] p-8 shadow-sm flex-1 flex flex-col min-h-0">
+        <div className="flex justify-between items-center mb-8">
+          <h3 className="font-bold text-[#0F172A] text-xl">Active Language Groups</h3>
           <input 
-            type="text" 
-            placeholder="Search groups by language, level, or teacher..." 
-            className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 pl-10 pr-4 text-sm outline-none focus:border-blue-500 transition-colors" 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-80 bg-slate-50 border border-slate-200 rounded-2xl py-3.5 px-6 text-sm focus:ring-2 focus:ring-blue-500/20 outline-none" 
+            placeholder="Search by group or language..." 
           />
         </div>
 
-        <div className="overflow-x-auto flex-1 custom-scrollbar border border-gray-100 rounded-xl">
+        <div className="overflow-x-auto flex-1 rounded-3xl border border-slate-50">
           <table className="w-full text-left text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200 text-[#0A1128] font-bold sticky top-0 z-10">
+            <thead className="bg-slate-50/50 text-slate-500 font-bold sticky top-0 uppercase text-[10px] tracking-widest">
               <tr>
-                <th className="py-4 px-6">Group Name</th>
-                <th className="py-4 px-6">Language</th>
-                <th className="py-4 px-6">Level (CEFR)</th>
-                <th className="py-4 px-6">Classroom</th>
-                <th className="py-4 px-6">Teacher</th>
-                <th className="py-4 px-6">Enrollment</th>
-                <th className="py-4 px-6 text-center">Actions</th>
+                <th className="py-6 px-6">Group Info</th>
+                <th className="py-6 px-6">Academic Period</th>
+                <th className="py-6 px-6">Teacher / Room</th>
+                <th className="py-6 px-6">Target</th>
+                <th className="py-6 px-6">Capacity</th>
+                <th className="py-6 px-6 text-center">Manage</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
-              {classesData.map((row, index) => (
-                <tr key={index} className="hover:bg-blue-50/30 transition-colors">
-                  <td className="py-4 px-6 font-bold text-[#0A1128]">{row.group}</td>
-                  <td className="py-4 px-6 font-medium text-blue-600">{row.language}</td>
-                  <td className="py-4 px-6">
-                    <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-xs font-bold border border-gray-200">
-                      {row.level}
-                    </span>
+            <tbody className="divide-y divide-slate-50">
+              {filteredGroups.map((row) => (
+                <tr key={row.id} className="hover:bg-blue-50/20 transition-colors">
+                  <td className="py-6 px-6">
+                    <div className="font-bold text-[#0F172A] text-base">{row.group}</div>
+                    <div className="text-blue-600 font-semibold text-xs">{row.language} • {row.level}</div>
                   </td>
-                  <td className="py-4 px-6 text-gray-600">{row.room}</td>
-                  <td className="py-4 px-6 font-medium text-[#0A1128]">{row.teacher}</td>
-                  <td className="py-4 px-6">
-                    <div className="flex items-center mb-1.5">
-                      <span className="text-gray-400 mr-2 text-sm">👥</span>
-                      <span className="text-xs font-bold text-gray-700">{row.enr}/{row.max}</span>
-                    </div>
-                    <div className="w-24 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                      <div className="h-full bg-[#2563eb] rounded-full" style={{ width: `${(row.enr / row.max) * 100}%` }}></div>
+                  <td className="py-6 px-6">
+                    <div className="text-slate-700 font-medium">{row.startDate}</div>
+                    <div className="text-[10px] text-slate-400 font-bold uppercase">To {row.endDate}</div>
+                  </td>
+                  <td className="py-6 px-6">
+                    <div className="text-slate-700 font-bold">{row.teacher}</div>
+                    <div className="text-xs text-slate-400">{row.room} • {row.duration}</div>
+                  </td>
+                  <td className="py-6 px-6 font-medium text-slate-500">{row.target}</td>
+                  <td className="py-6 px-6">
+                    <div className="flex items-center gap-3">
+                      <div className="w-20 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-blue-500" style={{ width: `${(row.enr / row.max) * 100}%` }}></div>
+                      </div>
+                      <span className="text-[10px] font-black text-slate-400">{row.enr}/{row.max}</span>
                     </div>
                   </td>
-                  <td className="py-4 px-6 text-center space-x-3 text-gray-400">
-                    <button className="hover:text-blue-600 transition-colors text-lg cursor-pointer">✏️</button>
-                    <button className="hover:text-red-600 transition-colors text-lg cursor-pointer">🗑</button>
+                  <td className="py-6 px-6 text-center">
+                    <div className="flex justify-center gap-4">
+                      <button onClick={() => openEdit(row)} className="p-2 hover:bg-blue-50 rounded-xl transition-all cursor-pointer">
+                        <img src="https://img.icons8.com/fluency/48/edit.png" className="w-5 h-5" />
+                      </button>
+                      <button onClick={() => { setSelectedGroup(row); setModalView('confirmDelete'); }} className="p-2 hover:bg-red-50 rounded-xl transition-all cursor-pointer">
+                        <img src="https://img.icons8.com/fluency/48/delete-trash.png" className="w-5 h-5" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -99,148 +159,98 @@ const Enrollment = () => {
         </div>
       </div>
 
-      {/* النافذة الأولى: إضافة مجموعة/دورة لغة جديدة */}
-      {modalView === 'createCourse' && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-          <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl animate-fade-in-up flex flex-col overflow-hidden">
+      {/* MODAL STEP 1: IDENTITY & SAISIR */}
+      {modalView === 'create' && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-md">
+          <div className="w-full max-w-2xl bg-white rounded-[3rem] shadow-2xl p-12 animate-in zoom-in">
+            <h2 className="text-3xl font-black text-[#0F172A] mb-2">{isEditing ? 'Edit Group' : 'New Group Registration'}</h2>
+            <p className="text-sm text-slate-400 mb-10 border-b pb-6 uppercase tracking-widest font-bold">Step 1: Academic Identity</p>
             
-            <div className="flex justify-between items-center p-8 border-b border-gray-100 bg-gray-50/50">
-              <div>
-                <h2 className="text-2xl font-bold text-[#0A1128] mb-1">Create New Language Group</h2>
-                <p className="text-sm text-gray-500">Set up a new learning group and define its level.</p>
+            <form onSubmit={(e) => { e.preventDefault(); setModalView('schedule'); }} className="grid grid-cols-2 gap-8">
+              <div className="col-span-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">Group Name (Saisir)</label>
+                <input required value={formData.group} onChange={(e) => setFormData({...formData, group: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-4.5 text-sm outline-none focus:border-blue-500 transition-all" placeholder="e.g., Groupe 1 - English Intermediate" />
               </div>
-              <button onClick={() => setModalView(null)} className="text-gray-400 hover:text-black text-2xl cursor-pointer">✕</button>
-            </div>
-            
-            <div className="p-8 overflow-y-auto max-h-[80vh] custom-scrollbar">
-              <form onSubmit={handleCreateCourse} className="space-y-6">
-                <div className="grid grid-cols-2 gap-8">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Group Name</label>
-                    <input type="text" required placeholder="e.g., Groupe 1 - English Adultes" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 text-sm outline-none focus:border-[#2563eb] transition-colors" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Language</label>
-                    <select className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 text-sm outline-none focus:border-[#2563eb] cursor-pointer transition-colors">
-                      <option>English</option>
-                      <option>Français</option>
-                      <option>Deutsch</option>
-                      <option>Español</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Level (CEFR)</label>
-                    <select className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 text-sm outline-none focus:border-[#2563eb] cursor-pointer transition-colors">
-                      <option>A1 (Beginner)</option>
-                      <option>A2 (Elementary)</option>
-                      <option>B1 (Intermediate)</option>
-                      <option>B2 (Upper Intermediate)</option>
-                      <option>C1 (Advanced)</option>
-                      <option>C2 (Proficient)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Duration (Weeks)</label>
-                    <input type="text" required placeholder="e.g., 12 Weeks" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 text-sm outline-none focus:border-[#2563eb] transition-colors" />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Assign Teacher</label>
-                  <select className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 text-sm outline-none focus:border-[#2563eb] cursor-pointer transition-colors">
-                    <option>Prof. Nadia</option>
-                    <option>Prof. Hassan</option>
-                    <option>Prof. Karim</option>
-                  </select>
-                </div>
-                
-                <div className="flex space-x-4 pt-6 border-t border-gray-100">
-                  <button type="submit" className="bg-[#2563eb] hover:bg-blue-700 text-white px-8 py-3 rounded-xl text-sm font-bold transition-colors cursor-pointer shadow-sm">
-                    Create Group
-                  </button>
-                  <button type="button" onClick={() => setModalView(null)} className="bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 px-8 py-3 rounded-xl text-sm font-bold transition-colors cursor-pointer">
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">Language</label>
+                <select value={formData.language} onChange={(e) => setFormData({...formData, language: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-4.5 text-sm outline-none">
+                  <option>English</option>
+                  <option>Français</option>
+                  <option>Deutsch</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">CEFR Level</label>
+                <select value={formData.level} onChange={(e) => setFormData({...formData, level: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-4.5 text-sm outline-none">
+                  <option>A1</option><option>A2</option><option>B1</option><option>B2</option><option>C1</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">Total Duration</label>
+                <input required value={formData.duration} onChange={(e) => setFormData({...formData, duration: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-4.5 text-sm outline-none" placeholder="e.g., 10 Weeks" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">Target Group</label>
+                <input value={formData.target} onChange={(e) => setFormData({...formData, target: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-4.5 text-sm outline-none" placeholder="e.g., Kids, Adults, Professionals" />
+              </div>
+              <div className="col-span-2 flex gap-4 pt-6">
+                <button type="submit" className="flex-1 bg-[#3B82F6] text-white py-5 rounded-[1.5rem] font-black shadow-lg">Continue to Scheduling</button>
+                <button type="button" onClick={closeModals} className="px-10 bg-slate-100 text-slate-500 py-5 rounded-[1.5rem] font-bold">Cancel</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
 
-      {/* النافذة الثانية: جدولة الحصص */}
-      {modalView === 'scheduleSession' && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-          <div className="w-full max-w-3xl bg-white rounded-3xl shadow-2xl animate-fade-in flex flex-col overflow-hidden">
+      {/* MODAL STEP 2: LOGISTICS & SAISIR */}
+      {modalView === 'schedule' && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/40 backdrop-blur-md">
+          <div className="w-full max-w-2xl bg-white rounded-[3rem] shadow-2xl p-12 animate-in slide-in-from-bottom duration-300">
+            <h2 className="text-3xl font-black text-[#0F172A] mb-2">Finalize Logistics</h2>
+            <p className="text-sm text-slate-400 mb-10 border-b pb-6 uppercase tracking-widest font-bold">Step 2: Dates, Teacher & Venue</p>
             
-            <div className="flex justify-between items-center p-8 border-b border-gray-100 bg-gray-50/50">
+            <form onSubmit={handleFinish} className="grid grid-cols-2 gap-8">
               <div>
-                <h2 className="text-2xl font-bold text-[#0A1128] mb-1">Schedule Language Session</h2>
-                <p className="text-sm text-gray-500">Set the timetable and classroom for this group.</p>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">Start Date</label>
+                <input required type="date" value={formData.startDate} onChange={(e) => setFormData({...formData, startDate: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-4.5 text-sm outline-none" />
               </div>
-              <button onClick={() => setModalView(null)} className="text-gray-400 hover:text-black text-2xl cursor-pointer">✕</button>
-            </div>
-            
-            <div className="p-8 overflow-y-auto max-h-[80vh] custom-scrollbar">
-              <form onSubmit={handleScheduleSession} className="space-y-6">
-                <div className="grid grid-cols-2 gap-8">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Session Type</label>
-                    <select className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 text-sm outline-none focus:border-[#2563eb] cursor-pointer transition-colors">
-                      <option>Regular Class</option>
-                      <option>Conversation Club</option>
-                      <option>Placement Test</option>
-                      <option>Final Exam</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Target Group</label>
-                    <select className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 text-sm outline-none focus:border-[#2563eb] cursor-pointer transition-colors">
-                      <option>Groupe 1 - Débutant (A1)</option>
-                      <option>Group 3 - Intermediate (B1)</option>
-                    </select>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Teacher</label>
-                    <select className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 text-sm outline-none focus:border-[#2563eb] cursor-pointer transition-colors">
-                      <option>Prof. Hassan</option>
-                      <option>Prof. Nadia</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Classroom / Lab</label>
-                    <select className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 text-sm outline-none focus:border-[#2563eb] cursor-pointer transition-colors">
-                      <option>Salle 05</option>
-                      <option>Lab 02 (Audio)</option>
-                      <option>Salle de Conférence</option>
-                    </select>
-                  </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">End Date</label>
+                <input required type="date" value={formData.endDate} onChange={(e) => setFormData({...formData, endDate: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-4.5 text-sm outline-none" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">Assign Teacher</label>
+                <select value={formData.teacher} onChange={(e) => setFormData({...formData, teacher: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-4.5 text-sm outline-none">
+                  <option>Prof. Hassan</option><option>Prof. Nadia</option><option>Prof. Karim</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">Room No.</label>
+                <select value={formData.room} onChange={(e) => setFormData({...formData, room: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-4.5 text-sm outline-none">
+                  <option>Salle 05</option><option>Salle 12</option><option>Lab 02</option>
+                </select>
+              </div>
+              <div className="col-span-2 flex gap-4 pt-6">
+                <button type="submit" className="flex-1 bg-[#3B82F6] text-white py-5 rounded-[1.5rem] font-black shadow-lg">
+                  {isEditing ? 'Save All Changes' : 'Activate Group Now'}
+                </button>
+                <button type="button" onClick={() => setModalView('create')} className="px-10 bg-slate-100 text-slate-500 py-5 rounded-[1.5rem] font-bold">Go Back</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
-                  <div>
-                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Date</label>
-                    <input type="date" required className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 text-sm outline-none focus:border-[#2563eb] transition-colors" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Start Time</label>
-                      <input type="time" required className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 text-sm outline-none focus:border-[#2563eb] transition-colors" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">End Time</label>
-                      <input type="time" required className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 text-sm outline-none focus:border-[#2563eb] transition-colors" />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex space-x-4 pt-6 border-t border-gray-100">
-                  <button type="submit" className="bg-[#2563eb] hover:bg-blue-700 text-white px-8 py-3 rounded-xl text-sm font-bold transition-colors cursor-pointer shadow-sm">
-                    Schedule Session
-                  </button>
-                  <button type="button" onClick={() => setModalView(null)} className="bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 px-8 py-3 rounded-xl text-sm font-bold transition-colors cursor-pointer">
-                    Cancel
-                  </button>
-                </div>
-              </form>
+      {/* BLUE CONFIRMATION MODAL FOR DELETE */}
+      {modalView === 'confirmDelete' && (
+        <div className="fixed inset-0 z-[250] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
+          <div className="w-full max-w-sm bg-white rounded-[2.5rem] shadow-2xl p-10 text-center animate-in zoom-in">
+            <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6 text-3xl font-black italic">!</div>
+            <h3 className="text-2xl font-black text-[#0F172A] mb-3">Delete Group?</h3>
+            <p className="text-sm text-slate-400 mb-10 leading-relaxed">You are about to remove <span className="font-bold text-slate-900">{selectedGroup?.group}</span> from the academic database.</p>
+            <div className="flex flex-col gap-3">
+              <button onClick={handleDelete} className="w-full bg-blue-600 text-white py-4.5 rounded-2xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-100">Confirm Deletion</button>
+              <button onClick={() => setModalView(null)} className="w-full bg-slate-100 text-slate-500 py-4.5 rounded-2xl font-bold">Cancel</button>
             </div>
           </div>
         </div>

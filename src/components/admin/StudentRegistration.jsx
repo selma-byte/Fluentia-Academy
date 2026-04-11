@@ -3,6 +3,11 @@ import React, { useState, useEffect } from 'react';
 const StudentRegistration = () => {
   const [currentView, setCurrentView] = useState('list');
   const [selectedStudent, setSelectedStudent] = useState(null);
+  
+  // Custom Modal & Alert States
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [studentToDelete, setStudentToDelete] = useState(null);
+  const [alert, setAlert] = useState({ show: false, message: '' });
 
   // 1. حالات الفلترة والبحث
   const [searchQuery, setSearchQuery] = useState('');
@@ -71,10 +76,22 @@ const StudentRegistration = () => {
     setCurrentView('profile');
   };
 
-  const handleDelete = (id) => {
-    if (window.confirm('Are you sure you want to delete this student?')) {
-      setStudentsData(studentsData.filter(s => s.id !== id));
-    }
+  // Modern Blue Alert Trigger
+  const triggerAlert = (msg) => {
+    setAlert({ show: true, message: msg });
+    setTimeout(() => setAlert({ show: false, message: '' }), 3000);
+  };
+
+  const handleDeleteClick = (student) => {
+    setStudentToDelete(student);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = () => {
+    setStudentsData(studentsData.filter(s => s.id !== studentToDelete.id));
+    setShowDeleteModal(false);
+    triggerAlert(`Student ${studentToDelete.firstName} deleted successfully.`);
+    setStudentToDelete(null);
   };
 
   const handleSave = (e) => {
@@ -82,15 +99,55 @@ const StudentRegistration = () => {
     if (currentView === 'add') {
       const newStudent = { ...formData, id: `STU-${Date.now()}`, status: 'Active', enrollmentDate: new Date().toISOString().split('T')[0] };
       setStudentsData([...studentsData, newStudent]);
+      triggerAlert("New student added successfully!");
     } else if (currentView === 'edit') {
       setStudentsData(studentsData.map(s => s.id === selectedStudent.id ? { ...s, ...formData } : s));
+      triggerAlert("Student profile updated.");
     }
     setCurrentView('list');
   };
 
   const renderList = () => (
-    <div className="w-full flex flex-col h-full bg-white p-8 animate-fade-in">
+    <div className="w-full flex flex-col h-full bg-white p-8 animate-fade-in relative">
       
+      {/* MODERN BLUE SYSTEM NOTIFICATION */}
+      {alert.show && (
+        <div className="fixed top-8 right-8 z-[1000] flex items-center bg-[#1E293B] border-l-4 border-[#3B82F6] px-6 py-4 rounded-2xl shadow-2xl animate-in slide-in-from-top-4">
+          <div className="bg-[#3B82F6] text-white p-1.5 rounded-full mr-4 text-[10px]">✓</div>
+          <div>
+            <p className="text-white font-bold text-xs uppercase tracking-widest">System Update</p>
+            <p className="text-gray-400 text-xs">{alert.message}</p>
+          </div>
+        </div>
+      )}
+
+      {/* MODERN BLUE DELETE CONFIRMATION */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-[900] flex items-center justify-center bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="w-full max-w-sm bg-white rounded-[2.5rem] shadow-2xl p-10 text-center animate-in zoom-in duration-200">
+            <div className="w-20 h-20 bg-blue-50 text-[#3B82F6] rounded-full flex items-center justify-center mx-auto mb-6 text-3xl font-black italic">!</div>
+            <h3 className="text-2xl font-black text-[#0A1128] mb-3">Delete Student?</h3>
+            <p className="text-sm text-gray-500 mb-10 leading-relaxed px-4">
+              Remove <span className="font-bold text-[#0A1128]">{studentToDelete?.firstName} {studentToDelete?.lastName}</span> from the database?
+            </p>
+            <div className="flex flex-col gap-3">
+              <button 
+                onClick={confirmDelete} 
+                className="w-full bg-[#3B82F6] text-white py-4 rounded-2xl font-bold hover:bg-blue-600 shadow-lg shadow-blue-100 transition-all active:scale-95"
+              >
+                Confirm Deletion
+              </button>
+              <button 
+                onClick={() => setShowDeleteModal(false)} 
+                className="w-full bg-gray-100 text-gray-500 py-4 rounded-2xl font-bold hover:bg-gray-200 transition-all"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex justify-between items-center mb-8 shrink-0">
         <div>
@@ -104,8 +161,6 @@ const StudentRegistration = () => {
 
       {/* Search & Filters */}
       <div className="flex flex-wrap items-center gap-4 mb-6 shrink-0 bg-gray-50 p-4 rounded-xl border border-gray-100">
-        
-        {/* Search Bar */}
         <div className="relative flex-1 min-w-[250px]">
           <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">🔍</span>
           <input 
@@ -117,7 +172,6 @@ const StudentRegistration = () => {
           />
         </div>
 
-        {/* Dropdown Filters */}
         <select value={filterLang} onChange={(e) => setFilterLang(e.target.value)} className="bg-white border border-gray-200 text-sm rounded-lg px-4 py-2.5 outline-none focus:border-blue-500 font-bold text-gray-600 cursor-pointer">
           <option value="All"> All Languages</option>
           <option value="English">English</option>
@@ -140,7 +194,6 @@ const StudentRegistration = () => {
           <option value="Grp 3">Grp 3</option>
         </select>
 
-        {/* Clear Filters Button */}
         {(filterLang !== 'All' || filterLevel !== 'All' || filterGroup !== 'All' || searchQuery !== '') && (
           <button 
             onClick={() => { setFilterLang('All'); setFilterLevel('All'); setFilterGroup('All'); setSearchQuery(''); }}
@@ -180,7 +233,7 @@ const StudentRegistration = () => {
                 <td className="py-4 px-6 flex justify-center space-x-4">
                   <button onClick={() => handleViewProfile(student)} className="text-gray-400 hover:text-blue-600 transition-colors cursor-pointer text-lg" title="View Profile">👁️</button>
                   <button onClick={() => handleEditClick(student)} className="text-gray-400 hover:text-orange-500 transition-colors cursor-pointer text-lg" title="Edit">✏️</button>
-                  <button onClick={() => handleDelete(student.id)} className="text-gray-400 hover:text-red-600 transition-colors cursor-pointer text-lg" title="Delete">🗑</button>
+                  <button onClick={() => handleDeleteClick(student)} className="text-gray-400 hover:text-red-600 transition-colors cursor-pointer text-lg" title="Delete">🗑</button>
                 </td>
               </tr>
             )) : (

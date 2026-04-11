@@ -4,6 +4,13 @@ const Payment = () => {
   // حالات للتحكم في ظهور النوافذ المنبثقة
   const [showAddPaymentModal, setShowAddPaymentModal] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+
+  // --- Utility: Custom Notification Logic ---
+  const showToast = (message, type = 'success') => {
+    setToast({ show: true, message, type });
+    setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 4000);
+  };
 
   const paymentHistory = [
     { date: "Mar 27, 2026", member: "Carlos Rodriguez", amount: "3000 دج", status: "Paid", method: "GCash", notes: "English b2" },
@@ -16,6 +23,24 @@ const Payment = () => {
   return (
     <div className="flex-1 overflow-y-auto bg-white p-8 custom-scrollbar relative">
       
+      {/* --- Beautiful Notification Alert --- */}
+      {toast.show && (
+        <div className="fixed top-10 right-10 z-[100] animate-in slide-in-from-right-8 duration-500">
+          <div className="bg-[#0A1128] backdrop-blur-xl border-l-4 border-pink-500 p-6 rounded-2xl shadow-2xl flex items-center gap-4 min-w-[320px]">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${
+              toast.type === 'success' ? 'bg-pink-500/20 text-pink-500' : 'bg-orange-500/20 text-orange-500'
+            }`}>
+              {toast.type === 'success' ? '✨' : '⚠️'}
+            </div>
+            <div>
+              <p className="text-[9px] font-black text-pink-400 uppercase tracking-widest mb-0.5 italic">System Notification</p>
+              <p className="text-white font-bold italic text-sm">{toast.message}</p>
+            </div>
+            <button onClick={() => setToast({ ...toast, show: false })} className="ml-auto text-white/20 hover:text-white">✕</button>
+          </div>
+        </div>
+      )}
+
       {/* =========================================
           1. محتوى صفحة الدفع الرئيسية
           ========================================= */}
@@ -257,7 +282,16 @@ const Payment = () => {
 
             <div className="p-5 border-t border-gray-100 flex justify-end gap-3 bg-white rounded-b-2xl">
               <button onClick={() => setShowAddPaymentModal(false)} className="px-5 py-2.5 rounded-lg text-sm font-bold text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer">Cancel</button>
-              <button onClick={() => {setShowAddPaymentModal(false); setShowReceiptModal(true);}} className="px-5 py-2.5 rounded-lg text-sm font-bold bg-[#0A1128] text-white hover:bg-slate-800 transition-colors cursor-pointer">Record Payment</button>
+              <button 
+                onClick={() => {
+                  setShowAddPaymentModal(false); 
+                  setShowReceiptModal(true);
+                  showToast("Payment recorded successfully!", "success");
+                }} 
+                className="px-5 py-2.5 rounded-lg text-sm font-bold bg-[#0A1128] text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                Record Payment
+              </button>
             </div>
           </div>
         </div>
@@ -274,7 +308,7 @@ const Payment = () => {
             <button onClick={() => setShowReceiptModal(false)} className="absolute top-5 right-5 text-gray-400 hover:text-gray-800 font-bold text-xl cursor-pointer">✕</button>
 
             <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-6 shadow-sm border-4 border-white -mt-12">
-               <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center text-white text-xl font-bold">✓</div>
+                <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center text-white text-xl font-bold">✓</div>
             </div>
 
             <h2 className="text-2xl font-bold text-[#0A1128] mb-2">Payment Success!</h2>
@@ -283,8 +317,8 @@ const Payment = () => {
             <hr className="border-gray-200 mb-6" />
 
             <div className="mb-6">
-               <p className="text-xs text-gray-500 font-medium uppercase tracking-widest mb-1">Total Payment</p>
-               <h1 className="text-3xl font-black text-[#0A1128]">DZ 1,000,000</h1>
+                <p className="text-xs text-gray-500 font-medium uppercase tracking-widest mb-1">Total Payment</p>
+                <h1 className="text-3xl font-black text-[#0A1128]">DZ 1,000,000</h1>
             </div>
 
             <div className="grid grid-cols-2 gap-3 text-left mb-8">
@@ -306,7 +340,10 @@ const Payment = () => {
                </div>
             </div>
 
-            <button onClick={() => alert("Downloading PDF...")} className="flex items-center justify-center w-full py-3 rounded-xl bg-gray-50 text-[#0A1128] font-bold text-sm hover:bg-gray-100 transition-colors border border-gray-200 cursor-pointer">
+            <button 
+              onClick={() => showToast("Downloading Receipt...", "success")} 
+              className="flex items-center justify-center w-full py-3 rounded-xl bg-gray-50 text-[#0A1128] font-bold text-sm hover:bg-gray-100 transition-colors border border-gray-200 cursor-pointer"
+            >
               <span className="mr-2 text-lg">📥</span> Get PDF Receipt
             </button>
             

@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 
 const Reports = () => {
-  const [reportView, setReportView] = useState('main'); // 'main', 'attendance', 'finance', 'exams', 'teachers'
+  const [reportView, setReportView] = useState('main'); // 'main', 'attendance', 'finance', 'exams', 'teachers', 'growth'
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
 
   // --- Utility: Custom Notification Logic ---
@@ -43,14 +43,21 @@ const Reports = () => {
   ];
 
   const examPerformance = [
-    { subject: 'Grammar', score: 85 },
-    { subject: 'Speaking', score: 70 },
-    { subject: 'Writing', score: 90 },
-    { subject: 'Listening', score: 65 },
-    { subject: 'Vocabulary', score: 80 },
+    { subject: 'Grammar', score: 85, fullMark: 100 },
+    { subject: 'Speaking', score: 70, fullMark: 100 },
+    { subject: 'Writing', score: 90, fullMark: 100 },
+    { subject: 'Listening', score: 65, fullMark: 100 },
+    { subject: 'Vocabulary', score: 80, fullMark: 100 },
   ];
 
-  const COLORS = ['#1A2252', '#EC4899', '#8B5CF6', '#3B82F6']; // Navy, Pink, Purple, Blue
+  const growthData = [
+    { month: 'Jan', registrations: 40, completions: 20 },
+    { month: 'Feb', registrations: 55, completions: 35 },
+    { month: 'Mar', registrations: 75, completions: 50 },
+    { month: 'Apr', registrations: 90, completions: 65 },
+  ];
+
+  const COLORS = ['#1A2252', '#EC4899', '#8B5CF6', '#3B82F6'];
 
   // --- Shared Components ---
   const Header = ({ title, onBack, exportName }) => (
@@ -86,7 +93,6 @@ const Reports = () => {
         <StatItem title="Critical" value="08" icon="⚠️" color="text-red-500" />
         <StatItem title="Top Group" value="ENG-B1" icon="💎" color="text-[#1A2252]" />
       </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <ChartCard title="Weekly Presence Trends" onExport={() => showToast("Downloading Trends...")}>
           <ResponsiveContainer width="100%" height="100%">
@@ -98,7 +104,6 @@ const Reports = () => {
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
-
         <ChartCard title="Language Distribution" onExport={() => showToast("Downloading Language Data...")}>
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
@@ -122,7 +127,6 @@ const Reports = () => {
         <StatItem title="Payroll" value="450k دج" icon="💸" color="text-[#1A2252]" />
         <StatItem title="Profit" value="640k دج" icon="🏦" color="text-blue-500" />
       </div>
-
       <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-gray-100 mb-8 h-96">
         <h3 className="font-black text-[#1A2252] italic text-lg mb-8 uppercase">Cash Flow Analysis</h3>
         <ResponsiveContainer width="100%" height="80%">
@@ -142,7 +146,6 @@ const Reports = () => {
   const renderTeacherReport = () => (
     <div className="animate-in fade-in slide-in-from-right-10 duration-700">
       <Header title="Faculty Analytics" onBack={() => setReportView('main')} exportName="Teacher_Performance" />
-      
       <div className="grid gap-4">
         {teacherStats.map((teacher, i) => (
           <div key={i} className="group bg-white p-6 rounded-[2.5rem] border-2 border-gray-50 hover:border-pink-200 transition-all flex items-center justify-between shadow-sm">
@@ -155,7 +158,6 @@ const Reports = () => {
                 <p className="text-[10px] text-pink-500 font-black uppercase tracking-widest">{teacher.status}</p>
               </div>
             </div>
-
             <div className="flex gap-12 text-right">
               <div>
                 <p className="text-[9px] font-black text-gray-400 uppercase italic">Rating</p>
@@ -165,15 +167,59 @@ const Reports = () => {
                 <p className="text-[9px] font-black text-gray-400 uppercase italic">Attendance</p>
                 <p className="font-black text-[#1A2252]">{teacher.attendance}</p>
               </div>
-              <button 
-                onClick={() => showToast(`View details for ${teacher.name}`)}
-                className="bg-gray-50 p-4 rounded-2xl hover:bg-pink-50 transition-colors"
-              >
-                📈
-              </button>
+              <button onClick={() => showToast(`View details for ${teacher.name}`)} className="bg-gray-50 p-4 rounded-2xl hover:bg-pink-50 transition-colors">📈</button>
             </div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+
+  // NEW: Exams Interface
+  const renderExamsReport = () => (
+    <div className="animate-in fade-in slide-in-from-right-10 duration-700">
+      <Header title="Examination Insights" onBack={() => setReportView('main')} exportName="Exam_Results" />
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+        <StatItem title="Success Rate" value="84%" icon="🎓" color="text-blue-500" />
+        <StatItem title="Average Score" value="78/100" icon="📝" color="text-purple-500" />
+        <StatItem title="Top Subject" value="Writing" icon="🔥" color="text-pink-500" />
+        <StatItem title="Exams Taken" value="1,240" icon="📂" color="text-[#1A2252]" />
+      </div>
+      <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-gray-100 h-[500px]">
+        <h3 className="font-black text-[#1A2252] italic text-lg mb-8 uppercase">Proficiency Radar</h3>
+        <ResponsiveContainer width="100%" height="90%">
+          <RadarChart cx="50%" cy="50%" outerRadius="80%" data={examPerformance}>
+            <PolarGrid stroke="#f1f5f9" />
+            <PolarAngleAxis dataKey="subject" tick={{ fill: '#1A2252', fontWeight: 'bold', fontSize: 12 }} />
+            <Radar name="Student Avg" dataKey="score" stroke="#EC4899" fill="#EC4899" fillOpacity={0.6} />
+            <Tooltip />
+          </RadarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+
+  // NEW: Growth Interface
+  const renderGrowthReport = () => (
+    <div className="animate-in fade-in slide-in-from-right-10 duration-700">
+      <Header title="Growth & Retention" onBack={() => setReportView('main')} exportName="Growth_Report" />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+        <StatItem title="New Leads" value="+124" icon="🚀" color="text-green-500" />
+        <StatItem title="Retention" value="92%" icon="🔄" color="text-blue-500" />
+        <StatItem title="Capacity" value="78%" icon="🏢" color="text-pink-500" />
+      </div>
+      <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-gray-100 h-96">
+        <h3 className="font-black text-[#1A2252] italic text-lg mb-8 uppercase">Registration vs Completion</h3>
+        <ResponsiveContainer width="100%" height="80%">
+          <LineChart data={growthData}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+            <XAxis dataKey="month" axisLine={false} tickLine={false} />
+            <YAxis axisLine={false} tickLine={false} />
+            <Tooltip />
+            <Line type="step" dataKey="registrations" stroke="#1A2252" strokeWidth={4} dot={{ r: 6, fill: '#1A2252' }} />
+            <Line type="monotone" dataKey="completions" stroke="#EC4899" strokeWidth={4} dot={{ r: 6, fill: '#EC4899' }} />
+          </LineChart>
+        </ResponsiveContainer>
       </div>
     </div>
   );
@@ -184,20 +230,18 @@ const Reports = () => {
         <h2 className="text-6xl font-black text-[#1A2252] mb-3 italic tracking-tighter uppercase">Reports Center</h2>
         <p className="text-gray-400 font-bold italic text-lg">Detailed school analytics and data export portal.</p>
       </div>
-
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         <ReportCard title="Attendance" desc="Student presence trends and group consistency." icon="📊" color="bg-[#1A2252]" onClick={() => setReportView('attendance')} />
         <ReportCard title="Financials" desc="Analyze school revenue, pending fees, and payroll." icon="💰" color="bg-pink-500" onClick={() => setReportView('finance')} />
         <ReportCard title="Teachers" desc="Performance metrics and feedback reports." icon="👩‍🏫" color="bg-purple-500" onClick={() => setReportView('teachers')} />
-        <ReportCard title="Exams" desc="Success rates and proficiency levels." icon="✍️" color="bg-blue-500" onClick={() => showToast("Exam analytics loading...")} />
-        <ReportCard title="Growth" desc="New registrations vs. course completions." icon="📈" color="bg-green-500" onClick={() => showToast("Growth metrics loading...")} />
+        <ReportCard title="Exams" desc="Success rates and proficiency levels." icon="✍️" color="bg-blue-500" onClick={() => setReportView('exams')} />
+        <ReportCard title="Growth" desc="New registrations vs. course completions." icon="📈" color="bg-green-500" onClick={() => setReportView('growth')} />
       </div>
     </div>
   );
 
   return (
     <div className="h-full pb-20 p-4 relative">
-      {/* --- Beautiful Notification Alert --- */}
       {toast.show && (
         <div className="fixed top-10 right-10 z-[100] animate-in slide-in-from-right-8 duration-500">
           <div className="bg-[#1A2252] backdrop-blur-xl border-l-4 border-pink-500 p-6 rounded-2xl shadow-2xl flex items-center gap-4 min-w-[320px]">
@@ -219,12 +263,13 @@ const Reports = () => {
       {reportView === 'attendance' && renderAttendanceDetail()}
       {reportView === 'finance' && renderFinanceDetail()}
       {reportView === 'teachers' && renderTeacherReport()}
+      {reportView === 'exams' && renderExamsReport()}
+      {reportView === 'growth' && renderGrowthReport()}
     </div>
   );
 };
 
 // --- Helper Components ---
-
 const StatItem = ({ title, value, icon, color }) => (
   <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-50 flex items-center gap-5 hover:shadow-md transition-shadow">
     <div className="w-14 h-14 bg-gray-50 rounded-2xl flex items-center justify-center text-2xl shadow-inner">{icon}</div>

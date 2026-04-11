@@ -4,6 +4,7 @@ const Documents = () => {
   const [activeTab, setActiveTab] = useState('All');
   const [selectedDocId, setSelectedDocId] = useState('enrollment');
   const [isGenerated, setIsGenerated] = useState(false);
+  const [docSearchQuery, setDocSearchQuery] = useState(''); // Search for the list
 
   const [formData, setFormData] = useState({
     searchQuery: '',
@@ -17,7 +18,6 @@ const Documents = () => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  // قائمة المستندات الكاملة
   const documentsList = [
     { id: 'enrollment', category: 'ACADEMIC DOCUMENTS', title: 'Enrollment Certificate', desc: 'Official certificate confirming student enrollment', target: 'Student' },
     { id: 'completion', category: 'ACADEMIC DOCUMENTS', title: 'Level Completion Certificate', desc: 'Certificate for completed language level', target: 'Student' },
@@ -32,10 +32,13 @@ const Documents = () => {
     { id: 'payslip', category: 'FACULTY DOCUMENTS', title: 'Payslip', desc: 'Monthly salary statement and breakdown', target: 'Faculty' },
   ];
 
-  // التصفية: إذا كان التبويب All، اعرض كل شيء. وإلا اعرض ما يطابق التبويب
-  const filteredDocs = activeTab === 'All' ? documentsList : documentsList.filter(doc => doc.target === activeTab);
+  // Logic for filtering the list by Tab AND Search Bar
+  const filteredDocs = documentsList.filter(doc => {
+    const matchesTab = activeTab === 'All' || doc.target === activeTab;
+    const matchesSearch = doc.title.toLowerCase().includes(docSearchQuery.toLowerCase());
+    return matchesTab && matchesSearch;
+  });
 
-  // التجميع حسب الفئة
   const groupedDocs = filteredDocs.reduce((acc, doc) => {
     if (!acc[doc.category]) acc[doc.category] = [];
     acc[doc.category].push(doc);
@@ -54,15 +57,19 @@ const Documents = () => {
     setIsGenerated(true);
   };
 
+  const handlePrint = () => {
+    window.print();
+  };
+
   const renderPreview = () => {
     if (selectedDocId === 'completion') {
       return (
          <div className="bg-[#f0ebe1] p-10 outline outline-[12px] outline-[#e6decb] shadow-xl w-full max-w-2xl mx-auto flex flex-col items-center text-center">
             <div className="border border-[#c2b28f] w-full h-full p-8 flex flex-col items-center justify-center">
-                <p className="font-serif italic text-gray-600 mb-1" style={{fontFamily: "'Playfair Display', serif"}}>Company Name</p>
+                <p className="font-serif italic text-gray-600 mb-1">Company Name</p>
                 <p className="text-xs tracking-widest text-gray-500 mb-8 uppercase">The Course or Training Module Name</p>
-                <h1 className="text-4xl font-serif text-black tracking-wider mb-2" style={{fontFamily: "'Playfair Display', serif"}}>CERTIFICATE</h1>
-                <h2 className="text-2xl font-serif text-black mb-8" style={{fontFamily: "'Playfair Display', serif"}}>OF COMPLETION</h2>
+                <h1 className="text-4xl font-serif text-black tracking-wider mb-2">CERTIFICATE</h1>
+                <h2 className="text-2xl font-serif text-black mb-8">OF COMPLETION</h2>
                 <p className="text-sm text-gray-700 mb-6 max-w-md mx-auto font-medium">Our company is pleased<br/>to be able to award this certificate to</p>
                 <h3 className="text-4xl italic text-black mb-6 border-b border-gray-400 pb-2 w-3/4 mx-auto" style={{fontFamily: "'Great Vibes', cursive"}}>
                   {formData.fullName || 'Era Reichert'}
@@ -138,7 +145,7 @@ const Documents = () => {
              <p><span className="font-bold">Payment Date:</span> {formData.date || 'January 15, 2050'}</p>
            </div>
            <p className="text-xs text-gray-600 mt-12 border-t border-gray-200 pt-4">
-             Thank you for your payment. For any further inquiries, please contact us at <strong>[YOUR EMAIL]</strong> or call <strong>[YOUR COMPANY NUMBER]</strong>.
+             Thank you for your payment. For any further inquiries, please contact us at <strong>[YOUR EMAIL]</strong>.
            </p>
         </div>
       );
@@ -151,9 +158,6 @@ const Documents = () => {
                 <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center text-blue-800 font-bold text-xs shadow-inner">Logo</div>
                 <div className="text-center">
                    <p className="text-[10px] font-bold text-gray-600 uppercase">Department of Education</p>
-                   <p className="text-[9px] text-gray-500 uppercase">Region IX, Zamboanga Peninsula</p>
-                   <p className="text-[9px] text-gray-500 uppercase">Division of Zamboanga City</p>
-                   <p className="text-[9px] text-gray-500 uppercase">Ayala District</p>
                    <p className="text-xs font-bold text-black uppercase mt-1">TULUNGATUNG ELEMENTARY SCHOOL</p>
                    <p className="text-[9px] text-gray-500">Zamboanga City</p>
                 </div>
@@ -161,13 +165,10 @@ const Documents = () => {
             </div>
             <h2 className="text-xl font-bold tracking-widest mb-12 uppercase">CERTIFICATE OF ENROLMENT</h2>
             <p className="text-sm leading-relaxed text-justify mb-6">
-                This is to certify that <strong>{formData.fullName ? formData.fullName.toUpperCase() : 'CORONEL, MICHAELA BIALILLA'}</strong> with <span className="underline font-bold">LRN: 126098150022</span> is officially enrolled in GRADE VI-RIZADA at Tulungatung Elementary School, Cawit District, Zamboanga City Division, School Year 2022-2023.
-            </p>
-            <p className="text-sm leading-relaxed text-justify mb-6">
-                This certification is issued upon request purposely to avail the DSWD Educational Assistance.
+                This is to certify that <strong>{formData.fullName ? formData.fullName.toUpperCase() : 'CORONEL, MICHAELA BIALILLA'}</strong> is officially enrolled.
             </p>
             <p className="text-sm leading-relaxed text-justify mb-16">
-               Issued on this {formData.date ? formData.date : '26th day of August, 2022'} at Tulungatung Elementary School, Tulungatung, Zamboanga City, Philippines.
+               Issued on this {formData.date ? formData.date : '26th day of August, 2022'}.
             </p>
             <div className="flex justify-end mb-12">
                <div className="text-center">
@@ -175,24 +176,17 @@ const Documents = () => {
                   <p className="text-xs text-gray-600">Adviser</p>
                </div>
             </div>
-            <div className="text-left mt-8">
-               <p className="text-xs mb-4">Noted by:</p>
-               <p className="font-bold text-sm">ZOSIMO T. BEIRA JR.</p>
-               <p className="text-xs text-gray-600">ESHT IV</p>
-            </div>
         </div>
       );
     }
      
      return (
         <div className="bg-white p-12 shadow-xl w-full max-w-2xl mx-auto border border-gray-200">
-           <h2 className="text-2xl font-bold text-center mb-8 border-b pb-4">{selectedDocDetails.title}</h2>
-           <p className="mb-4"><span className="font-bold">Name:</span> {formData.fullName || '[Student Name]'}</p>
-           <p className="mb-4"><span className="font-bold">Course/Level:</span> {formData.courseLevel || '[Course Level]'}</p>
+           <h2 className="text-2xl font-bold text-center mb-8 border-b pb-4">{selectedDocDetails?.title}</h2>
+           <p className="mb-4"><span className="font-bold">Name:</span> {formData.fullName || '[Name]'}</p>
            <p className="mb-8"><span className="font-bold">Date:</span> {formData.date || '[Date]'}</p>
            <div className="p-6 bg-gray-50 border-l-4 border-blue-600 text-gray-600 italic">
-              This is a generated placeholder for {selectedDocDetails.title}. 
-              The official template details will be rendered here.
+              Official template placeholder for {selectedDocDetails?.title}.
            </div>
         </div>
      );
@@ -200,17 +194,19 @@ const Documents = () => {
 
   return (
     <div className="animate-fade-in w-full flex flex-col relative text-[#0A1128] bg-gray-50 min-h-[700px]">
-      
-      {/* Layout Main Container */}
       <div className="flex w-full h-[800px] shadow-sm rounded-xl overflow-hidden border border-gray-200">
          
-         {/* ========== Left Sidebar (Document List) ========== */}
          <div className="w-[340px] bg-white border-r border-gray-200 flex flex-col h-full shrink-0">
-            
             <div className="p-6 pb-2 shrink-0">
                <div className="relative mb-6">
                   <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">🔍</span>
-                  <input type="text" placeholder="Search documents..." className="w-full bg-gray-100 border-none rounded-full py-2.5 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-blue-100 transition-all" />
+                  <input 
+                    type="text" 
+                    placeholder="Search documents..." 
+                    value={docSearchQuery}
+                    onChange={(e) => setDocSearchQuery(e.target.value)}
+                    className="w-full bg-gray-100 border-none rounded-full py-2.5 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-blue-100 transition-all" 
+                  />
                </div>
 
                <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg w-full mb-4">
@@ -226,7 +222,6 @@ const Documents = () => {
                </div>
             </div>
 
-            {/* هنا يكمن السر: قمنا بتثبيت ارتفاع القائمة لتسمح بالتمرير (Scroll) */}
             <div className="overflow-y-auto flex-1 custom-scrollbar px-4 pb-4">
                {Object.keys(groupedDocs).map((category) => (
                   <div key={category} className="mb-6">
@@ -237,13 +232,13 @@ const Documents = () => {
                               key={doc.id}
                               onClick={() => handleSelectDoc(doc.id)}
                               className={`w-full text-left p-3 rounded-xl transition-all flex items-start ${
-                                 selectedDocId === doc.id 
+                                  selectedDocId === doc.id 
                                     ? 'bg-[#2563eb] text-white shadow-md' 
                                     : 'bg-transparent text-[#0A1128] hover:bg-gray-50'
                               }`}
                            >
                               <div className={`mr-3 mt-0.5 w-5 h-5 flex items-center justify-center opacity-80 ${selectedDocId === doc.id ? 'text-white' : 'text-blue-600'}`}>
-                                 📄 
+                                  📄 
                               </div>
                               <div>
                                  <p className={`font-bold text-xs mb-0.5 ${selectedDocId === doc.id ? 'text-white' : 'text-[#0A1128]'}`}>
@@ -261,52 +256,55 @@ const Documents = () => {
             </div>
          </div>
 
-         {/* ========== Right Side (Form & Preview) ========== */}
          <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#f4f7f6]"> 
-            
-            {/* Header Top Buttons */}
             <div className="flex justify-between items-center p-4 border-b border-gray-200 bg-white shrink-0">
                <div>
                   <h2 className="text-xl font-bold text-[#0A1128] mb-1">Document Center</h2>
                </div>
                <div className="flex space-x-3">
-                  <button disabled={!isGenerated} className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center ${isGenerated ? 'bg-[#eff6ff] text-[#2563eb] hover:bg-blue-100 border border-blue-200 shadow-sm' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
+                  <button 
+                    onClick={handlePrint}
+                    disabled={!isGenerated} 
+                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center ${isGenerated ? 'bg-[#eff6ff] text-[#2563eb] hover:bg-blue-100 border border-blue-200 shadow-sm' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
+                  >
                      <span className="mr-2">📥</span> Export PDF
                   </button>
-                  <button disabled={!isGenerated} className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center ${isGenerated ? 'bg-[#eff6ff] text-[#2563eb] hover:bg-blue-100 border border-blue-200 shadow-sm' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
+                  <button 
+                    onClick={handlePrint}
+                    disabled={!isGenerated} 
+                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center ${isGenerated ? 'bg-[#eff6ff] text-[#2563eb] hover:bg-blue-100 border border-blue-200 shadow-sm' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
+                  >
                      <span className="mr-2">🖨️</span> Print
                   </button>
                </div>
             </div>
 
             <div className="flex-1 flex overflow-hidden">
-               
-               {/* --- Center: Form Column --- */}
                <div className="w-1/2 min-w-[400px] border-r border-gray-200 bg-white p-10 flex flex-col overflow-y-auto custom-scrollbar">
-                  
                   <div className="mb-8">
                      <h2 className="text-2xl font-bold text-[#0A1128] mb-1">{selectedDocDetails?.title}</h2>
                      <p className="text-xs text-gray-500">{selectedDocDetails?.desc}</p>
                   </div>
 
                   <form onSubmit={handleGenerate} className="space-y-8 flex-1">
-                     
                      <div>
-                        <label className="block text-xs font-bold text-[#0A1128] mb-2">Search by Name or ID</label>
+                        <label className="block text-xs font-bold text-[#0A1128] mb-2">Search Person (Full Name)</label>
                         <div className="flex space-x-2">
                            <div className="relative flex-1">
                               <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">🔍</span>
-                              <input type="text" placeholder="Enter student/faculty..." className="w-full bg-gray-50 border border-gray-200 rounded-lg py-2.5 pl-10 pr-4 text-sm outline-none focus:border-blue-500 transition-colors" />
+                              <input 
+                                type="text" 
+                                name="fullName"
+                                value={formData.fullName}
+                                onChange={handleInputChange}
+                                placeholder="Enter student/faculty..." 
+                                className="w-full bg-gray-50 border border-gray-200 rounded-lg py-2.5 pl-10 pr-4 text-sm outline-none focus:border-blue-500 transition-colors" 
+                              />
                            </div>
-                           <button type="button" className="bg-gray-100 hover:bg-gray-200 text-[#0A1128] px-5 rounded-lg text-xs font-bold transition-colors">
-                              Search
+                           <button type="submit" className="bg-gray-100 hover:bg-gray-200 text-[#0A1128] px-5 rounded-lg text-xs font-bold transition-colors">
+                              Find
                            </button>
                         </div>
-                     </div>
-
-                     <div>
-                        <label className="block text-xs font-bold text-[#0A1128] mb-2">Full Name</label>
-                        <input type="text" name="fullName" value={formData.fullName} onChange={handleInputChange} className="w-full bg-transparent border-b border-gray-300 py-2 outline-none focus:border-blue-500 text-[#0A1128] text-sm transition-colors" />
                      </div>
 
                      <div>
@@ -327,9 +325,7 @@ const Documents = () => {
                   </form>
                </div>
 
-               {/* --- Right: Preview Column --- */}
                <div className="flex-1 bg-gray-100 flex flex-col items-center justify-center p-8 overflow-y-auto custom-scrollbar relative">
-                  
                   <div className="absolute top-4 left-4">
                      <p className="text-xs font-bold text-gray-500">Document Preview</p>
                   </div>
@@ -339,7 +335,7 @@ const Documents = () => {
                         <span className="text-5xl mb-4 opacity-50">📄</span>
                         <h3 className="font-bold text-[#0A1128] mb-2">No Document Yet</h3>
                         <p className="text-xs text-center max-w-xs leading-relaxed">
-                           Select a document template, search for a student or faculty member, and click "Generate Document" to view the document here.
+                           Select a template and click "Generate Document" to view it.
                         </p>
                      </div>
                   ) : (
@@ -347,7 +343,6 @@ const Documents = () => {
                         {renderPreview()}
                      </div>
                   )}
-
                </div>
             </div>
          </div>
