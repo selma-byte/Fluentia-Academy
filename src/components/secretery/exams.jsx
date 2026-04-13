@@ -1,34 +1,106 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../../supabaseClient'; 
 
 const Exams = ({ examView, setExamView }) => {
   const [createStep, setCreateStep] = useState(1);
+  const [examsData, setExamsData] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // 💡 State جديدة باش نخبيو فيها معلومات الامتحان اللي رانا نكرييو فيه
+  const [newExam, setNewExam] = useState({
+    title: '',
+    subject: 'Mathematics',
+    class_name: '9 Niaz',
+    duration: 60,
+    instructions: ''
+  });
 
   // =======================================
-  // 1. الصفحة الرئيسية للامتحانات (Dashboard)
+  // 1. جلب الامتحانات من قاعدة البيانات
+  // =======================================
+  const fetchExams = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('exams')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (!error && data) {
+      setExamsData(data);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchExams();
+  }, [examView]);
+
+  // 💡 دالة حفظ الامتحان في Supabase
+  const handleSaveExam = async () => {
+    if (!newExam.title) {
+      alert("Please enter the Exam Title!");
+      return;
+    }
+    setLoading(true);
+    try {
+      const { error } = await supabase.from('exams').insert([{
+        title: newExam.title,
+        subject: newExam.subject,
+        class_name: newExam.class_name,
+        duration_minutes: parseInt(newExam.duration),
+        status: 'Active', 
+        exam_date: new Date().toISOString().split('T')[0] 
+      }]);
+
+      if (error) throw error;
+      
+      alert("✅ Exam Created Successfully!");
+      setNewExam({ title: '', subject: 'Mathematics', class_name: '9 Niaz', duration: 60, instructions: '' });
+      setCreateStep(1);
+      setExamView('manage'); 
+    } catch (err) {
+      alert("Error: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const totalExams = examsData.length;
+  const activeExams = examsData.filter(e => e.status?.toLowerCase() === 'active').length;
+  const scheduledExams = examsData.filter(e => e.status?.toLowerCase() === 'scheduled').length;
+  const completedExams = examsData.filter(e => e.status?.toLowerCase() === 'completed').length;
+
+  // =======================================
+  // 2. الصفحة الرئيسية للامتحانات (Dashboard)
   // =======================================
   const renderHome = () => (
     <div className="animate-fade-in pb-10">
-      <h2 className="text-3xl font-bold text-[#0A1128] mb-8">Exam Management</h2>
+      <div className="flex justify-between items-center mb-8">
+        <h2 className="text-3xl font-bold text-[#0A1128]">Exam Management</h2>
+        <button onClick={fetchExams} className="bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-lg text-sm font-bold transition-colors cursor-pointer">
+          🔄 Refresh
+        </button>
+      </div>
       
       <div className="flex justify-between items-center bg-white p-6 rounded-2xl border border-gray-200 shadow-sm mb-10">
         <div className="text-center px-6">
           <p className="text-gray-500 text-sm font-bold mb-2">Total Exams</p>
-          <p className="text-4xl font-bold text-[#0A1128]">12</p>
+          <p className="text-4xl font-bold text-[#0A1128]">{loading ? '...' : totalExams}</p>
         </div>
         <div className="w-px h-12 bg-gray-200"></div>
         <div className="text-center px-6">
           <p className="text-gray-500 text-sm font-bold mb-2">Active Exams</p>
-          <p className="text-4xl font-bold text-[#0A1128]">3</p>
+          <p className="text-4xl font-bold text-[#0A1128]">{loading ? '...' : activeExams}</p>
         </div>
         <div className="w-px h-12 bg-gray-200"></div>
         <div className="text-center px-6">
           <p className="text-gray-500 text-sm font-bold mb-2">Scheduled</p>
-          <p className="text-4xl font-bold text-[#0A1128]">5</p>
+          <p className="text-4xl font-bold text-[#0A1128]">{loading ? '...' : scheduledExams}</p>
         </div>
         <div className="w-px h-12 bg-gray-200"></div>
         <div className="text-center px-6">
           <p className="text-gray-500 text-sm font-bold mb-2">Completed</p>
-          <p className="text-4xl font-bold text-[#0A1128]">4</p>
+          <p className="text-4xl font-bold text-[#0A1128]">{loading ? '...' : completedExams}</p>
         </div>
       </div>
 
@@ -36,32 +108,36 @@ const Exams = ({ examView, setExamView }) => {
         <div className="lg:col-span-2">
           <h3 className="text-xl font-bold text-[#0A1128] mb-6">Recent Exams</h3>
           <div className="space-y-4">
-            {[
-              { title: "Mathematics Mid-Term Exam", subject: "Mathematics • 9 Niaz", status: "completed", date: "20/12/2023", progress: "35/35" },
-              { title: "English Literature Quiz", subject: "English • 8 Liaqat", status: "scheduled", date: "22/12/2023", progress: "0/32" },
-              { title: "Physics Chapter 5 Test", subject: "Physics • 10 Niaz", status: "active", date: "18/12/2023", progress: "28/28" },
-            ].map((exam, idx) => (
-              <div 
-                key={idx} 
-                onClick={() => exam.status === 'completed' ? setExamView('results') : setExamView('manage')}
-                className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow flex justify-between items-center cursor-pointer"
-              >
-                <div>
-                  <div className="flex items-center mb-2">
-                    <h4 className="font-bold text-[#0A1128] text-base mr-3">{exam.title}</h4>
-                    <span className={`text-xs px-2.5 py-1 rounded font-bold capitalize ${
-                      exam.status === 'active' ? 'bg-[#0A1128] text-white' : 
-                      exam.status === 'scheduled' ? 'bg-gray-100 text-gray-600' : 'bg-gray-100 text-gray-800'
-                    }`}>{exam.status}</span>
-                  </div>
-                  <p className="text-sm text-gray-500">{exam.subject} • {exam.progress} completed</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-gray-400 capitalize mb-1">Scheduled</p>
-                  <p className="text-sm font-medium text-gray-700">{exam.date}</p>
-                </div>
+            {loading ? (
+              <p className="text-gray-400 font-bold italic">Loading...</p>
+            ) : examsData.length === 0 ? (
+              <div className="bg-gray-50 border border-dashed border-gray-300 rounded-xl p-8 text-center">
+                <p className="text-gray-500 font-bold mb-2">No exams created yet.</p>
               </div>
-            ))}
+            ) : (
+              examsData.slice(0, 5).map((exam) => (
+                <div 
+                  key={exam.id} 
+                  onClick={() => exam.status?.toLowerCase() === 'completed' ? setExamView('results') : setExamView('manage')}
+                  className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow flex justify-between items-center cursor-pointer"
+                >
+                  <div>
+                    <div className="flex items-center mb-2">
+                      <h4 className="font-bold text-[#0A1128] text-base mr-3">{exam.title}</h4>
+                      <span className={`text-[10px] px-2.5 py-1 rounded font-bold capitalize tracking-wider ${
+                        exam.status?.toLowerCase() === 'active' ? 'bg-[#0A1128] text-white' : 
+                        exam.status?.toLowerCase() === 'scheduled' ? 'bg-orange-50 text-orange-600 border border-orange-200' : 'bg-gray-100 text-gray-500'
+                      }`}>{exam.status || 'Draft'}</span>
+                    </div>
+                    <p className="text-sm text-gray-500">{exam.subject} • {exam.class_name}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-gray-400 capitalize mb-1">Date</p>
+                    <p className="text-sm font-medium text-gray-700">{exam.exam_date || 'TBD'}</p>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
@@ -87,50 +163,39 @@ const Exams = ({ examView, setExamView }) => {
   );
 
   // =======================================
-  // 2. صفحة إدارة الامتحانات (مطابقة لتصميم Figma 100%)
+  // 3. صفحة إدارة الامتحانات (Table View)
   // =======================================
   const renderManageExams = () => (
     <div className="animate-fade-in pb-10 max-w-7xl mx-auto">
-      
-      {/* العنوان العلوي */}
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-[#0A1128] mb-1">Exam Management</h2>
-        <p className="text-sm text-gray-500">Manage all exams across the school and monitor their progress</p>
+      <div className="mb-6 border-b border-gray-200 pb-4 flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-bold text-[#0A1128] mb-1">Exam Management</h2>
+          <p className="text-sm text-gray-500">Manage all exams across the school</p>
+        </div>
+        <button onClick={() => {setExamView('create'); setCreateStep(1);}} className="bg-[#2563eb] text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-md hover:bg-blue-700 transition-colors cursor-pointer">
+          + New Exam
+        </button>
       </div>
 
-      {/* بطاقات الإحصائيات (4 بطاقات منفصلة بلون رمادي فاتح) */}
       <div className="grid grid-cols-4 gap-4 mb-8">
         <div className="bg-gray-100/80 rounded-2xl p-5 flex justify-between items-start border border-gray-200/50">
-          <div>
-            <p className="text-gray-500 text-[11px] font-medium mb-1">Total Exams</p>
-            <p className="text-2xl font-bold text-[#0A1128]">5</p>
-          </div>
+          <div><p className="text-gray-500 text-[11px] font-medium mb-1">Total Exams</p><p className="text-2xl font-bold text-[#0A1128]">{loading ? '-' : totalExams}</p></div>
           <span className="text-blue-500 text-xl">📄</span>
         </div>
         <div className="bg-gray-100/80 rounded-2xl p-5 flex justify-between items-start border border-gray-200/50">
-          <div>
-            <p className="text-gray-500 text-[11px] font-medium mb-1">Active Exams</p>
-            <p className="text-2xl font-bold text-[#0A1128]">1</p>
-          </div>
+          <div><p className="text-gray-500 text-[11px] font-medium mb-1">Active Exams</p><p className="text-2xl font-bold text-[#0A1128]">{loading ? '-' : activeExams}</p></div>
           <span className="text-green-500 text-xl">▶</span>
         </div>
         <div className="bg-gray-100/80 rounded-2xl p-5 flex justify-between items-start border border-gray-200/50">
-          <div>
-            <p className="text-gray-500 text-[11px] font-medium mb-1">Scheduled</p>
-            <p className="text-2xl font-bold text-[#0A1128]">1</p>
-          </div>
+          <div><p className="text-gray-500 text-[11px] font-medium mb-1">Scheduled</p><p className="text-2xl font-bold text-[#0A1128]">{loading ? '-' : scheduledExams}</p></div>
           <span className="text-orange-500 text-xl">📅</span>
         </div>
         <div className="bg-gray-100/80 rounded-2xl p-5 flex justify-between items-start border border-gray-200/50">
-          <div>
-            <p className="text-gray-500 text-[11px] font-medium mb-1">Completed</p>
-            <p className="text-2xl font-bold text-[#0A1128]">1</p>
-          </div>
+          <div><p className="text-gray-500 text-[11px] font-medium mb-1">Completed</p><p className="text-2xl font-bold text-[#0A1128]">{loading ? '-' : completedExams}</p></div>
           <span className="text-purple-500 text-xl">📋</span>
         </div>
       </div>
 
-      {/* شريط البحث العلوي الرمادي */}
       <div className="bg-gray-100/80 rounded-xl p-3 flex justify-between items-center border border-gray-200/50 mb-10">
         <div className="relative flex-1 max-w-lg">
           <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 text-sm">🔍</span>
@@ -143,80 +208,144 @@ const Exams = ({ examView, setExamView }) => {
         </div>
       </div>
 
-      {/* قسم Your Exams والجدول */}
-      <div>
-        <div className="mb-4 border-b border-gray-200 pb-3">
-          <h3 className="font-bold text-[#0A1128] text-base mb-1">Your Exams</h3>
-          <p className="text-xs text-gray-500">Manage and monitor all your created exams</p>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-gray-200 text-[#0A1128] font-bold">
-              <tr>
-                <th className="py-3 px-2">Title</th>
-                <th className="py-3 px-2">Subject</th>
-                <th className="py-3 px-2">Class</th>
-                <th className="py-3 px-2">Status</th>
-                <th className="py-3 px-2">Duration</th>
-                <th className="py-3 px-2">Participants</th>
-                <th className="py-3 px-2">Progress</th>
-                <th className="py-3 px-2">Scheduled</th>
-                <th className="py-3 px-2">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {[
-                { title: "Mathematics Mid-Term Exam", file: "math_midterm_class9.pdf", sub: "Mathematics", cls: "9 Niaz", status: "Active", dur: "90m", part: "35", prog: "28/35", date: "20/12/2023", time: "09:00" },
-                { title: "English Literature Quiz", file: "english_literature_quiz.pdf", sub: "English", cls: "8 Liaqat", status: "Scheduled", dur: "45m", part: "32", prog: "0/32", date: "22/12/2023", time: "11:00" },
-                { title: "Physics Chapter 5 Test", file: "physics_ch5_test.pdf", sub: "Physics", cls: "10 Niaz", status: "Completed", dur: "60m", part: "28", prog: "28/28", date: "18/12/2023", time: "14:00" },
-                { title: "Chemistry Lab Practical", file: "chemistry_lab_practical.pdf", sub: "Chemistry", cls: "9 Tariq", status: "Draft", dur: "120m", part: "0", prog: "0/0", date: "25/12/2023", time: "10:00" },
-                { title: "Pakistan Studies Final", file: "pak_studies_final.pdf", sub: "Pakistan Studies", cls: "8 Edhi", status: "Paused", dur: "75m", part: "30", prog: "15/30", date: "21/12/2023", time: "13:00", highlight: true },
-              ].map((row, i) => (
-                <tr key={i} className={`transition-colors cursor-pointer ${row.highlight ? 'bg-gray-50' : 'hover:bg-gray-50/50'}`} onClick={() => row.status === 'Completed' ? setExamView('results') : null}>
-                  <td className="py-4 px-2">
+      <div className="overflow-x-auto bg-white border border-gray-200 rounded-2xl shadow-sm">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-gray-50 border-b border-gray-200 text-[#0A1128] font-bold">
+            <tr>
+              <th className="py-4 px-4">Title</th>
+              <th className="py-4 px-4">Subject</th>
+              <th className="py-4 px-4">Class</th>
+              <th className="py-4 px-4">Status</th>
+              <th className="py-4 px-4">Duration</th>
+              <th className="py-4 px-4">Date</th>
+              <th className="py-4 px-4 text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {examsData.length === 0 ? (
+              <tr><td colSpan="7" className="text-center py-10 text-gray-400 font-bold">No exams found. Create one!</td></tr>
+            ) : (
+              examsData.map((row, i) => (
+                <tr key={i} className="hover:bg-gray-50/50 transition-colors cursor-pointer">
+                  <td className="py-4 px-4">
                     <p className="font-bold text-[#0A1128] text-[13px]">{row.title}</p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">{row.file}</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">Created: {new Date(row.created_at).toLocaleDateString()}</p>
                   </td>
-                  <td className="py-4 px-2 text-gray-700 text-xs font-medium">{row.sub}</td>
-                  <td className="py-4 px-2 text-gray-700 text-xs font-medium">{row.cls}</td>
-                  <td className="py-4 px-2">
-                    {/* الحالات مطابقة لتصميم Figma */}
-                    {row.status === 'Active' && <span className="bg-[#0A1128] text-white px-2.5 py-1 rounded text-[10px] font-bold flex items-center w-max"><span className="mr-1 text-[8px]">▶</span> Active</span>}
-                    {row.status === 'Scheduled' && <span className="text-gray-600 border border-gray-200 px-2.5 py-1 rounded text-[10px] font-bold flex items-center w-max"><span className="mr-1">📅</span> Scheduled</span>}
-                    {row.status === 'Completed' && <span className="text-gray-600 border border-gray-200 px-2.5 py-1 rounded text-[10px] font-bold flex items-center w-max"><span className="mr-1">📋</span> Completed</span>}
-                    {row.status === 'Draft' && <span className="text-gray-500 px-2.5 py-1 rounded text-[10px] font-bold flex items-center w-max"><span className="mr-1 text-[8px]">⚙️</span> Draft</span>}
-                    {row.status === 'Paused' && <span className="bg-red-500 text-white px-2.5 py-1 rounded text-[10px] font-bold flex items-center w-max"><span className="mr-1 text-[8px]">⏸</span> Paused</span>}
+                  <td className="py-4 px-4 text-gray-700 text-xs font-medium">{row.subject}</td>
+                  <td className="py-4 px-4 text-gray-700 text-xs font-medium">{row.class_name}</td>
+                  <td className="py-4 px-4">
+                    {row.status?.toLowerCase() === 'active' && <span className="bg-[#0A1128] text-white px-2.5 py-1 rounded text-[10px] font-bold flex items-center w-max">▶ Active</span>}
+                    {row.status?.toLowerCase() === 'scheduled' && <span className="text-gray-600 border border-gray-200 px-2.5 py-1 rounded text-[10px] font-bold flex items-center w-max">📅 Scheduled</span>}
+                    {row.status?.toLowerCase() === 'completed' && <span className="text-green-600 border border-green-200 bg-green-50 px-2.5 py-1 rounded text-[10px] font-bold flex items-center w-max">📋 Completed</span>}
+                    {(!row.status || row.status?.toLowerCase() === 'draft') && <span className="text-gray-500 px-2.5 py-1 rounded text-[10px] font-bold flex items-center w-max">⚙️ Draft</span>}
                   </td>
-                  <td className="py-4 px-2 text-gray-500 text-xs flex items-center mt-2"><span className="mr-1.5 opacity-50">⏱</span> {row.dur}</td>
-                  <td className="py-4 px-2 text-gray-500 text-xs"><span className="mr-1.5 opacity-50">👥</span> {row.part}</td>
-                  <td className="py-4 px-2">
-                     <div className="font-bold text-[#0A1128] text-xs mb-1">{row.prog}</div>
-                     <div className="w-10 h-1 bg-blue-600 rounded"></div>
+                  <td className="py-4 px-4 text-gray-500 text-xs"><span className="mr-1.5 opacity-50">⏱</span> {row.duration_minutes}m</td>
+                  <td className="py-4 px-4">
+                     <p className="text-xs text-gray-600 font-bold">{row.exam_date || 'TBD'}</p>
                   </td>
-                  <td className="py-4 px-2">
-                     <p className={`text-xs ${row.highlight ? 'bg-blue-600 text-white px-1.5 py-0.5 rounded w-max' : 'text-gray-600'}`}>{row.date}</p>
-                     <p className="text-[10px] text-gray-400 mt-0.5">{row.time}</p>
-                  </td>
-                  <td className="py-4 px-2 text-gray-400 space-x-3 text-sm">
-                     <span className="hover:text-black">👁</span>
-                     <span className="hover:text-black">✏️</span>
-                     <span className="hover:text-black">📄</span>
-                     <span className="hover:text-black">📥</span>
-                     <span className="hover:text-black">⏸</span>
+                  <td className="py-4 px-4 text-gray-400 space-x-3 text-sm text-center">
+                     <span className="hover:text-blue-600">✏️</span>
                      <span className="hover:text-red-500">🗑</span>
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
 
   // =======================================
-  // 3. صفحة نتائج الامتحانات
+  // 4. صفحة إنشاء امتحان (Form View)
+  // =======================================
+  const renderCreateExam = () => (
+    <div className="animate-fade-in max-w-4xl mx-auto pb-10">
+      <div className="mb-10 border-b border-gray-200 pb-5">
+        <h2 className="text-3xl font-bold text-[#0A1128] mb-2">Create New Exam</h2>
+        <p className="text-sm text-gray-500">Create an exam by uploading a PDF and providing instructions</p>
+      </div>
+
+      <div className="flex items-center justify-center mb-12 space-x-6">
+        <div className="flex items-center text-blue-600 font-bold text-base">
+          <span className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center mr-3 text-sm">1</span>
+          Exam Details
+        </div>
+        <div className={`w-20 h-0.5 ${createStep === 2 ? 'bg-blue-600' : 'bg-gray-200'}`}></div>
+        <div className={`flex items-center text-base font-bold ${createStep === 2 ? 'text-blue-600' : 'text-gray-400'}`}>
+          <span className={`w-8 h-8 rounded-full flex items-center justify-center mr-3 text-sm ${createStep === 2 ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}>2</span>
+          Upload PDF
+        </div>
+      </div>
+
+      <div className="bg-gray-50/50 border border-gray-100 rounded-3xl p-10 shadow-sm">
+        {createStep === 1 ? (
+          <div className="animate-fade-in">
+            <h3 className="text-xl font-bold text-[#0A1128] mb-2">Step 1: Exam Information</h3>
+            <p className="text-sm text-gray-500 mb-8">Provide basic information about your exam</p>
+
+            <div className="grid grid-cols-2 gap-x-10 gap-y-6 mb-8">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Exam Title <span className="text-red-500">*</span></label>
+                <input type="text" value={newExam.title} onChange={e=>setNewExam({...newExam, title: e.target.value})} placeholder="e.g. English Mid-Term" className="w-full bg-gray-100 border border-gray-200 rounded-xl px-5 py-3 outline-none focus:border-blue-500 text-sm font-bold" required/>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Subject</label>
+                <select value={newExam.subject} onChange={e=>setNewExam({...newExam, subject: e.target.value})} className="w-full bg-gray-100 border border-gray-200 rounded-xl px-5 py-3 outline-none focus:border-blue-500 text-sm font-bold cursor-pointer">
+                  <option>English</option><option>French</option><option>German</option><option>Spanish</option><option>Physics</option><option>Mathematics</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Class / Group</label>
+                <select value={newExam.class_name} onChange={e=>setNewExam({...newExam, class_name: e.target.value})} className="w-full bg-gray-100 border border-gray-200 rounded-xl px-5 py-3 outline-none focus:border-blue-500 text-sm font-bold cursor-pointer">
+                  <option>8 Liaqat</option><option>9 Niaz</option><option>A1 Group</option><option>B1 Group</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Duration (minutes)</label>
+                <input type="number" value={newExam.duration} onChange={e=>setNewExam({...newExam, duration: e.target.value})} placeholder="60" className="w-full bg-gray-100 border border-gray-200 rounded-xl px-5 py-3 outline-none focus:border-blue-500 text-sm font-bold" />
+              </div>
+            </div>
+            <div className="mb-10">
+              <label className="block text-sm font-bold text-gray-700 mb-2">Exam Instructions</label>
+              <textarea value={newExam.instructions} onChange={e=>setNewExam({...newExam, instructions: e.target.value})} rows="4" placeholder="Instructions here..." className="w-full bg-gray-100 border border-gray-200 rounded-xl px-5 py-3 outline-none focus:border-blue-500 text-sm font-bold resize-none"></textarea>
+            </div>
+            <div className="flex justify-between border-t border-gray-200 pt-8">
+              <button className="text-gray-400 font-medium text-sm cursor-not-allowed">Previous</button>
+              <button onClick={() => {
+                if(!newExam.title) { alert("Title is required!"); return; }
+                setCreateStep(2);
+              }} className="bg-[#0A1128] text-white px-8 py-3 rounded-xl text-sm font-bold hover:bg-blue-900 transition-colors cursor-pointer">Next Step</button>
+            </div>
+          </div>
+        ) : (
+          <div className="animate-fade-in py-6">
+            <h3 className="text-xl font-bold text-[#0A1128] mb-2">Step 2: Upload Exam PDF</h3>
+            <p className="text-sm text-gray-500 mb-8">Upload the PDF containing your exam questions</p>
+            
+            <div className="border-2 border-dashed border-blue-200 rounded-2xl p-20 mb-10 bg-blue-50/30 hover:bg-blue-50 transition-colors cursor-pointer flex flex-col items-center">
+               <span className="text-5xl text-blue-400 mb-6">📤</span>
+               <p className="font-bold text-[#0A1128] text-lg mb-2">Upload Exam PDF</p>
+               <p className="text-sm text-gray-500 mb-6">Upload the PDF containing the exam questions (Max 5MB)</p>
+               <button className="bg-white text-blue-600 px-6 py-2.5 rounded-xl text-sm font-bold border border-blue-200 flex items-center shadow-sm">
+                 <span className="mr-2 text-lg">↑</span> Choose PDF File
+               </button>
+            </div>
+
+            <div className="flex justify-between border-t border-gray-200 pt-8">
+              <button onClick={() => setCreateStep(1)} className="text-gray-600 font-bold text-sm hover:text-black cursor-pointer">Previous</button>
+              <button onClick={handleSaveExam} disabled={loading} className="bg-[#2563eb] text-white px-10 py-3 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors cursor-pointer shadow-lg active:scale-95">
+                {loading ? 'Saving...' : 'Finish & Save Exam'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  // =======================================
+  // 5. صفحة نتائج الامتحانات (الكود الأصلي ديالك 100%)
   // =======================================
   const renderResults = () => (
     <div className="animate-fade-in pb-10">
@@ -361,90 +490,7 @@ const Exams = ({ examView, setExamView }) => {
   );
 
   // =======================================
-  // 4. صفحة إنشاء امتحان 
-  // =======================================
-  const renderCreateExam = () => (
-    <div className="animate-fade-in max-w-4xl mx-auto pb-10">
-      <div className="mb-10 border-b border-gray-200 pb-5">
-        <h2 className="text-3xl font-bold text-[#0A1128] mb-2">Create New Exam</h2>
-        <p className="text-sm text-gray-500">Create an exam by uploading a PDF and providing instructions</p>
-      </div>
-
-      <div className="flex items-center justify-center mb-12 space-x-6">
-        <div className="flex items-center text-blue-600 font-bold text-base">
-          <span className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center mr-3 text-sm">1</span>
-          Exam Details
-        </div>
-        <div className={`w-20 h-0.5 ${createStep === 2 ? 'bg-blue-600' : 'bg-gray-200'}`}></div>
-        <div className={`flex items-center text-base font-bold ${createStep === 2 ? 'text-blue-600' : 'text-gray-400'}`}>
-          <span className={`w-8 h-8 rounded-full flex items-center justify-center mr-3 text-sm ${createStep === 2 ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}>2</span>
-          Upload PDF
-        </div>
-      </div>
-
-      <div className="bg-gray-50/50 border border-gray-100 rounded-3xl p-10 shadow-sm">
-        {createStep === 1 ? (
-          <div className="animate-fade-in">
-            <h3 className="text-xl font-bold text-[#0A1128] mb-2">Step 1: Exam Information</h3>
-            <p className="text-sm text-gray-500 mb-8">Provide basic information about your exam</p>
-
-            <div className="grid grid-cols-2 gap-x-10 gap-y-6 mb-8">
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Exam Title</label>
-                <input type="text" placeholder="math" className="w-full bg-gray-100 border-none rounded-xl px-5 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Subject</label>
-                <select className="w-full bg-gray-100 border-none rounded-xl px-5 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-sm cursor-pointer">
-                  <option>Physics</option><option>Mathematics</option><option>English</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Class</label>
-                <select className="w-full bg-gray-100 border-none rounded-xl px-5 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-sm cursor-pointer">
-                  <option>8 Liaqat</option><option>9 Niaz</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Duration (minutes)</label>
-                <input type="number" placeholder="60" className="w-full bg-gray-100 border-none rounded-xl px-5 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
-              </div>
-            </div>
-            <div className="mb-10">
-              <label className="block text-sm font-bold text-gray-700 mb-2">Exam Instructions</label>
-              <textarea rows="4" placeholder="Instructions here..." className="w-full bg-gray-100 border-none rounded-xl px-5 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-sm resize-none"></textarea>
-            </div>
-            <div className="flex justify-between border-t border-gray-200 pt-8">
-              <button className="text-gray-400 font-medium text-sm cursor-not-allowed">Previous</button>
-              <button onClick={() => setCreateStep(2)} className="bg-[#0A1128] text-white px-8 py-3 rounded-xl text-sm font-bold hover:bg-gray-800 transition-colors cursor-pointer">Next</button>
-            </div>
-          </div>
-        ) : (
-          <div className="animate-fade-in py-6">
-            <h3 className="text-xl font-bold text-[#0A1128] mb-2">Step 2: Upload Exam PDF</h3>
-            <p className="text-sm text-gray-500 mb-8">Upload the PDF containing your exam questions</p>
-            
-            <div className="border-2 border-dashed border-gray-300 rounded-2xl p-20 mb-10 bg-transparent hover:bg-white transition-colors cursor-pointer flex flex-col items-center">
-               <span className="text-5xl text-gray-400 mb-6">📤</span>
-               <p className="font-bold text-[#0A1128] text-lg mb-2">Upload Exam PDF</p>
-               <p className="text-sm text-gray-500 mb-6">Upload the PDF containing the exam questions</p>
-               <button className="bg-transparent text-[#0A1128] px-6 py-2.5 rounded-xl text-sm font-bold border border-gray-300 flex items-center">
-                 <span className="mr-2 text-lg">↑</span> Choose PDF File
-               </button>
-            </div>
-
-            <div className="flex justify-between border-t border-gray-200 pt-8">
-              <button onClick={() => setCreateStep(1)} className="text-gray-600 font-bold text-sm hover:text-black cursor-pointer">Previous</button>
-              <button onClick={() => setExamView('manage')} className="bg-[#0A1128] text-white px-8 py-3 rounded-xl text-sm font-bold hover:bg-gray-800 transition-colors cursor-pointer">Finish & Save</button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-
-  // =======================================
-  // 5. صفحة جدول الامتحانات
+  // 6. صفحة جدول الامتحانات (الكود الأصلي ديالك 100%)
   // =======================================
   const renderSchedule = () => (
     <div className="animate-fade-in pb-10">

@@ -1,31 +1,35 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../supabaseClient'; // 💡 استدعاء قاعدة البيانات
+import { supabase } from '../../supabaseClient'; 
 
 const RegistrationRequests = () => {
   const [requests, setRequests] = useState([]);
 
-  // 💡 جلب الطلبات الحقيقية من Supabase
-  useEffect(() => {
-    const fetchRequests = async () => {
-      const { data, error } = await supabase
-        .from('registration_requests')
-        .select('*')
-        .order('created_at', { ascending: false });
+  // 💡 جلب الطلبات الحقيقية من Supabase (من جدول students باش نكملو السيناريو)
+  const fetchRequests = async () => {
+    const { data, error } = await supabase
+      .from('students')
+      .select('*')
+      .eq('exam_type', 'Placement') // نجيبو غير لي حابين يجوزو تاست
+      .order('enrollment_date', { ascending: false });
 
-      if (data) {
-        // نكيفو البيانات باش توالم التصميم ديالك 100% بلا ما نخسروه
-        const formattedData = data.map(req => ({
-          id: req.id,
-          name: req.full_name,
-          type: req.role.charAt(0).toUpperCase() + req.role.slice(1), 
-          parent: req.role === 'parent' ? 'Parent / Guardian' : null,
-          language: req.course,
-          level: "Placement Test", // لأنه مزال مابداش يقرا
-          status: req.status === 'pending' ? 'Pending' : req.status
-        }));
-        setRequests(formattedData);
-      }
-    };
+    if (data) {
+      // نكيفو البيانات باش توالم التصميم ديالك 100% بلا ما نخسروه
+      const formattedData = data.map(req => ({
+        ...req, // نحتافظو بكل البيانات الأصلية
+        id: req.id,
+        name: `${req.first_name} ${req.last_name}`,
+        type: req.child_name ? 'Parent' : 'Student', // إذا كاين اسم الطفل نعتبروه ولي أمر
+        parent: req.child_name ? 'Parent / Guardian' : null,
+        language: req.language,
+        level: req.level || "Placement Test", 
+        // نردوا حالة 'Tested' للكلمة اللي استعملتيها في الديزاين 'Passed'
+        status: req.status === 'Tested' ? 'Passed' : req.status === 'pending' ? 'Pending' : req.status
+      }));
+      setRequests(formattedData);
+    }
+  };
+
+  useEffect(() => {
     fetchRequests();
   }, []);
 
@@ -33,6 +37,11 @@ const RegistrationRequests = () => {
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
   
+  // حالات حفظ معلومات الموعد (Schedule)
+  const [schedDay, setSchedDay] = useState('Mon');
+  const [schedTime, setSchedTime] = useState('10:00');
+  const [schedDate, setSchedDate] = useState('');
+
   const [notifyEmail, setNotifyEmail] = useState(true);
   const [notifyWhatsApp, setNotifyWhatsApp] = useState(false);
 
@@ -47,17 +56,20 @@ const RegistrationRequests = () => {
   };
 
   const handleSaveSchedule = async () => {
-    // 💡 تحديث حالة الطلب في Supabase إلى "Scheduled"
+    // نجمعو الموعد في جملة وحدة (مثلا: Mon, 23 at 10:00)
+    const fullAppointmentDate = `${schedDay}, ${schedDate} at ${schedTime}`;
+
+    // 💡 تحديث حالة الطلب في Supabase إلى "Scheduled" وحفظ الموعد
     const { error } = await supabase
-      .from('registration_requests')
-      .update({ status: 'Scheduled' })
+      .from('students')
+      .update({ 
+        status: 'Scheduled',
+        appointment_date: fullAppointmentDate 
+      })
       .eq('id', selectedStudent.id);
 
     if (!error) {
-      const updated = requests.map(req => 
-        req.id === selectedStudent.id ? { ...req, status: 'Scheduled' } : req
-      );
-      setRequests(updated);
+      fetchRequests(); // نريفرشيو الداتا
       setIsScheduleModalOpen(false);
       
       let notificationMsg = "Test Scheduled Successfully in System!";
@@ -71,13 +83,41 @@ const RegistrationRequests = () => {
     }
   };
 
+  // 💡 الدالة السحرية للترسيم وخلق الحساب
+  const handleFinalEnrollment = async () => {
+    try {
+      // 1. نكرييو الحساب في Auth (رقم الهاتف هو المودباس)
+      const { error: authError } = await supabase.auth.signUp({
+        email: selectedStudent.email,
+        password: selectedStudent.phone,
+      });
+
+      if (authError) throw authError;
+
+      // 2. نبدلو الحالة في الجدول لـ Active و Course
+      const { error: dbError } = await supabase
+        .from('students')
+        .update({ status: 'Active', exam_type: 'Course' })
+        .eq('id', selectedStudent.id);
+
+      if (dbError) throw dbError;
+
+      alert(`🎉 تم ترسيم ${selectedStudent.name} بنجاح! الإيميل راهو تيبعث.`);
+      setIsEnrollMode(false);
+      fetchRequests();
+
+    } catch (err) {
+      alert("إيرور في الترسيم: " + err.message);
+    }
+  };
+
   if (isEnrollMode) {
     // --- واجهة إضافة طالب (Enroll Student) ---
     return (
       <div className="min-h-screen bg-[#F8F9FA] p-12 font-sans text-left transition-all duration-300">
         <div className="flex items-center mb-12">
           <button onClick={() => setIsEnrollMode(false)} className="w-10 h-10 bg-white shadow-sm rounded-full flex items-center justify-center mr-6 hover:bg-gray-100 cursor-pointer text-gray-400">←</button>
-          <h1 className="text-3xl font-bold text-[#0A1128]">Add New Student</h1>
+          <h1 className="text-3xl font-bold text-[#0A1128]">Enroll Student</h1>
         </div>
         <div className="max-w-6xl space-y-16">
           <section>
@@ -96,22 +136,22 @@ const RegistrationRequests = () => {
             <section className="space-y-10">
               <h2 className="text-sm font-bold text-gray-800 uppercase tracking-wide">Personal Info</h2>
               <div className="space-y-8">
-                <input type="text" defaultValue={selectedStudent?.name.split(' ')[0]} placeholder="First Name" className="w-full bg-transparent border-b border-gray-200 py-3 text-sm font-bold outline-none" />
-                <input type="text" defaultValue={selectedStudent?.name.split(' ')[1]} placeholder="Last Name" className="w-full bg-transparent border-b border-gray-200 py-3 text-sm font-bold outline-none" />
+                <input type="text" defaultValue={selectedStudent?.first_name} placeholder="First Name" className="w-full bg-transparent border-b border-gray-200 py-3 text-sm font-bold outline-none" />
+                <input type="text" defaultValue={selectedStudent?.last_name} placeholder="Last Name" className="w-full bg-transparent border-b border-gray-200 py-3 text-sm font-bold outline-none" />
                 <input type="text" placeholder="jj/mm/aaaa 📅" className="w-full bg-transparent border-b border-gray-200 py-3 text-sm font-bold outline-none" />
               </div>
             </section>
             <section className="space-y-10">
               <h2 className="text-sm font-bold text-gray-800 uppercase tracking-wide">Contact Info</h2>
               <div className="space-y-8">
-                <input type="email" placeholder="Email Address" className="w-full bg-transparent border-b border-gray-200 py-3 text-sm font-bold outline-none" />
-                <input type="text" placeholder="Phone Number" className="w-full bg-transparent border-b border-gray-200 py-3 text-sm font-bold outline-none" />
+                <input type="email" defaultValue={selectedStudent?.email} placeholder="Email Address" className="w-full bg-transparent border-b border-gray-200 py-3 text-sm font-bold outline-none" />
+                <input type="text" defaultValue={selectedStudent?.phone} placeholder="Phone Number" className="w-full bg-transparent border-b border-gray-200 py-3 text-sm font-bold outline-none" />
               </div>
             </section>
           </div>
           <div className="flex justify-end space-x-4 pt-12">
             <button onClick={() => setIsEnrollMode(false)} className="px-10 py-3 bg-gray-100 text-gray-500 rounded-xl text-sm font-bold hover:bg-gray-200 transition-all cursor-pointer">Cancel</button>
-            <button onClick={() => setIsEnrollMode(false)} className="px-10 py-3 bg-[#0A1128] text-white rounded-xl text-sm font-bold hover:bg-blue-900 shadow-lg cursor-pointer">Save Student</button>
+            <button onClick={handleFinalEnrollment} className="px-10 py-3 bg-[#0A1128] text-white rounded-xl text-sm font-bold hover:bg-blue-900 shadow-lg cursor-pointer">Approve & Save Student</button>
           </div>
         </div>
       </div>
@@ -188,7 +228,7 @@ const RegistrationRequests = () => {
         </table>
       </div>
 
-      {/* --- النافذة المنبثقة لتحديد الموعد مع إضافة قسم الإشعارات --- */}
+      {/* --- النافذة المنبثقة لتحديد الموعد --- */}
       {isScheduleModalOpen && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-[#F8F9FA] w-full max-w-lg rounded-3xl shadow-2xl p-8 font-sans">
@@ -208,7 +248,7 @@ const RegistrationRequests = () => {
 
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Level</label>
-                <input type="text" defaultValue={selectedStudent?.level} className="w-full bg-transparent border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold text-gray-700 outline-none" />
+                <input type="text" defaultValue={selectedStudent?.level} className="w-full bg-transparent border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold text-gray-700 outline-none" readOnly/>
               </div>
 
               <div className="space-y-1.5">
@@ -218,14 +258,14 @@ const RegistrationRequests = () => {
 
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Test Type</label>
-                <input type="text" defaultValue="PLACEMENT TEST" className="w-full bg-transparent border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold text-gray-700 outline-none" />
+                <input type="text" defaultValue="PLACEMENT TEST" className="w-full bg-transparent border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold text-gray-700 outline-none" readOnly/>
               </div>
 
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Day</label>
                 <div className="relative">
-                  <select className="w-full bg-transparent border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold text-gray-700 outline-none appearance-none cursor-pointer">
-                    <option>Mon</option><option>Tue</option><option>Wed</option><option>Thu</option>
+                  <select value={schedDay} onChange={(e) => setSchedDay(e.target.value)} className="w-full bg-transparent border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold text-gray-700 outline-none appearance-none cursor-pointer">
+                    <option value="Mon">Mon</option><option value="Tue">Tue</option><option value="Wed">Wed</option><option value="Thu">Thu</option>
                   </select>
                   <span className="absolute right-4 top-3 text-gray-500 text-[10px]">▼</span>
                 </div>
@@ -234,8 +274,8 @@ const RegistrationRequests = () => {
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Time Block</label>
                 <div className="relative">
-                  <select className="w-full bg-transparent border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold text-gray-700 outline-none appearance-none cursor-pointer">
-                    <option>10:00</option><option>14:00</option>
+                  <select value={schedTime} onChange={(e) => setSchedTime(e.target.value)} className="w-full bg-transparent border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold text-gray-700 outline-none appearance-none cursor-pointer">
+                    <option value="10:00">10:00</option><option value="14:00">14:00</option>
                   </select>
                   <span className="absolute right-4 top-3 text-gray-500 text-[10px]">▼</span>
                 </div>
@@ -253,10 +293,10 @@ const RegistrationRequests = () => {
 
               <div className="col-span-2 space-y-1.5 mt-2">
                 <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Date (For Calendar)</label>
-                <input type="text" placeholder="e.g. 23" className="w-full bg-transparent border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold text-gray-700 outline-none" />
+                <input type="text" value={schedDate} onChange={(e) => setSchedDate(e.target.value)} placeholder="e.g. 23 May" className="w-full bg-transparent border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold text-gray-700 outline-none" />
               </div>
 
-              {/* 💡 القسم الجديد: إرسال التنبيهات للمتقدم 💡 */}
+              {/* القسم الجديد: إرسال التنبيهات للمتقدم */}
               <div className="col-span-2 mt-4 p-4 bg-blue-50/50 rounded-xl border border-blue-100 flex items-center justify-between">
                 <div>
                   <p className="text-xs font-bold text-[#0A1128]">Notify Applicant</p>
@@ -264,21 +304,11 @@ const RegistrationRequests = () => {
                 </div>
                 <div className="flex gap-4">
                   <label className="flex items-center gap-1.5 text-xs font-bold text-gray-700 cursor-pointer">
-                    <input 
-                      type="checkbox" 
-                      checked={notifyEmail} 
-                      onChange={(e) => setNotifyEmail(e.target.checked)}
-                      className="w-4 h-4 accent-[#0A1128] cursor-pointer" 
-                    /> 
+                    <input type="checkbox" checked={notifyEmail} onChange={(e) => setNotifyEmail(e.target.checked)} className="w-4 h-4 accent-[#0A1128] cursor-pointer" /> 
                     Email 📧
                   </label>
                   <label className="flex items-center gap-1.5 text-xs font-bold text-gray-700 cursor-pointer">
-                    <input 
-                      type="checkbox" 
-                      checked={notifyWhatsApp} 
-                      onChange={(e) => setNotifyWhatsApp(e.target.checked)}
-                      className="w-4 h-4 accent-[#0A1128] cursor-pointer" 
-                    /> 
+                    <input type="checkbox" checked={notifyWhatsApp} onChange={(e) => setNotifyWhatsApp(e.target.checked)} className="w-4 h-4 accent-[#0A1128] cursor-pointer" /> 
                     WhatsApp 💬
                   </label>
                 </div>
