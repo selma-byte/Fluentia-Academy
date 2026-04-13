@@ -6,6 +6,10 @@ const Exams = ({ examView, setExamView }) => {
   const [examsData, setExamsData] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // 💡 States جدد للبحث والفلترة (بلا ما نفسدو الديزاين)
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All Status');
+
   // 💡 State جديدة باش نخبيو فيها معلومات الامتحان اللي رانا نكرييو فيه
   const [newExam, setNewExam] = useState({
     title: '',
@@ -58,6 +62,7 @@ const Exams = ({ examView, setExamView }) => {
       setNewExam({ title: '', subject: 'Mathematics', class_name: '9 Niaz', duration: 60, instructions: '' });
       setCreateStep(1);
       setExamView('manage'); 
+      fetchExams(); // 💡 تحديث القائمة بعد الإضافة
     } catch (err) {
       alert("Error: " + err.message);
     } finally {
@@ -65,10 +70,31 @@ const Exams = ({ examView, setExamView }) => {
     }
   };
 
+  // 💡 دالة الحذف (Delete) باش القفلة 🗑 تولي تخدم
+  const handleDeleteExam = async (id) => {
+    if(window.confirm("Are you sure you want to delete this exam?")) {
+      const { error } = await supabase.from('exams').delete().eq('id', id);
+      if(!error) {
+        setExamsData(examsData.filter(exam => exam.id !== id));
+      } else {
+        alert("Error deleting exam: " + error.message);
+      }
+    }
+  };
+
   const totalExams = examsData.length;
   const activeExams = examsData.filter(e => e.status?.toLowerCase() === 'active').length;
   const scheduledExams = examsData.filter(e => e.status?.toLowerCase() === 'scheduled').length;
   const completedExams = examsData.filter(e => e.status?.toLowerCase() === 'completed').length;
+
+  // 💡 فلترة الامتحانات في باجة الـ Manage
+  const filteredExams = examsData.filter(exam => {
+    const matchesSearch = (exam.title?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || 
+                          (exam.subject?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || 
+                          (exam.class_name?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === 'All Status' || (exam.status?.toLowerCase() || 'draft') === statusFilter.toLowerCase();
+    return matchesSearch && matchesStatus;
+  });
 
   // =======================================
   // 2. الصفحة الرئيسية للامتحانات (Dashboard)
@@ -199,11 +225,25 @@ const Exams = ({ examView, setExamView }) => {
       <div className="bg-gray-100/80 rounded-xl p-3 flex justify-between items-center border border-gray-200/50 mb-10">
         <div className="relative flex-1 max-w-lg">
           <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 text-sm">🔍</span>
-          <input type="text" placeholder="Search exams by title, subject, or class..." className="w-full bg-transparent border-none py-2 pl-10 pr-4 text-sm outline-none text-gray-600" />
+          <input 
+            type="text" 
+            placeholder="Search exams by title, subject, or class..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)} // 💡 ربطنا البحث
+            className="w-full bg-transparent border-none py-2 pl-10 pr-4 text-sm outline-none text-gray-600" 
+          />
         </div>
         <div className="bg-gray-200/50 rounded-lg px-3 py-1.5 flex items-center">
-          <select className="bg-transparent border-none text-sm font-medium text-gray-600 outline-none cursor-pointer pr-2">
+          <select 
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)} // 💡 ربطنا فلتر الحالة
+            className="bg-transparent border-none text-sm font-medium text-gray-600 outline-none cursor-pointer pr-2"
+          >
             <option>All Status</option>
+            <option>Active</option>
+            <option>Scheduled</option>
+            <option>Completed</option>
+            <option>Draft</option>
           </select>
         </div>
       </div>
@@ -222,11 +262,11 @@ const Exams = ({ examView, setExamView }) => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {examsData.length === 0 ? (
-              <tr><td colSpan="7" className="text-center py-10 text-gray-400 font-bold">No exams found. Create one!</td></tr>
+            {filteredExams.length === 0 ? ( // 💡 استعملنا القائمة المفلترة
+              <tr><td colSpan="7" className="text-center py-10 text-gray-400 font-bold">No exams found.</td></tr>
             ) : (
-              examsData.map((row, i) => (
-                <tr key={i} className="hover:bg-gray-50/50 transition-colors cursor-pointer">
+              filteredExams.map((row, i) => (
+                <tr key={row.id} className="hover:bg-gray-50/50 transition-colors cursor-pointer">
                   <td className="py-4 px-4">
                     <p className="font-bold text-[#0A1128] text-[13px]">{row.title}</p>
                     <p className="text-[10px] text-gray-400 mt-0.5">Created: {new Date(row.created_at).toLocaleDateString()}</p>
@@ -245,7 +285,7 @@ const Exams = ({ examView, setExamView }) => {
                   </td>
                   <td className="py-4 px-4 text-gray-400 space-x-3 text-sm text-center">
                      <span className="hover:text-blue-600">✏️</span>
-                     <span className="hover:text-red-500">🗑</span>
+                     <span className="hover:text-red-500" onClick={(e) => { e.stopPropagation(); handleDeleteExam(row.id); }}>🗑</span> {/* 💡 ربطنا قفلة الحذف */}
                   </td>
                 </tr>
               ))
