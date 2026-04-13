@@ -1,93 +1,222 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../../supabaseClient'; 
 
 const Appointments = () => {
   const [activeTab, setActiveTab] = useState('calendar');
   const [sideModalView, setSideModalView] = useState(null); // null, 'details', 'new'
   const [filter, setFilter] = useState('All');
+  const [loading, setLoading] = useState(false);
 
   // =======================================
-  // بيانات التقويم الديناميكية (Dynamic Calendar Data)
-  // day: 1=Monday ... 7=Sunday
-  // start: 8 = 8:00 AM, 10.5 = 10:30 AM
-  // duration: بالدقائق
+  // 💡 1. جلب البيانات والدمج والترجمة
   // =======================================
-  const events = [
-    { id: 1, title: 'Layla M.', sub: 'Advanced English Class', day: 1, start: 10.5, duration: 90, type: 'Upcoming' },
-    { id: 2, title: 'Hassan R.', sub: 'Private Spanish Lesson', day: 2, start: 9, duration: 60, type: 'Completed' },
-    { id: 3, title: 'Nadia L.', sub: 'Placement Test: Student', day: 2, start: 11, duration: 60, type: 'Upcoming' },
-    { id: 4, title: 'Karim S.', sub: 'TOEFL Preparation', day: 3, start: 11, duration: 90, type: 'Upcoming' },
-    { id: 5, title: 'Amina B.', sub: 'Placement Test: Student', day: 4, start: 9, duration: 60, type: 'Upcoming' },
-    { id: 6, title: "Sara's Mom", sub: 'Parent Meeting: with Director', day: 4, start: 10, duration: 30, type: 'Upcoming' },
-    { id: 7, title: "Yassine's Dad", sub: 'Parent Meeting: with Prof. Ali', day: 4, start: 10.5, duration: 30, type: 'Upcoming' },
-    { id: 8, title: 'Youssef M.', sub: 'Private English Lesson', day: 4, start: 11, duration: 60, type: 'Completed' },
-    { id: 9, title: 'Rachid B.', sub: 'Placement Test: Student', day: 5, start: 9.5, duration: 60, type: 'Upcoming' },
-    { id: 10, title: "Lina's Mom", sub: 'Parent Meeting: with Prof. Nadia', day: 5, start: 11, duration: 30, type: 'Pending' },
-    { id: 11, title: 'Imane T.', sub: 'Private German Lesson', day: 6, start: 10, duration: 60, type: 'Upcoming' },
-    { id: 12, title: 'Children English', sub: 'Kids English Club', day: 6, start: 11.5, duration: 90, type: 'Upcoming' },
-    { id: 13, title: "Adam's Dad", sub: 'Parent Meeting: with Dir. Karim', day: 6, start: 14, duration: 30, type: 'Pending' },
-    { id: 14, title: 'Orientation Session', sub: 'New Students Orientation', day: 7, start: 10, duration: 90, type: 'Upcoming' },
-    { id: 15, title: 'Zineb H.', sub: 'Conversation Club', day: 7, start: 13, duration: 60, type: 'Upcoming' },
-  ];
+  const [events, setEvents] = useState([]);
+  // 💡 زدنا هادي باش نجيبو الأساتذة من السوبابيز
+  const [teachersList, setTeachersList] = useState([]);
+  const [roomsList, setRoomsList] = useState([]);
+  useEffect(() => {
+    // جلب الأساتذة
+    const fetchTeachers = async () => {
+      const { data } = await supabase.from('staff').select('*').ilike('role', 'teacher');
+      if (data) setTeachersList(data);
+    };
+
+    // 💡 جلب القاعات من طابلو rooms
+    const fetchRooms = async () => {
+      const { data } = await supabase.from('rooms').select('*');
+      if (data) setRoomsList(data);
+    };
+
+    fetchTeachers();
+    fetchRooms(); // نعيطولها هنا باش تخدم
+  }, []);
+
+  const fetchEvents = async () => {
+    let mergedEvents = [];
+
+    const parseDay = (d) => {
+      if (!d) return 1;
+      if (!isNaN(d)) return Number(d); 
+      const map = { 'mon': 1, 'tue': 2, 'wed': 3, 'thu': 4, 'fri': 5, 'sat': 6, 'sun': 7 };
+      return map[String(d).toLowerCase().substring(0,3)] || 1;
+    };
+    
+    const parseTime = (t) => {
+      if (!t) return 10;
+      if (!isNaN(t)) return Number(t); 
+      const [h, m] = String(t).split(':');
+      return parseInt(h) + (parseInt(m || 0) / 60);
+    };
+
+    // أ. جلب المواعيد
+    const { data: appData, error: appError } = await supabase.from('appointments').select('*');
+    if (!appError && appData) {
+      const formattedApps = appData.map(ev => ({
+        id: ev.id,
+        title: ev.title,
+        sub: ev.sub_title,
+        day: parseDay(ev.appointment_day),
+        start: parseTime(ev.start_time_float),
+        duration: Number(ev.duration_minutes) || 60,
+        type: ev.status,
+        teacher: ev.teacher_name,
+        room: ev.room || 'TBD', // حماية من null
+        phone: ev.phone,
+        email: ev.email,
+        notes: ev.notes,
+        isClass: false 
+      }));
+      mergedEvents = [...mergedEvents, ...formattedApps];
+    }
+
+    // ب. جلب الأقسام
+    const { data: classData } = await supabase.from('classes').select('*').not('schedule', 'eq', 'TBD');
+    if (classData) {
+      const dayMap = { 'Mon': 1, 'Tue': 2, 'Wed': 3, 'Thu': 4, 'Fri': 5, 'Sat': 6, 'Sun': 7 };
+      const formattedClasses = classData.map(c => {
+        const dayMatch = c.schedule.match(/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)/);
+        const timeMatch = c.schedule.match(/\d{2}:\d{2}/);
+        let startFloat = 10; 
+        if (timeMatch) {
+          const [h, m] = timeMatch[0].split(':');
+          startFloat = parseInt(h) + (parseInt(m) / 60);
+        }
+        return {
+          id: `class_${c.id}`,
+          title: c.name,
+          sub: `Language Course: ${c.language}`,
+          day: dayMap[dayMatch ? dayMatch[0] : 'Mon'] || 1,
+          start: startFloat,
+          duration: 120, 
+          type: 'Class', 
+          teacher: c.teacher_name,
+          room: c.schedule.split('- ')[1] || 'TBD',
+          isClass: true
+        };
+      });
+      mergedEvents = [...mergedEvents, ...formattedClasses];
+    }
+
+    setEvents(mergedEvents);
+  };
+
+  useEffect(() => { fetchEvents(); }, []);
+
+  // =======================================
+  // 2. دوال التحكم (Save & Update)
+  // =======================================
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [formData, setFormData] = useState({ 
+    title: '', sub: 'Placement Test', day: 1, start: 10, duration: 60, 
+    teacher: '', room: '', phone: '', email: '', notes: '' 
+  });
+
+  const handleSave = async (e) => {
+    e.preventDefault(); 
+    setLoading(true);
+
+    try {
+      // 💡 فحص التعارض (Conflict Check) مع المواعيد والكلاسات
+      const newDay = parseInt(formData.day);
+      const newStart = parseFloat(formData.start);
+      const newRoom = formData.room.trim().toLowerCase();
+
+      // نحوسو إذا كاين حاجة في نفس اليوم والوقت والقاعة
+      const conflict = events.find(ev => 
+        ev.day === newDay && 
+        ev.start === newStart && 
+        ev.room.trim().toLowerCase() === newRoom &&
+        ev.type !== 'Missed' && ev.type !== 'Completed' // مانحسبوش لي فاتو
+      );
+
+      // إذا كاين تعارض، نحبسو كلش!
+      if (conflict) {
+        alert(`⚠️ لا يمكن الحجز!\nالقاعة "${formData.room}" محجوزة في هذا الوقت لـ: ${conflict.title} (${conflict.isClass ? 'درس' : 'موعد'})`);
+        setLoading(false);
+        return; // السيستام يحبس هنا وما يسجلش في سوبابيز
+      }
+
+      // إذا القاعة فارغة، نكملو التسجيل عادي
+      const { error } = await supabase.from('appointments').insert([{
+        title: formData.title,
+        sub_title: formData.sub,
+        appointment_day: newDay,
+        start_time_float: newStart,
+        duration_minutes: parseInt(formData.duration),
+        teacher_name: formData.teacher,
+        room: formData.room, // سجلنا القاعة في قاعدة البيانات
+        phone: formData.phone,
+        email: formData.email,
+        notes: formData.notes,
+        status: 'Upcoming'
+      }]);
+      
+      if (error) throw error;
+      fetchEvents();
+      setSideModalView(null);
+      setFormData({ title: '', sub: 'Placement Test', day: 1, start: 10, duration: 60, teacher: '', room: '', phone: '', email: '', notes: '' });
+      alert("✅ تم تسجيل الموعد بنجاح!");
+    } catch (err) { alert("Error: " + err.message); }
+    finally { setLoading(false); }
+  };
+
+  const updateStatus = async (id, newStatus) => {
+    setLoading(true);
+    try {
+      const { error } = await supabase.from('appointments').update({ status: newStatus }).eq('id', id);
+      if (error) throw error;
+      fetchEvents();
+      setSideModalView(null);
+    } catch (err) { alert(err.message); }
+    finally { setLoading(false); }
+  };
 
   // إعدادات بناء الشبكة
-  const START_HOUR = 8; // 8:00 AM
-  const END_HOUR = 17;  // 5:00 PM
-  const HOUR_HEIGHT = 80; // ارتفاع كل ساعة بالبيكسل
+  const START_HOUR = 8;
+  const END_HOUR = 17;
+  const HOUR_HEIGHT = 80;
   const TOTAL_HEIGHT = (END_HOUR - START_HOUR + 1) * HOUR_HEIGHT;
   const hoursArray = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => START_HOUR + i);
 
   const getEventStyles = (type) => {
-    switch(type) {
-      case 'Upcoming': return 'bg-[#eff6ff] border-[#3b82f6] text-[#1e40af]';
-      case 'Completed': return 'bg-[#f0fdf4] border-[#22c55e] text-[#166534]';
-      case 'Pending': case 'Missed': return 'bg-[#fefce8] border-[#eab308] text-[#854d0e]';
-      default: return 'bg-gray-100 border-gray-400 text-gray-700';
-    }
+    const t = type?.toLowerCase().trim() || '';
+    if (t === 'upcoming') return 'bg-[#eff6ff] border-[#3b82f6] text-[#1e40af]';
+    if (t === 'completed') return 'bg-[#f0fdf4] border-[#22c55e] text-[#166534]';
+    if (t === 'pending' || t === 'missed') return 'bg-[#fefce8] border-[#eab308] text-[#854d0e]';
+    if (t === 'class') return 'bg-gray-100 border-gray-400 text-gray-500 opacity-90'; 
+    return 'bg-gray-100 border-gray-400 text-gray-700';
   };
 
   const getDotColor = (type) => {
-    switch(type) {
-      case 'Upcoming': return 'bg-blue-500';
-      case 'Completed': return 'bg-green-500';
-      case 'Pending': case 'Missed': return 'bg-yellow-500';
-      default: return 'bg-gray-500';
-    }
+    const t = type?.toLowerCase().trim() || '';
+    if (t === 'upcoming') return 'bg-blue-500';
+    if (t === 'completed') return 'bg-green-500';
+    if (t === 'pending' || t === 'missed') return 'bg-yellow-500';
+    if (t === 'class') return 'bg-gray-600';
+    return 'bg-gray-500';
   };
 
   // =======================================
-  // 1. عرض التقويم (Calendar View)
+  // 3. عرض التقويم (Calendar View)
   // =======================================
   const renderCalendarView = () => (
     <div className="flex-1 bg-white border border-gray-200 rounded-2xl p-6 shadow-sm flex flex-col min-w-0">
-      {/* هيدر التقويم */}
       <div className="flex justify-between items-center mb-6 shrink-0">
-         <h3 className="font-bold text-[#0A1128] text-lg">Weekly Calendar <span className="text-sm font-normal text-gray-500 ml-3">Jan 27 - Feb 2, 2025</span></h3>
+         <h3 className="font-bold text-[#0A1128] text-lg">Weekly Calendar <span className="text-sm font-normal text-gray-500 ml-3">April 2026</span></h3>
          <div className="flex items-center space-x-2">
             <button className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-gray-600 hover:bg-gray-200 cursor-pointer transition-colors">{"<"}</button>
             <button className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-gray-600 hover:bg-gray-200 cursor-pointer transition-colors">{">"}</button>
          </div>
       </div>
       
-      {/* مساحة التقويم القابلة للتمرير */}
       <div className="flex-1 overflow-y-auto overflow-x-auto custom-scrollbar">
         <div className="min-w-[900px] pb-4">
-          
-          {/* أيام الأسبوع */}
-          <div className="grid grid-cols-[70px_repeat(7,1fr)] gap-2 mb-2 text-center border-b border-gray-200 pb-4 sticky top-0 bg-white z-20">
+          <div className="grid grid-cols-[70px_repeat(7,1fr)] gap-2 mb-2 text-center border-b border-gray-200 pb-4 sticky top-0 bg-white z-20 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
             <div></div>
-            <div><p className="text-[#0A1128] font-bold text-sm mb-1">Monday</p><p className="text-xs text-gray-500">Jan 27</p></div>
-            <div><p className="text-[#0A1128] font-bold text-sm mb-1">Tuesday</p><p className="text-xs text-gray-500">Jan 28</p></div>
-            <div><p className="text-[#0A1128] font-bold text-sm mb-1">Wednesday</p><p className="text-xs text-gray-500">Jan 29</p></div>
-            <div><p className="text-[#0A1128] font-bold text-sm mb-1">Thursday</p><p className="text-xs text-gray-500">Jan 30</p></div>
-            <div><p className="text-[#0A1128] font-bold text-sm mb-1">Friday</p><p className="text-xs text-gray-500">Jan 31</p></div>
-            <div><p className="text-[#0A1128] font-bold text-sm mb-1">Saturday</p><p className="text-xs text-gray-500">Feb 1</p></div>
-            <div><p className="text-[#0A1128] font-bold text-sm mb-1">Sunday</p><p className="text-xs text-gray-500">Feb 2</p></div>
+            {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => <div key={day}>{day}</div>)}
           </div>
 
-          {/* شبكة الوقت والمواعيد */}
           <div className="grid grid-cols-[70px_1fr] gap-2">
-            
-            {/* عمود الأوقات */}
             <div className="flex flex-col border-r border-gray-100 pr-3 pt-2">
               {hoursArray.map(hour => (
                 <div key={hour} style={{height: `${HOUR_HEIGHT}px`}} className="text-xs font-medium text-gray-400 text-right">
@@ -96,41 +225,33 @@ const Appointments = () => {
               ))}
             </div>
 
-            {/* مساحة البطاقات */}
             <div className="relative w-full border-t border-l border-gray-100" style={{height: `${TOTAL_HEIGHT}px`}}>
-              {/* الخطوط العمودية */}
               <div className="absolute inset-0 grid grid-cols-7 divide-x divide-gray-100 pointer-events-none">
-                <div/><div/><div/><div/><div/><div/><div/>
+                {[...Array(7)].map((_, i) => <div key={i}/>)}
               </div>
-              {/* الخطوط الأفقية */}
               <div className="absolute inset-0 flex flex-col divide-y divide-gray-100 pointer-events-none">
                 {hoursArray.map(h => <div key={h} style={{height: `${HOUR_HEIGHT}px`}}></div>)}
               </div>
 
-              {/* رسم البطاقات ديناميكياً */}
-              {events.filter(e => filter === 'All' || e.type === filter).map((ev) => {
+              {events.filter(e => filter === 'All' || e.type === filter || e.type === 'Class').map((ev) => {
                 const top = (ev.start - START_HOUR) * HOUR_HEIGHT;
                 const height = (ev.duration / 60) * HOUR_HEIGHT;
                 const left = (ev.day - 1) * (100 / 7);
-                const width = (100 / 7) - 1; // 1% gap
+                const width = (100 / 7) - 1;
 
                 return (
                   <div 
                     key={ev.id}
-                    onClick={() => setSideModalView('details')}
+                    onClick={() => { setSelectedEvent(ev); setSideModalView('details'); }}
                     style={{ top: `${top}px`, height: `${height}px`, left: `${left}%`, width: `${width}%` }}
-                    className={`absolute p-2 rounded-lg shadow-sm border-l-4 cursor-pointer hover:shadow-md hover:opacity-90 transition-all overflow-hidden ${getEventStyles(ev.type)}`}
+                    className={`absolute p-3 rounded-xl shadow-sm border-l-4 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all overflow-hidden ${ev.isClass ? 'z-0' : 'z-10'} ${getEventStyles(ev.type)}`}
                   >
-                    <p className="text-[11px] font-bold flex items-center mb-1 leading-tight">
+                    <p className="text-[11px] font-bold flex items-center mb-1 leading-tight truncate">
                       <span className={`min-w-[6px] w-[6px] h-[6px] rounded-full mr-1.5 ${getDotColor(ev.type)}`}></span> 
-                      <span className="truncate">{ev.title}</span>
+                      {ev.title}
                     </p>
                     <p className="text-[10px] leading-tight opacity-80 line-clamp-2">{ev.sub}</p>
-                    {ev.duration >= 60 && (
-                      <p className="text-[10px] mt-1.5 flex items-center font-medium opacity-70">
-                        <span className="mr-1">⏱</span> {ev.duration} min
-                      </p>
-                    )}
+                    {ev.duration >= 60 && !ev.isClass && <p className="text-[9px] mt-2 opacity-60">⏱ {ev.duration} min</p>}
                   </div>
                 );
               })}
@@ -142,88 +263,51 @@ const Appointments = () => {
   );
 
   // =======================================
-  // 2. عرض الطلبات المعلقة (Pending Requests)
+  // 4. عرض الطلبات المعلقة (Pending Requests)
   // =======================================
   const renderPendingRequests = () => (
     <div className="flex-1 bg-white border border-gray-200 rounded-2xl p-8 shadow-sm flex flex-col min-w-0">
-      
-      <div className="flex justify-between items-start border-b border-gray-100 pb-5 mb-6 shrink-0">
+      <div className="flex justify-between items-start border-b border-gray-100 pb-5 mb-8 shrink-0">
         <div>
           <h3 className="font-bold text-[#0A1128] text-xl mb-1.5">Pending Appointment Requests</h3>
-          <p className="text-sm text-gray-500">Review and manage appointment requests that require approval</p>
+          <p className="text-sm text-gray-500">Manage incoming requests from parents and students</p>
         </div>
-        <span className="bg-[#fefce8] text-[#854d0e] px-4 py-1.5 rounded-lg text-xs font-bold border border-[#fde047]">5 Total Pending</span>
+        <span className="bg-[#fefce8] text-[#854d0e] px-4 py-1.5 rounded-lg text-xs font-bold border border-[#fde047]">
+          {events.filter(e => e.type === 'Pending').length} Pending
+        </span>
       </div>
-
-      <div className="flex-1 overflow-y-auto custom-scrollbar pr-4">
-        <div className="space-y-6">
-          {/* طلب 1 */}
-          <div className="border border-gray-100 rounded-xl p-5 hover:border-blue-100 transition-colors bg-[#f8fafc]">
-            <div className="flex justify-between items-start">
-              <div className="flex items-start">
-                <div className="w-12 h-12 rounded-full bg-[#fefce8] flex items-center justify-center text-[#eab308] mr-5 text-xl">👤</div>
+      <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-4">
+        {events.filter(e => e.type === 'Pending').length > 0 ? (
+          events.filter(e => e.type === 'Pending').map(req => (
+            <div key={req.id} className="border border-gray-100 rounded-2xl p-6 bg-[#f8fafc] flex justify-between items-center hover:border-blue-200 transition-colors">
+              <div className="flex items-center">
+                <div className="w-12 h-12 rounded-full bg-yellow-100 flex items-center justify-center text-xl mr-5">👤</div>
                 <div>
-                  <p className="font-bold text-[#0A1128] text-base mb-1">Omar K.'s Dad</p>
-                  <p className="text-xs text-gray-500 mb-4 font-medium">Parent Meeting: with Prof. Nadia</p>
-                  
-                  <div className="grid grid-cols-2 gap-y-3 gap-x-8 text-xs text-gray-600 mb-4 bg-white p-3 rounded-lg border border-gray-100">
-                    <span className="flex items-center"><span className="mr-2 text-gray-400">📅</span> Monday, January 27, 2025</span>
-                    <span className="flex items-center"><span className="mr-2 text-gray-400">🕒</span> 2:00 PM (30 min)</span>
-                    <span className="flex items-center"><span className="mr-2 text-gray-400">📞</span> +212 663-456-789</span>
-                    <span className="flex items-center"><span className="mr-2 text-gray-400">👨‍🏫</span> Prof. Nadia</span>
+                  <p className="font-bold text-[#0A1128] text-base">{req.title}</p>
+                  <p className="text-xs text-gray-500 font-bold uppercase">{req.sub}</p>
+                  <div className="mt-2 text-[11px] text-gray-400 flex gap-4">
+                    <span>📅 Day: {req.day}</span>
+                    <span>🕒 {req.start}:00</span>
                   </div>
-                  
-                  <button onClick={() => setSideModalView('details')} className="text-blue-600 text-xs font-bold hover:underline">View Details →</button>
                 </div>
               </div>
-              <div className="flex flex-col space-y-2">
-                <button className="bg-[#22c55e] hover:bg-green-600 text-white px-5 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer w-28 text-center shadow-sm">
-                   Approve
-                </button>
-                <button className="bg-white text-[#ef4444] border border-[#ef4444] hover:bg-red-50 px-5 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer w-28 text-center">
-                   Reject
-                </button>
+              <div className="flex gap-3">
+                <button onClick={() => updateStatus(req.id, 'Upcoming')} className="bg-[#22c55e] hover:bg-green-600 text-white px-6 py-2 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer">Approve</button>
+                <button onClick={() => updateStatus(req.id, 'Missed')} className="bg-white text-red-500 border border-red-500 px-6 py-2 rounded-xl text-xs font-bold hover:bg-red-50 cursor-pointer">Reject</button>
               </div>
             </div>
+          ))
+        ) : (
+          <div className="text-center py-20">
+            <p className="text-gray-400 italic font-bold">No pending requests at the moment.</p>
           </div>
-
-          {/* طلب 2 */}
-          <div className="border border-gray-100 rounded-xl p-5 hover:border-blue-100 transition-colors bg-[#f8fafc]">
-            <div className="flex justify-between items-start">
-              <div className="flex items-start">
-                <div className="w-12 h-12 rounded-full bg-[#fefce8] flex items-center justify-center text-[#eab308] mr-5 text-xl">👤</div>
-                <div>
-                  <p className="font-bold text-[#0A1128] text-base mb-1">Fatima Z.</p>
-                  <p className="text-xs text-gray-500 mb-4 font-medium">Progress Evaluation</p>
-                  
-                  <div className="grid grid-cols-2 gap-y-3 gap-x-8 text-xs text-gray-600 mb-4 bg-white p-3 rounded-lg border border-gray-100">
-                    <span className="flex items-center"><span className="mr-2 text-gray-400">📅</span> Wednesday, January 29, 2025</span>
-                    <span className="flex items-center"><span className="mr-2 text-gray-400">🕒</span> 2:00 PM (60 min)</span>
-                    <span className="flex items-center"><span className="mr-2 text-gray-400">📞</span> +212 669-012-345</span>
-                    <span className="flex items-center"><span className="mr-2 text-gray-400">👨‍🏫</span> Prof. Hassan</span>
-                  </div>
-                  
-                  <button onClick={() => setSideModalView('details')} className="text-blue-600 text-xs font-bold hover:underline">View Details →</button>
-                </div>
-              </div>
-              <div className="flex flex-col space-y-2">
-                <button className="bg-[#22c55e] hover:bg-green-600 text-white px-5 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer w-28 text-center shadow-sm">
-                   Approve
-                </button>
-                <button className="bg-white text-[#ef4444] border border-[#ef4444] hover:bg-red-50 px-5 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer w-28 text-center">
-                   Reject
-                </button>
-              </div>
-            </div>
-          </div>
-
-        </div>
+        )}
       </div>
     </div>
   );
 
   // =======================================
-  // الشريط الجانبي الثابت (Today's Schedule)
+  // 5. السايدبار (Today's Schedule)
   // =======================================
   const renderSidebar = () => (
     <div className="w-[340px] shrink-0 bg-white border border-gray-200 rounded-2xl p-6 shadow-sm flex flex-col h-full">
@@ -231,217 +315,169 @@ const Appointments = () => {
         <h3 className="font-bold text-[#0A1128] text-lg flex items-center mb-1.5">
           <span className="mr-2 text-blue-600">📅</span> Today's Schedule
         </h3>
-        <p className="text-xs text-gray-500">Thursday, April 2, 2026</p>
+        <p className="text-xs text-gray-500">April 2026</p>
       </div>
-
-      <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 shrink-0">Upcoming Sessions</p>
-
       <div className="space-y-4 overflow-y-auto custom-scrollbar pr-2 flex-1">
-        
-        <div className="bg-[#f8fafc] border border-gray-200 rounded-xl p-4 shadow-sm hover:border-blue-200 transition-colors">
-          <p className="font-bold text-[#0A1128] text-sm flex items-center mb-1.5">
-            <span className="w-2 h-2 rounded-full bg-blue-600 mr-2.5"></span> Placement Test
-          </p>
-          <p className="text-xs text-gray-600 ml-4 mb-2">Amina B.</p>
-          <p className="text-xs text-gray-400 ml-4 flex items-center mb-4">
-            <span className="mr-1.5 text-sm">🕒</span> 9:00 AM - 60 min
-          </p>
-          <div className="flex space-x-2 ml-4">
-            <button className="flex-1 bg-white border border-gray-200 text-gray-600 text-[10px] font-bold py-2 rounded-lg hover:bg-gray-50 transition-colors">✎ Modify</button>
-            <button className="flex-1 bg-white border border-gray-200 text-gray-600 text-[10px] font-bold py-2 rounded-lg hover:bg-gray-50 transition-colors">✕ Cancel</button>
+        {events.filter(e => e.type === 'Upcoming' || e.type === 'Class').slice(0, 6).map(e => (
+          <div key={e.id} className="bg-[#f8fafc] border border-gray-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all">
+            <p className="font-bold text-[#0A1128] text-sm flex items-center mb-1.5">
+              <span className={`w-2 h-2 rounded-full mr-2.5 ${getDotColor(e.type)}`}></span> {e.sub}
+            </p>
+            <p className="text-xs text-gray-600 ml-4 mb-2">{e.title}</p>
+            <p className="text-[10px] text-blue-600 font-bold ml-4">🕒 {e.start}:00</p>
           </div>
-        </div>
-
-        <div className="bg-[#f8fafc] border border-gray-200 rounded-xl p-4 shadow-sm hover:border-blue-200 transition-colors">
-          <p className="font-bold text-[#0A1128] text-sm flex items-center mb-1.5">
-            <span className="w-2 h-2 rounded-full bg-blue-600 mr-2.5"></span> Parent Meeting
-          </p>
-          <p className="text-xs text-gray-600 ml-4 mb-2">Sara's Mom</p>
-          <p className="text-xs text-gray-400 ml-4 flex items-center mb-4">
-            <span className="mr-1.5 text-sm">🕒</span> 10:00 AM - 30 min
-          </p>
-          <div className="flex space-x-2 ml-4">
-            <button className="flex-1 bg-white border border-gray-200 text-gray-600 text-[10px] font-bold py-2 rounded-lg hover:bg-gray-50 transition-colors">✎ Modify</button>
-            <button className="flex-1 bg-white border border-gray-200 text-gray-600 text-[10px] font-bold py-2 rounded-lg hover:bg-gray-50 transition-colors">✕ Cancel</button>
-          </div>
-        </div>
+        ))}
       </div>
     </div>
   );
 
-  // =======================================
-  // الواجهة الرئيسية للصفحة
-  // =======================================
   return (
-    <div className="animate-fade-in w-full h-full flex flex-col">
-      
-      {/* شريط التنقل العلوي مع الفلاتر */}
-      <div className="flex justify-between items-center mb-6 border-b border-gray-200 pb-4 shrink-0">
+    <div className="animate-fade-in w-full h-full flex flex-col p-2">
+      {/* Header Tabs & Filters */}
+      <div className="flex justify-between items-center mb-8 border-b border-gray-200 pb-4 shrink-0 px-4">
         <div className="flex items-center space-x-8">
-          <div className="flex items-center text-sm text-gray-600 border-r border-gray-300 pr-8">
-             <span className="mr-2">Staff:</span>
-             <select className="bg-transparent font-bold outline-none cursor-pointer"><option>All Staff</option></select>
+          <div className="flex bg-gray-100 p-1 rounded-xl">
+            <button onClick={() => setActiveTab('calendar')} className={`px-6 py-2 rounded-lg text-sm font-bold transition-all cursor-pointer ${activeTab === 'calendar' ? 'bg-white text-[#0A1128] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Calendar View</button>
+            <button onClick={() => setActiveTab('pending')} className={`px-6 py-2 rounded-lg text-sm font-bold transition-all cursor-pointer ${activeTab === 'pending' ? 'bg-white text-[#0A1128] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Pending Requests</button>
           </div>
-          
-          <div className="flex space-x-2">
-            <button onClick={() => setActiveTab('calendar')} className={`text-sm font-bold transition-all px-4 py-2 rounded-lg ${activeTab === 'calendar' ? 'bg-gray-100 text-[#0A1128]' : 'bg-transparent text-gray-500 hover:bg-gray-50'}`}>
-              Calendar View
-            </button>
-            <button onClick={() => setActiveTab('pending')} className={`text-sm font-bold transition-all px-4 py-2 rounded-lg ${activeTab === 'pending' ? 'bg-gray-100 text-[#0A1128]' : 'bg-transparent text-gray-500 hover:bg-gray-50'}`}>
-              Pending Requests
-            </button>
-          </div>
-          
-          {/* أزرار الفلترة التفاعلية (تعمل فقط في Calendar View) */}
           {activeTab === 'calendar' && (
-            <div className="flex space-x-6 pl-6 text-sm font-bold items-center border-l border-gray-300">
-              <button onClick={() => setFilter('All')} className={`transition-colors cursor-pointer ${filter === 'All' ? 'text-[#0A1128] underline underline-offset-8' : 'text-gray-400 hover:text-black'}`}>All</button>
-              <button onClick={() => setFilter('Upcoming')} className={`transition-colors cursor-pointer ${filter === 'Upcoming' ? 'text-blue-600 underline underline-offset-8' : 'text-gray-400 hover:text-black'}`}>Upcoming</button>
-              <button onClick={() => setFilter('Pending')} className={`transition-colors cursor-pointer ${filter === 'Pending' ? 'text-yellow-600 underline underline-offset-8' : 'text-gray-400 hover:text-black'}`}>Pending</button>
-              <button onClick={() => setFilter('Completed')} className={`transition-colors cursor-pointer ${filter === 'Completed' ? 'text-green-600 underline underline-offset-8' : 'text-gray-400 hover:text-black'}`}>Completed</button>
-              <button onClick={() => setFilter('Missed')} className={`transition-colors cursor-pointer ${filter === 'Missed' ? 'text-red-500 underline underline-offset-8' : 'text-gray-400 hover:text-black'}`}>Missed</button>
+            <div className="flex space-x-6 pl-6 text-[11px] font-black uppercase tracking-widest items-center border-l border-gray-200">
+              {['All', 'Upcoming', 'Pending', 'Completed', 'Missed'].map(f => (
+                <button key={f} onClick={() => setFilter(f)} className={`transition-colors cursor-pointer ${filter === f ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-400 hover:text-gray-600'}`}>{f}</button>
+              ))}
             </div>
           )}
         </div>
-
-        <button onClick={() => setSideModalView('new')} className="bg-[#2563eb] hover:bg-blue-700 text-white px-6 py-3 rounded-xl text-sm font-bold shadow-md transition-colors flex items-center cursor-pointer">
-          <span className="mr-2 text-lg">+</span> New Appointment
+        <button onClick={() => setSideModalView('new')} className="bg-[#2563eb] hover:bg-blue-700 text-white px-8 py-3 rounded-2xl text-sm font-bold shadow-lg transition-transform active:scale-95 flex items-center cursor-pointer">
+          <span className="mr-2 text-xl">+</span> New Appointment
         </button>
       </div>
 
-      {/* المحتوى السفلي (ينقسم إلى قسمين: محتوى و سايدبار) */}
-      <div className="flex gap-8 flex-1 min-h-0">
+      <div className="flex gap-8 flex-1 min-h-0 px-4">
         {activeTab === 'calendar' ? renderCalendarView() : renderPendingRequests()}
         {renderSidebar()}
       </div>
 
       {/* =======================================
-          النافذة الجانبية المنزلقة (تفاصيل / جديد)
-          ======================================= */}
+          Slide-over Modal (Details / New)
+      ======================================= */}
       {sideModalView && (
-        <div className="fixed inset-0 z-[100] flex justify-end bg-black/20 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[100] flex justify-end bg-black/30 backdrop-blur-sm animate-fade-in">
           <div className="absolute inset-0 cursor-pointer" onClick={() => setSideModalView(null)}></div>
-          
-          <div className="w-[400px] bg-[#f8fafc] h-full shadow-2xl flex flex-col border-l border-gray-200 relative z-10 animate-[slide-in-right_0.3s_ease-out]">
-            
-            <div className="p-6 border-b border-gray-200 flex justify-between items-center bg-white">
+          <div className="w-[420px] bg-[#f8fafc] h-full shadow-2xl flex flex-col border-l border-gray-200 relative z-10 animate-slide-in">
+            <div className="p-8 border-b border-gray-200 flex justify-between items-center bg-white">
               <div>
-                <h3 className="font-bold text-[#0A1128] text-lg mb-1">
-                  {sideModalView === 'details' ? 'Appointment Details' : 'New Appointment'}
-                </h3>
-                <p className="text-xs text-gray-500">
-                  {sideModalView === 'details' ? 'Patient Information & Treatment' : 'Schedule a new session'}
-                </p>
+                <h3 className="font-black text-[#0A1128] text-xl uppercase tracking-tight">{sideModalView === 'details' ? 'Appointment Details' : 'New Appointment'}</h3>
+                <p className="text-xs text-gray-400 mt-1 font-bold tracking-widest uppercase">Admin Panel • SmanSys</p>
               </div>
-              <button onClick={() => setSideModalView(null)} className="text-gray-400 hover:text-black text-2xl cursor-pointer">✕</button>
+              <button onClick={() => setSideModalView(null)} className="text-gray-400 hover:text-black text-3xl font-light cursor-pointer">✕</button>
             </div>
 
-            <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
-              
-              {sideModalView === 'details' && (
-                <div className="space-y-8">
-                  <div>
-                    <p className="text-sm font-bold text-[#0A1128] mb-4 flex items-center"><span className="w-2 h-2 bg-blue-600 rounded-full mr-2.5"></span> Patient Information</p>
-                    <div className="flex items-center mb-5 bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-                      <div className="w-12 h-12 rounded-full bg-[#2563eb] text-white flex items-center justify-center font-bold text-xl mr-4 shadow-inner">R</div>
-                      <div>
-                        <p className="font-bold text-[#0A1128] text-base">Robert Wilson</p>
-                        <p className="text-xs text-gray-500 mt-0.5">Patient</p>
-                      </div>
-                    </div>
-                    <div className="space-y-3 pl-2">
-                      <p className="text-sm text-gray-600 flex items-center"><span className="mr-3 text-[#2563eb] text-lg">📞</span> (555) 567-8901</p>
-                      <p className="text-sm text-gray-600 flex items-center"><span className="mr-3 text-[#2563eb] text-lg">✉️</span> rob.wilson@email.com</p>
+            <div className="p-8 overflow-y-auto custom-scrollbar flex-1">
+              {sideModalView === 'details' && selectedEvent && (
+                <div className="space-y-8 animate-fade-in">
+                  <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 relative overflow-hidden">
+                    <div className={`absolute top-0 left-0 w-full h-1.5 ${getDotColor(selectedEvent.type)}`}></div>
+                    <p className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] mb-3">{selectedEvent.sub}</p>
+                    <h4 className="text-2xl font-black text-[#0A1128] mb-6 tracking-tight">{selectedEvent.title}</h4>
+                    
+                    <div className="space-y-4 text-sm font-bold text-gray-600">
+                      <div className="flex items-center gap-4 bg-gray-50 p-3 rounded-xl"><span className="text-lg">🕒</span> Day {selectedEvent.day} at {selectedEvent.start}:00</div>
+                      <div className="flex items-center gap-4 bg-gray-50 p-3 rounded-xl"><span className="text-lg">👨‍🏫</span> {selectedEvent.teacher}</div>
+                      <div className="flex items-center gap-4 bg-gray-50 p-3 rounded-xl"><span className="text-lg">📍</span> {selectedEvent.room || 'Room TBD'}</div>
+                      <div className="flex items-center gap-4 bg-gray-50 p-3 rounded-xl"><span className="text-lg">📞</span> {selectedEvent.phone || 'No contact provided'}</div>
                     </div>
                   </div>
 
-                  <div>
-                    <p className="text-sm font-bold text-[#0A1128] mb-4 flex items-center"><span className="w-2 h-2 bg-green-500 rounded-full mr-2.5"></span> Appointment Details</p>
-                    <div className="space-y-4 text-sm bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
-                      <div className="flex justify-between border-b border-gray-50 pb-3"><span className="text-gray-500">Treatment:</span> <span className="font-bold text-[#0A1128]">Cavity Filling</span></div>
-                      <div className="flex justify-between border-b border-gray-50 pb-3"><span className="text-gray-500">Date:</span> <span className="font-bold text-[#0A1128]">Fri, Jan 31, 2025</span></div>
-                      <div className="flex justify-between border-b border-gray-50 pb-3"><span className="text-gray-500">Time:</span> <span className="font-bold text-[#0A1128]">11:00 AM</span></div>
-                      <div className="flex justify-between border-b border-gray-50 pb-3"><span className="text-gray-500">Duration:</span> <span className="font-bold text-[#0A1128]">75 minutes</span></div>
-                      <div className="flex justify-between"><span className="text-gray-500">Staff:</span> <span className="font-bold text-[#0A1128]">Dr. Smith</span></div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="text-sm font-bold text-[#0A1128] mb-3 flex items-center"><span className="w-2 h-2 bg-yellow-500 rounded-full mr-2.5"></span> Status</p>
-                    <span className="bg-[#eff6ff] text-[#1e40af] border border-blue-200 px-4 py-2 rounded-lg text-xs font-bold flex w-max items-center shadow-sm">
-                      <span className="w-2 h-2 bg-[#2563eb] rounded-full mr-2"></span> Upcoming
-                    </span>
-                  </div>
-
-                  <div>
-                    <p className="text-sm font-bold text-[#0A1128] mb-3 flex items-center"><span className="w-2 h-2 bg-purple-500 rounded-full mr-2.5"></span> Notes</p>
-                    <p className="text-sm text-gray-500 bg-white p-4 rounded-xl border border-gray-100 shadow-sm min-h-[80px]">No special notes added for this appointment.</p>
-                  </div>
-
-                  <div className="pt-6 mt-4 border-t border-gray-200">
-                    <p className="text-sm font-bold text-[#0A1128] mb-4 flex items-center"><span className="w-2 h-2 bg-orange-500 rounded-full mr-2.5"></span> Actions</p>
-                    <div className="space-y-3">
-                      <button className="w-full bg-[#eff6ff] text-[#2563eb] hover:bg-blue-100 border border-blue-200 rounded-xl py-3 text-sm font-bold transition-colors cursor-pointer shadow-sm">💬 Send Message</button>
-                      <button className="w-full bg-[#f0fdf4] text-[#16a34a] hover:bg-green-100 border border-green-200 rounded-xl py-3 text-sm font-bold transition-colors cursor-pointer shadow-sm">🔄 Reschedule Date</button>
-                      <button className="w-full bg-[#fef2f2] text-[#dc2626] hover:bg-red-100 border border-red-200 rounded-xl py-3 text-sm font-bold transition-colors cursor-pointer shadow-sm">🗑 Cancel Appointment</button>
-                    </div>
+                  <div className="space-y-3 pt-6 border-t border-gray-100">
+                    {selectedEvent.isClass ? (
+                       <p className="text-xs font-bold text-gray-400 italic text-center">💡 This is a regular class. Edit in Groups Management.</p>
+                    ) : (
+                      <>
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Quick Actions</p>
+                        {selectedEvent.type === 'Upcoming' && (
+                          <button onClick={() => updateStatus(selectedEvent.id, 'Completed')} className="w-full bg-[#f0fdf4] text-[#16a34a] py-4 rounded-2xl font-black text-xs uppercase tracking-widest border border-green-200 hover:bg-green-100 transition-all shadow-sm cursor-pointer">✓ Mark Completed</button>
+                        )}
+                        <button onClick={() => updateStatus(selectedEvent.id, 'Missed')} className="w-full bg-[#fef2f2] text-[#dc2626] py-4 rounded-2xl font-black text-xs uppercase tracking-widest border border-red-200 hover:bg-red-100 transition-all cursor-pointer">🗑 Cancel Appointment</button>
+                      </>
+                    )}
                   </div>
                 </div>
               )}
 
               {sideModalView === 'new' && (
-                <form className="space-y-6">
+                <form onSubmit={handleSave} className="space-y-6 animate-fade-in">
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Patient / Student Name</label>
-                    <input type="text" placeholder="Full Name" className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 outline-none text-sm focus:border-blue-500 shadow-sm" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Phone</label>
-                      <input type="tel" placeholder="Phone Number" className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 outline-none text-sm focus:border-blue-500 shadow-sm" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Email</label>
-                      <input type="email" placeholder="Email Address" className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 outline-none text-sm focus:border-blue-500 shadow-sm" />
-                    </div>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Student/Parent Name</label>
+                    <input type="text" placeholder="Full Name" className="w-full bg-white border border-gray-200 p-4 rounded-2xl text-sm font-bold outline-none focus:border-blue-500 shadow-sm" value={formData.title} onChange={e=>setFormData({...formData, title: e.target.value})} required/>
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Treatment / Course</label>
-                    <select className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 outline-none text-sm cursor-pointer focus:border-blue-500 shadow-sm">
-                      <option>Select Option</option>
-                      <option>Placement Test</option>
-                      <option>Parent Meeting</option>
-                      <option>Private Lesson</option>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Appointment Type</label>
+                    <select className="w-full bg-white border border-gray-200 p-4 rounded-2xl text-sm font-bold outline-none cursor-pointer" value={formData.sub} onChange={e=>setFormData({...formData, sub: e.target.value})}>
+                      <option>Placement Test</option><option>Parent Meeting</option><option>Private Lesson</option>
                     </select>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Date</label>
-                      <input type="date" className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 outline-none text-sm focus:border-blue-500 shadow-sm" />
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Day (1-7)</label>
+                      <input type="number" min="1" max="7" className="w-full border border-gray-200 p-4 rounded-2xl text-sm font-bold" value={formData.day} onChange={e=>setFormData({...formData, day: e.target.value})} required/>
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Time</label>
-                      <input type="time" className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 outline-none text-sm focus:border-blue-500 shadow-sm" />
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Time (e.g. 10.5)</label>
+                      <input type="number" step="0.5" className="w-full border border-gray-200 p-4 rounded-2xl text-sm font-bold" value={formData.start} onChange={e=>setFormData({...formData, start: e.target.value})} required/>
                     </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Staff / Teacher</label>
-                    <select className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 outline-none text-sm cursor-pointer focus:border-blue-500 shadow-sm">
-                      <option>Select Staff</option>
-                      <option>Prof. Nadia</option>
-                      <option>Prof. Hassan</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Notes</label>
-                    <textarea rows="4" placeholder="Add any notes here..." className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 outline-none text-sm resize-none focus:border-blue-500 shadow-sm"></textarea>
                   </div>
                   
-                  <div className="pt-6">
-                    <button type="button" onClick={() => setSideModalView(null)} className="w-full bg-[#2563eb] hover:bg-blue-700 text-white rounded-xl py-3.5 text-sm font-bold transition-colors shadow-md cursor-pointer">
-                      Save Appointment
-                    </button>
+                  {/* 💡 هنا زدنا الخانة تاع القاعة قدام الأستاذ */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Assigned Teacher</label>
+                      <div>
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Assigned Teacher</label>
+                      <select 
+                       className="w-full bg-white border border-gray-200 p-4 rounded-2xl text-sm font-bold outline-none cursor-pointer" 
+                        value={formData.teacher} 
+                        onChange={e => setFormData({...formData, teacher: e.target.value})} 
+                        required
+                       >
+                        <option value="">-- Select Teacher --</option>
+    
+                        {/* 💡 هنا نخرجو الأساتذة الحقيقيين من طابلو staff */}
+                        {teachersList.map((t) => (
+                        <option key={t.id} value={`Prof. ${t.first_name} ${t.last_name}`}>
+                          Prof. {t.first_name} {t.last_name}
+                        </option>
+                       ))}
+    
+                      </select>
+                   </div>
+                    </div>
+                    <div>
+                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Room / Lab</label>
+                      <select 
+                       className="w-full bg-white border border-gray-200 p-4 rounded-2xl text-sm font-bold outline-none cursor-pointer" 
+                       value={formData.room} 
+                       onChange={e => setFormData({...formData, room: e.target.value})} 
+                       required
+                      >
+                       <option value="">-- Select Room --</option>
+    
+                      {/* 💡 السحر هنا: نخرجو القاعات الحقيقيين من قاعدة البيانات */}
+                      {roomsList.map((r) => (
+                       <option key={r.id} value={r.name}>
+                        {r.name}
+                       </option>
+                       ))}
+    
+                      </select>
+                    </div>
                   </div>
+
+                  <textarea placeholder="Notes (Optional)..." className="w-full border border-gray-200 p-4 rounded-2xl text-sm font-bold h-32 resize-none" value={formData.notes} onChange={e=>setFormData({...formData, notes: e.target.value})}></textarea>
+                  
+                  <button type="submit" disabled={loading} className="w-full bg-[#0A1128] hover:bg-blue-900 text-white py-5 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-2xl transition-all active:scale-95 mt-8 cursor-pointer">
+                    {loading ? 'Processing...' : 'Confirm Appointment'}
+                  </button>
                 </form>
               )}
             </div>

@@ -7,12 +7,11 @@ import Enrollment from './Enrollment';
 import ParentPortal from './ParentPortal';
 import Documents from './Documents';
 import SchoolSchedule from './SchoolSchedule';
-import StudentRegistration from './StudentRegistration';
-import StudentRecords from './StudentRecords';
 import AttendanceRecords from './AttendanceRecords';
-import RegistrationRequests from './RegistrationRequests';
+import StudentsManagement from './StudentsManagement'; 
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../supabaseClient';
+import SchedulingHub from './SchedulingHub';
 
 const SecretaryDashboard = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState('Dashboard');
@@ -26,14 +25,10 @@ const SecretaryDashboard = ({ onLogout }) => {
   const [examView, setExamView] = useState('home'); // أضيفي هذا السطر
   const menuItems = [
     { icon: "🏠", text: "Dashboard" },
-    { icon: "📩", text: "Registration Requests" },
-    { icon: "🎓", text: "Student Registration" },
-    { icon: "👥", text: "Student Records" },
+    { icon: "🎓", text: "Students Management" },
     { icon: "📋", text: "Attendance Records" },
-    { icon: "📅", text: "School Schedule" },
-    { icon: "🏫", text: "Class Enrollment" },
+    { icon: "🏫", text: "Scheduling Hub" },
     { icon: "💬", text: "Communicate Parents" },
-    { icon: "⚙️", text: "Appointments" },
     { icon: "📄", text: "Documents" },
     { icon: "📝", text: "Exams" },
     { icon: "💳", text: "Payment" },
@@ -231,15 +226,13 @@ const SecretaryDashboard = ({ onLogout }) => {
         {activeTab === 'Payment' && <Payment />}
         {/* 3. شرط صفحة الامتحانات */}
         {activeTab === 'Exams' && <Exams examView={examView} setExamView={setExamView} />}
-        {activeTab === 'Appointments' && <Appointments />}
-        {activeTab === 'Class Enrollment' && <Enrollment />}
+        {activeTab === 'Scheduling Hub' && <SchedulingHub />}
         {activeTab === 'Communicate Parents' && <ParentPortal />}
         {activeTab === 'Documents' && <Documents />}
         {activeTab === 'School Schedule' && <SchoolSchedule />}
-        {activeTab === 'Student Registration' && <StudentRegistration />}
-        {activeTab === 'Student Records' && <StudentRecords />}
+        {activeTab === 'Students Management' && <StudentsManagement />}
         {activeTab === 'Attendance Records' && <AttendanceRecords />}
-        {activeTab === 'Registration Requests' && <RegistrationRequests />}
+        
         
         
       </main>

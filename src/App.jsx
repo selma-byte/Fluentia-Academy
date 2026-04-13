@@ -13,9 +13,15 @@ import spanishImg from './assets/spn.jpg';
 import SecretaryDashboard from './components/secretery/dashboard';
 import AdminDashboard from './components/admin/dashboardA';
 import TeacherDashboard from './components/teacher/Dashboardt';
+import StudentDashboard from './components/student/StudentDashboard'; // بدلي المسار على حساب وين خبيتي الملف
 
 import Login from './components/login';
 import Join from './components/join';
+// import MyStudents from './MyStudents';
+// import EnterGrades from './EnterGrades';
+// import UploadCourse from './UploadCourse';
+// import Messages from './Messages';
+// import Libraries from './Libraries';
 
 const HomePage = () => {
   const navigate = useNavigate();
@@ -280,6 +286,7 @@ function App() {
         {/* 💡 زيدي هاد السطر باش يولي يشوف صفحة المدير */}
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
         <Route path="/teacher/dashboard" element={<TeacherDashboard />} />
+        <Route path="/student" element={<StudentDashboard />} />
       </Routes>
     </Router>
     
