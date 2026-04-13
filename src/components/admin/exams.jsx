@@ -1,85 +1,111 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { 
+  Plus, Settings, FileText, Calendar, 
+  ChevronRight, MoreHorizontal, Download, 
+  Printer, Eye, Edit2, Trash2, CheckCircle, 
+  Clock, Search, Filter, ArrowLeft, Upload, 
+  Layout, Users, BarChart3, Award, X, Bell,
+  BookOpen, Layers, Target, Info
+} from 'lucide-react';
 
 const Exams = ({ examView, setExamView }) => {
   const [createStep, setCreateStep] = useState(1);
+  const [notification, setNotification] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  
+  // --- Data State (Mock Database) ---
+  const [examData, setExamData] = useState([
+    { id: 1, title: "Mathematics Mid-Term Exam", sub: "Mathematics", cls: "9 Niaz", status: "Active", dur: "90m", part: "35", prog: "28/35", sColor: "bg-[#0A1128]" },
+    { id: 2, title: "English Literature Quiz", sub: "English", cls: "8 Liaqat", status: "Scheduled", dur: "45m", part: "32", prog: "0/32", sColor: "bg-gray-400" },
+    { id: 3, title: "Physics Chapter 5 Test", sub: "Physics", cls: "10 Niaz", status: "Completed", dur: "60m", part: "28", prog: "28/28", sColor: "bg-green-500" }
+  ]);
+
+  // --- Search Filtering Logic ---
+  const filteredExams = examData.filter(exam => 
+    exam.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    exam.sub.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    exam.cls.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // --- Utility: Show Modern Notification ---
+  const triggerToast = (msg, type = 'system') => {
+    setNotification({ msg, type });
+    setTimeout(() => setNotification(null), 4000);
+  };
 
   // =======================================
-  // 1. الصفحة الرئيسية للامتحانات (Dashboard)
+  // 1. DASHBOARD VIEW
   // =======================================
   const renderHome = () => (
-    <div className="animate-fade-in pb-10">
-      <h2 className="text-3xl font-bold text-[#0A1128] mb-8">Exam Management</h2>
-      
-      <div className="flex justify-between items-center bg-white p-6 rounded-2xl border border-gray-200 shadow-sm mb-10">
-        <div className="text-center px-6">
-          <p className="text-gray-500 text-sm font-bold mb-2">Total Exams</p>
-          <p className="text-4xl font-bold text-[#0A1128]">12</p>
-        </div>
-        <div className="w-px h-12 bg-gray-200"></div>
-        <div className="text-center px-6">
-          <p className="text-gray-500 text-sm font-bold mb-2">Active Exams</p>
-          <p className="text-4xl font-bold text-[#0A1128]">3</p>
-        </div>
-        <div className="w-px h-12 bg-gray-200"></div>
-        <div className="text-center px-6">
-          <p className="text-gray-500 text-sm font-bold mb-2">Scheduled</p>
-          <p className="text-4xl font-bold text-[#0A1128]">5</p>
-        </div>
-        <div className="w-px h-12 bg-gray-200"></div>
-        <div className="text-center px-6">
-          <p className="text-gray-500 text-sm font-bold mb-2">Completed</p>
-          <p className="text-4xl font-bold text-[#0A1128]">4</p>
+    <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 pb-10">
+      <div className="flex justify-between items-center mb-8">
+        <h2 className="text-3xl font-bold text-[#0A1128]">Exam Management</h2>
+        {/* Creative Navbar Idea: Mini Dynamic Status */}
+        <div className="hidden md:flex bg-white/50 backdrop-blur-md border border-gray-100 rounded-2xl p-2 gap-2 shadow-sm">
+           <div className="flex items-center gap-2 px-4 py-2 bg-indigo-50 rounded-xl text-indigo-600 font-bold text-xs">
+             <div className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse"></div>
+             System Live
+           </div>
+           <div className="px-4 py-2 text-gray-500 font-bold text-xs flex items-center gap-2">
+             <Calendar size={14}/> {new Date().toLocaleDateString()}
+           </div>
         </div>
       </div>
+      
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-10">
+        {[
+          { label: 'Total Exams', val: examData.length, color: 'text-[#0A1128]' },
+          { label: 'Active', val: '3', color: 'text-indigo-600' },
+          { label: 'Scheduled', val: '5', color: 'text-[#0A1128]' },
+          { label: 'Completed', val: '4', color: 'text-green-500' }
+        ].map((stat, i) => (
+          <div key={i} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm text-center">
+             <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest mb-2">{stat.label}</p>
+             <p className={`text-4xl font-black ${stat.color}`}>{stat.val}</p>
+          </div>
+        ))}
+      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2">
-          <h3 className="text-xl font-bold text-[#0A1128] mb-6">Recent Exams</h3>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+        <div className="lg:col-span-2 space-y-6">
+          <div className="flex justify-between items-center">
+            <h3 className="text-xl font-bold text-[#0A1128]">Recent Exams</h3>
+            <button onClick={() => setExamView('manage')} className="text-sm font-bold text-indigo-600 hover:underline">View All</button>
+          </div>
           <div className="space-y-4">
-            {[
-              { title: "Mathematics Mid-Term Exam", subject: "Mathematics • 9 Niaz", status: "completed", date: "20/12/2023", progress: "35/35" },
-              { title: "English Literature Quiz", subject: "English • 8 Liaqat", status: "scheduled", date: "22/12/2023", progress: "0/32" },
-              { title: "Physics Chapter 5 Test", subject: "Physics • 10 Niaz", status: "active", date: "18/12/2023", progress: "28/28" },
-            ].map((exam, idx) => (
-              <div 
-                key={idx} 
-                onClick={() => exam.status === 'completed' ? setExamView('results') : setExamView('manage')}
-                className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow flex justify-between items-center cursor-pointer"
-              >
-                <div>
-                  <div className="flex items-center mb-2">
-                    <h4 className="font-bold text-[#0A1128] text-base mr-3">{exam.title}</h4>
-                    <span className={`text-xs px-2.5 py-1 rounded font-bold capitalize ${
-                      exam.status === 'active' ? 'bg-[#0A1128] text-white' : 
-                      exam.status === 'scheduled' ? 'bg-gray-100 text-gray-600' : 'bg-gray-100 text-gray-800'
-                    }`}>{exam.status}</span>
+            {examData.map((exam, idx) => (
+              <div key={idx} className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm hover:shadow-xl hover:scale-[1.01] transition-all cursor-pointer flex justify-between items-center group">
+                <div className="flex items-center gap-5">
+                  <div className="p-4 rounded-xl bg-indigo-50 text-indigo-600"><FileText size={24} /></div>
+                  <div>
+                    <div className="flex items-center mb-1">
+                      <h4 className="font-bold text-[#0A1128] text-lg mr-3 group-hover:text-indigo-600 transition-colors">{exam.title}</h4>
+                      <span className="text-[10px] px-2 py-1 rounded-lg bg-gray-100 text-gray-500 font-black uppercase">{exam.status}</span>
+                    </div>
+                    <p className="text-sm text-gray-400 font-medium">{exam.sub} • {exam.cls} • {exam.prog} students</p>
                   </div>
-                  <p className="text-sm text-gray-500">{exam.subject} • {exam.progress} completed</p>
                 </div>
-                <div className="text-right">
-                  <p className="text-xs text-gray-400 capitalize mb-1">Scheduled</p>
-                  <p className="text-sm font-medium text-gray-700">{exam.date}</p>
-                </div>
+                <ChevronRight size={18} className="text-gray-300 group-hover:text-indigo-600 transition-colors" />
               </div>
             ))}
           </div>
         </div>
 
-        <div>
-          <h3 className="text-xl font-bold text-[#0A1128] mb-6">Quick Actions</h3>
-          <div className="bg-transparent space-y-3">
-            <button onClick={() => {setExamView('create'); setCreateStep(1);}} className="w-full text-left px-4 py-4 rounded-xl hover:bg-gray-100 text-base font-medium text-gray-700 transition-colors flex items-center cursor-pointer">
-              <span className="mr-3 text-gray-500 text-xl">+</span> Create New Exam
-            </button>
-            <button onClick={() => setExamView('manage')} className="w-full text-left px-4 py-4 rounded-xl hover:bg-gray-100 text-base font-medium text-gray-700 transition-colors flex items-center cursor-pointer">
-              <span className="mr-3 text-gray-500 text-xl">⚙️</span> Manage Exams
-            </button>
-            <button onClick={() => setExamView('results')} className="w-full text-left px-4 py-4 rounded-xl hover:bg-gray-100 text-base font-medium text-gray-700 transition-colors flex items-center cursor-pointer">
-              <span className="mr-3 text-gray-500 text-xl">📊</span> View Exam Results
-            </button>
-            <button onClick={() => setExamView('schedule')} className="w-full text-left px-4 py-4 rounded-xl hover:bg-gray-100 text-base font-medium text-gray-700 transition-colors flex items-center cursor-pointer">
-              <span className="mr-3 text-gray-500 text-xl">📅</span> Schedule Exam
-            </button>
+        <div className="space-y-6">
+          <h3 className="text-xl font-bold text-[#0A1128]">Quick Actions</h3>
+          <div className="bg-white rounded-3xl border border-gray-100 p-4 shadow-sm space-y-2">
+            {[
+              { label: 'Create New Exam', icon: Plus, view: 'create', color: 'bg-indigo-50 text-indigo-600' },
+              { label: 'Manage Exams', icon: Settings, view: 'manage', color: 'bg-slate-50 text-slate-600' },
+              { label: 'View Exam Results', icon: BarChart3, view: 'results', color: 'bg-green-50 text-green-600' },
+              { label: 'Schedule Exam', icon: Calendar, view: 'schedule', color: 'bg-orange-50 text-orange-600' },
+            ].map((action, i) => (
+              <button key={i} onClick={() => setExamView(action.view)} className="w-full text-left px-4 py-4 rounded-2xl hover:bg-gray-50 transition-all flex items-center group">
+                <div className={`mr-4 p-2.5 rounded-xl ${action.color}`}><action.icon size={20} /></div>
+                <span className="text-base font-bold text-gray-700 group-hover:text-black">{action.label}</span>
+                <ChevronRight size={16} className="ml-auto text-gray-300 group-hover:translate-x-1 transition-transform" />
+              </button>
+            ))}
           </div>
         </div>
       </div>
@@ -87,355 +113,238 @@ const Exams = ({ examView, setExamView }) => {
   );
 
   // =======================================
-  // 2. صفحة إدارة الامتحانات (مطابقة لتصميم Figma 100%)
+  // 2. MANAGE EXAMS VIEW (Functioning Actions & Search)
   // =======================================
   const renderManageExams = () => (
-    <div className="animate-fade-in pb-10 max-w-7xl mx-auto">
-      
-      {/* العنوان العلوي */}
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-[#0A1128] mb-1">Exam Management</h2>
-        <p className="text-sm text-gray-500">Manage all exams across the school and monitor their progress</p>
-      </div>
-
-      {/* بطاقات الإحصائيات (4 بطاقات منفصلة بلون رمادي فاتح) */}
-      <div className="grid grid-cols-4 gap-4 mb-8">
-        <div className="bg-gray-100/80 rounded-2xl p-5 flex justify-between items-start border border-gray-200/50">
-          <div>
-            <p className="text-gray-500 text-[11px] font-medium mb-1">Total Exams</p>
-            <p className="text-2xl font-bold text-[#0A1128]">5</p>
-          </div>
-          <span className="text-blue-500 text-xl">📄</span>
+    <div className="animate-in slide-in-from-right-8 duration-500 pb-10">
+      <div className="flex justify-between items-end mb-8">
+        <div>
+          <h2 className="text-3xl font-bold text-[#0A1128] mb-1">Exam Management</h2>
+          <p className="text-sm text-gray-500 font-medium">Manage and monitor school-wide exam progress</p>
         </div>
-        <div className="bg-gray-100/80 rounded-2xl p-5 flex justify-between items-start border border-gray-200/50">
-          <div>
-            <p className="text-gray-500 text-[11px] font-medium mb-1">Active Exams</p>
-            <p className="text-2xl font-bold text-[#0A1128]">1</p>
-          </div>
-          <span className="text-green-500 text-xl">▶</span>
-        </div>
-        <div className="bg-gray-100/80 rounded-2xl p-5 flex justify-between items-start border border-gray-200/50">
-          <div>
-            <p className="text-gray-500 text-[11px] font-medium mb-1">Scheduled</p>
-            <p className="text-2xl font-bold text-[#0A1128]">1</p>
-          </div>
-          <span className="text-orange-500 text-xl">📅</span>
-        </div>
-        <div className="bg-gray-100/80 rounded-2xl p-5 flex justify-between items-start border border-gray-200/50">
-          <div>
-            <p className="text-gray-500 text-[11px] font-medium mb-1">Completed</p>
-            <p className="text-2xl font-bold text-[#0A1128]">1</p>
-          </div>
-          <span className="text-purple-500 text-xl">📋</span>
+        <div className="flex gap-4">
+            <button onClick={() => setExamView('home')} className="bg-white border border-gray-200 text-[#0A1128] px-6 py-3 rounded-xl font-bold hover:bg-gray-50 transition-all flex items-center gap-2">
+                <ArrowLeft size={18} /> Back
+            </button>
+            <button onClick={() => setExamView('create')} className="bg-[#0A1128] text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-900 transition-all">
+                <Plus size={18} /> Create New Exam
+            </button>
         </div>
       </div>
 
-      {/* شريط البحث العلوي الرمادي */}
-      <div className="bg-gray-100/80 rounded-xl p-3 flex justify-between items-center border border-gray-200/50 mb-10">
-        <div className="relative flex-1 max-w-lg">
-          <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 text-sm">🔍</span>
-          <input type="text" placeholder="Search exams by title, subject, or class..." className="w-full bg-transparent border-none py-2 pl-10 pr-4 text-sm outline-none text-gray-600" />
+      <div className="bg-gray-100/80 rounded-2xl p-3 flex justify-between items-center border border-gray-200/50 mb-8">
+        <div className="relative flex-1 max-w-xl">
+          <Search size={18} className="absolute inset-y-0 left-4 top-3 text-gray-400" />
+          <input 
+            type="text" 
+            placeholder="Search exams by title, subject, or class..." 
+            className="w-full bg-transparent border-none py-3 pl-12 pr-4 text-sm font-medium outline-none text-gray-600"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
         </div>
-        <div className="bg-gray-200/50 rounded-lg px-3 py-1.5 flex items-center">
-          <select className="bg-transparent border-none text-sm font-medium text-gray-600 outline-none cursor-pointer pr-2">
-            <option>All Status</option>
-          </select>
+        <div className="bg-white rounded-xl px-4 py-2 shadow-sm border border-gray-200/50 flex items-center gap-2">
+          <Filter size={14} className="text-gray-400" />
+          <select className="bg-transparent border-none text-xs font-bold text-gray-600 outline-none"><option>All Status</option></select>
         </div>
       </div>
 
-      {/* قسم Your Exams والجدول */}
-      <div>
-        <div className="mb-4 border-b border-gray-200 pb-3">
-          <h3 className="font-bold text-[#0A1128] text-base mb-1">Your Exams</h3>
-          <p className="text-xs text-gray-500">Manage and monitor all your created exams</p>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-gray-200 text-[#0A1128] font-bold">
-              <tr>
-                <th className="py-3 px-2">Title</th>
-                <th className="py-3 px-2">Subject</th>
-                <th className="py-3 px-2">Class</th>
-                <th className="py-3 px-2">Status</th>
-                <th className="py-3 px-2">Duration</th>
-                <th className="py-3 px-2">Participants</th>
-                <th className="py-3 px-2">Progress</th>
-                <th className="py-3 px-2">Scheduled</th>
-                <th className="py-3 px-2">Actions</th>
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-xl overflow-hidden">
+        <table className="w-full text-left">
+          <thead className="bg-gray-50/50 text-[#0A1128] font-black uppercase text-[10px] tracking-widest border-b border-gray-100">
+            <tr>
+              <th className="py-5 px-8">Exam Info</th>
+              <th className="py-5 px-4">Subject/Class</th>
+              <th className="py-5 px-4">Status</th>
+              <th className="py-5 px-4">Duration</th>
+              <th className="py-5 px-4">Participants</th>
+              <th className="py-5 px-4">Progress</th>
+              <th className="py-5 px-8 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50 font-medium text-sm">
+            {filteredExams.map((row, i) => (
+              <tr key={i} className="hover:bg-slate-50/50">
+                <td className="py-6 px-8 font-bold text-[#0A1128]">{row.title}</td>
+                <td className="py-6 px-4">
+                    <p className="text-gray-600">{row.sub}</p>
+                    <p className="text-[10px] font-black text-indigo-500 uppercase">{row.cls}</p>
+                </td>
+                <td className="py-6 px-4">
+                  <span className={`px-3 py-1.5 rounded-lg text-[10px] font-black text-white uppercase tracking-tight ${row.sColor}`}>{row.status}</span>
+                </td>
+                <td className="py-6 px-4 text-gray-400 flex items-center gap-2"><Clock size={14}/> {row.dur}</td>
+                <td className="py-6 px-4 text-gray-400 flex items-center gap-2"><Users size={14}/> {row.part}</td>
+                <td className="py-6 px-4">
+                   <div className="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-indigo-600" style={{width: '75%'}}></div>
+                   </div>
+                   <p className="text-[10px] font-black mt-1">{row.prog}</p>
+                </td>
+                <td className="py-6 px-8 text-right">
+                   <div className="flex justify-end gap-2">
+                      <button onClick={() => setExamView('results')} className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-white rounded-lg transition-all"><Eye size={18} /></button>
+                      <button onClick={() => triggerToast(`Opening Edit Mode for ${row.title}`)} className="p-2 text-gray-400 hover:text-orange-500 hover:bg-white rounded-lg transition-all"><Edit2 size={18} /></button>
+                      <button onClick={() => triggerToast(`Exam ${row.id} marked for deletion`, "system")} className="p-2 text-gray-400 hover:text-red-500 hover:bg-white rounded-lg transition-all"><Trash2 size={18} /></button>
+                   </div>
+                </td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {[
-                { title: "Mathematics Mid-Term Exam", file: "math_midterm_class9.pdf", sub: "Mathematics", cls: "9 Niaz", status: "Active", dur: "90m", part: "35", prog: "28/35", date: "20/12/2023", time: "09:00" },
-                { title: "English Literature Quiz", file: "english_literature_quiz.pdf", sub: "English", cls: "8 Liaqat", status: "Scheduled", dur: "45m", part: "32", prog: "0/32", date: "22/12/2023", time: "11:00" },
-                { title: "Physics Chapter 5 Test", file: "physics_ch5_test.pdf", sub: "Physics", cls: "10 Niaz", status: "Completed", dur: "60m", part: "28", prog: "28/28", date: "18/12/2023", time: "14:00" },
-                { title: "Chemistry Lab Practical", file: "chemistry_lab_practical.pdf", sub: "Chemistry", cls: "9 Tariq", status: "Draft", dur: "120m", part: "0", prog: "0/0", date: "25/12/2023", time: "10:00" },
-                { title: "Pakistan Studies Final", file: "pak_studies_final.pdf", sub: "Pakistan Studies", cls: "8 Edhi", status: "Paused", dur: "75m", part: "30", prog: "15/30", date: "21/12/2023", time: "13:00", highlight: true },
-              ].map((row, i) => (
-                <tr key={i} className={`transition-colors cursor-pointer ${row.highlight ? 'bg-gray-50' : 'hover:bg-gray-50/50'}`} onClick={() => row.status === 'Completed' ? setExamView('results') : null}>
-                  <td className="py-4 px-2">
-                    <p className="font-bold text-[#0A1128] text-[13px]">{row.title}</p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">{row.file}</p>
-                  </td>
-                  <td className="py-4 px-2 text-gray-700 text-xs font-medium">{row.sub}</td>
-                  <td className="py-4 px-2 text-gray-700 text-xs font-medium">{row.cls}</td>
-                  <td className="py-4 px-2">
-                    {/* الحالات مطابقة لتصميم Figma */}
-                    {row.status === 'Active' && <span className="bg-[#0A1128] text-white px-2.5 py-1 rounded text-[10px] font-bold flex items-center w-max"><span className="mr-1 text-[8px]">▶</span> Active</span>}
-                    {row.status === 'Scheduled' && <span className="text-gray-600 border border-gray-200 px-2.5 py-1 rounded text-[10px] font-bold flex items-center w-max"><span className="mr-1">📅</span> Scheduled</span>}
-                    {row.status === 'Completed' && <span className="text-gray-600 border border-gray-200 px-2.5 py-1 rounded text-[10px] font-bold flex items-center w-max"><span className="mr-1">📋</span> Completed</span>}
-                    {row.status === 'Draft' && <span className="text-gray-500 px-2.5 py-1 rounded text-[10px] font-bold flex items-center w-max"><span className="mr-1 text-[8px]">⚙️</span> Draft</span>}
-                    {row.status === 'Paused' && <span className="bg-red-500 text-white px-2.5 py-1 rounded text-[10px] font-bold flex items-center w-max"><span className="mr-1 text-[8px]">⏸</span> Paused</span>}
-                  </td>
-                  <td className="py-4 px-2 text-gray-500 text-xs flex items-center mt-2"><span className="mr-1.5 opacity-50">⏱</span> {row.dur}</td>
-                  <td className="py-4 px-2 text-gray-500 text-xs"><span className="mr-1.5 opacity-50">👥</span> {row.part}</td>
-                  <td className="py-4 px-2">
-                     <div className="font-bold text-[#0A1128] text-xs mb-1">{row.prog}</div>
-                     <div className="w-10 h-1 bg-blue-600 rounded"></div>
-                  </td>
-                  <td className="py-4 px-2">
-                     <p className={`text-xs ${row.highlight ? 'bg-blue-600 text-white px-1.5 py-0.5 rounded w-max' : 'text-gray-600'}`}>{row.date}</p>
-                     <p className="text-[10px] text-gray-400 mt-0.5">{row.time}</p>
-                  </td>
-                  <td className="py-4 px-2 text-gray-400 space-x-3 text-sm">
-                     <span className="hover:text-black">👁</span>
-                     <span className="hover:text-black">✏️</span>
-                     <span className="hover:text-black">📄</span>
-                     <span className="hover:text-black">📥</span>
-                     <span className="hover:text-black">⏸</span>
-                     <span className="hover:text-red-500">🗑</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </table>
+        {filteredExams.length === 0 && (
+          <div className="p-20 text-center text-gray-400 font-bold">No exams found matching "{searchQuery}"</div>
+        )}
       </div>
     </div>
   );
 
   // =======================================
-  // 3. صفحة نتائج الامتحانات
+  // 3. EXAM RESULTS VIEW
   // =======================================
   const renderResults = () => (
-    <div className="animate-fade-in pb-10">
-      
-      <div className="mb-8 border-b border-gray-200 pb-5">
-        <h2 className="text-3xl font-bold text-[#0A1128] mb-2">Exam Results</h2>
-        <p className="text-sm text-gray-500">View and analyze student performance across all exams</p>
+    <div className="animate-in fade-in zoom-in-95 duration-500">
+      <div className="flex justify-between items-center border-b border-gray-100 pb-8 mb-8">
+        <div>
+          <h2 className="text-3xl font-black text-[#0A1128]">Exam Results</h2>
+          <p className="text-sm text-gray-500 font-medium">Analyze performance and student rankings</p>
+        </div>
+        <button onClick={() => setExamView('home')} className="flex items-center gap-2 text-sm font-bold text-indigo-600 hover:bg-indigo-50 px-4 py-2 rounded-xl transition-all">
+          <ArrowLeft size={18} /> Back to Dashboard
+        </button>
       </div>
 
-      <div className="flex justify-between items-center mb-8">
-        <select className="bg-transparent text-[#0A1128] font-bold text-base outline-none cursor-pointer w-80">
-          <option>Mathematics Mid-Term Exam - 9 Niaz</option>
-        </select>
-        <div className="flex space-x-6">
-          <button className="text-sm font-bold text-gray-600 hover:text-black flex items-center cursor-pointer transition-colors">
-            <span className="mr-2 text-lg">📥</span> Export CSV
+      <div className="flex justify-between items-center mb-10">
+        <div className="bg-white border border-gray-100 rounded-2xl px-6 py-4 shadow-sm flex items-center gap-4">
+           <FileText className="text-indigo-600" size={20} />
+           <p className="text-[#0A1128] font-black text-lg">Mathematics Mid-Term Exam - 9 Niaz</p>
+        </div>
+        <div className="flex gap-4">
+          <button onClick={() => triggerToast("Downloading CSV Report...", "system")} className="bg-white px-5 py-3 rounded-xl shadow-sm border border-gray-100 text-sm font-bold text-gray-600 hover:bg-gray-50 flex items-center gap-2">
+            <Download size={16} className="text-indigo-600" /> Export CSV
           </button>
-          <button className="text-sm font-bold text-gray-600 hover:text-black flex items-center cursor-pointer transition-colors">
-            <span className="mr-2 text-lg">📥</span> Export PDF
+          <button onClick={() => triggerToast("Generating PDF Document...", "system")} className="bg-white px-5 py-3 rounded-xl shadow-sm border border-gray-100 text-sm font-bold text-gray-600 hover:bg-gray-50 flex items-center gap-2">
+            <Printer size={16} className="text-red-500" /> Export PDF
           </button>
         </div>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-6 mb-10 flex divide-x divide-gray-100">
-        <div className="flex-1 px-6 flex justify-between items-center">
-          <div>
-            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Total Students</p>
-            <p className="text-4xl font-bold text-[#0A1128] leading-none">35</p>
-          </div>
-          <span className="text-blue-500 text-3xl opacity-90">👥</span>
-        </div>
-        <div className="flex-1 px-8 flex justify-between items-center">
-          <div>
-            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Completed</p>
-            <p className="text-4xl font-bold text-[#0A1128] leading-none">33</p>
-          </div>
-          <span className="text-blue-400 text-3xl opacity-90">📄</span>
-        </div>
-        <div className="flex-1 px-8 flex justify-between items-center">
-          <div>
-            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Average Score</p>
-            <p className="text-4xl font-bold text-[#0A1128] leading-none">76.5%</p>
-          </div>
-          <span className="text-green-500 text-3xl opacity-90">📊</span>
-        </div>
-        <div className="flex-1 px-8 flex justify-between items-center">
-          <div>
-            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Pass Rate</p>
-            <p className="text-4xl font-bold text-[#0A1128] leading-none">78.8%</p>
-          </div>
-          <span className="text-orange-500 text-3xl opacity-90">🏅</span>
-        </div>
-      </div>
-
-      <div className="mb-12 pl-2">
-        <h3 className="font-bold text-[#0A1128] text-xl mb-2">Mathematics Mid-Term Exam</h3>
-        <p className="text-sm text-gray-500 mb-8">Mathematics • 9 Niaz • Conducted on 20/12/2023</p>
-        
-        <div className="grid grid-cols-3 gap-6 text-base max-w-3xl">
-          <div>
-            <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-2">Duration</p>
-            <p className="font-bold text-[#0A1128] text-lg">90 minutes</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-2">Passing Score</p>
-            <p className="font-bold text-[#0A1128] text-lg">60%</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-2">Completion Rate</p>
-            <p className="font-bold text-[#0A1128] text-lg">94%</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="mb-6 bg-white/50 rounded-2xl p-5 border border-gray-100">
-        <div className="mb-6 border-b border-gray-200 pb-4">
-          <h3 className="font-bold text-[#0A1128] text-lg mb-1">Student Results</h3>
-          <p className="text-sm text-gray-500">Detailed results for each student who attempted the exam</p>
-        </div>
-        
-        <div className="flex justify-between items-center mb-6">
-           <div className="relative w-80 bg-gray-50 rounded-lg">
-             <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-400 text-sm">🔍</span>
-             <input type="text" placeholder="Search students by name or ID..." className="w-full bg-transparent py-2.5 pl-10 pr-4 text-sm outline-none text-gray-600" />
-           </div>
-           <select className="bg-transparent border-none py-2 text-sm font-bold text-gray-600 outline-none cursor-pointer">
-             <option>All Grades</option>
-           </select>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-gray-200 text-[#0A1128] font-bold">
-              <tr>
-                <th className="py-4 px-3">Student</th>
-                <th className="py-4 px-3">Score</th>
-                <th className="py-4 px-3">Percentage</th>
-                <th className="py-4 px-3">Grade</th>
-                <th className="py-4 px-3">Status</th>
-                <th className="py-4 px-3">Time Spent</th>
-                <th className="py-4 px-3">Submission Time</th>
-                <th className="py-4 px-3 text-center">Actions</th>
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-10">
+        <h3 className="text-xl font-bold text-[#0A1128] mb-8">Student Ranking</h3>
+        <table className="w-full text-left">
+           <thead>
+              <tr className="border-b border-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                <th className="py-4 px-4 w-20">Rank</th>
+                <th className="py-4 px-4">Student Name</th>
+                <th className="py-4 px-4">Score</th>
+                <th className="py-4 px-4">Grade</th>
+                <th className="py-4 px-4">Status</th>
+                <th className="py-4 px-4 text-right">Action</th>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {[
-                { name: "Ahmad Ali", id: "9N001", score: "85/100", perc: 85, grade: "A", status: "Passed", time: "87m", sub: "10:27" },
-                { name: "Fatima Khan", id: "9N002", score: "92/100", perc: 92, grade: "A+", status: "Passed", time: "89m", sub: "10:29" },
-                { name: "Hassan Ahmed", id: "9N003", score: "68/100", perc: 68, grade: "B", status: "Passed", time: "90m", sub: "10:30" },
-                { name: "Aisha Malik", id: "9N004", score: "45/100", perc: 45, grade: "F", status: "Failed", time: "78m", sub: "10:18" },
-              ].map((s, i) => (
-                <tr key={i} className="hover:bg-gray-50/80 transition-colors">
-                  <td className="py-4 px-3">
-                    <p className="font-bold text-[#0A1128] text-base">{s.name}</p>
-                    <p className="text-xs text-gray-500 mt-1">{s.id}</p>
-                  </td>
-                  <td className="py-4 px-3 font-medium text-[#0A1128]">{s.score}</td>
-                  <td className="py-4 px-3">
-                    <div className="flex items-center">
-                      <span className="font-bold text-[#0A1128] w-10">{s.perc}%</span>
-                      <div className="w-10 h-2 bg-blue-600 rounded-full ml-2"></div>
-                    </div>
-                  </td>
-                  <td className={`py-4 px-3 font-bold ${s.grade === 'F' ? 'text-red-500' : 'text-green-500'}`}>{s.grade}</td>
-                  <td className="py-4 px-3">
-                     <span className={`px-3 py-1 text-xs font-bold uppercase rounded ${s.status === 'Failed' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
-                       {s.status}
-                     </span>
-                  </td>
-                  <td className="py-4 px-3 text-gray-500 flex items-center"><span className="mr-2 text-sm">⏱</span>{s.time}</td>
-                  <td className="py-4 px-3 text-gray-500">{s.sub}</td>
-                  <td className="py-4 px-3 text-center">
-                     <button className="text-gray-400 hover:text-[#0A1128] cursor-pointer text-lg">👁</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+           </thead>
+           <tbody className="divide-y divide-gray-50">
+             {[
+               { rank: "#01", name: "Fatima Khan", score: "92/100", grade: "A+", gCol: "text-green-500", status: "PASSED", sCol: "bg-green-100 text-green-700" },
+               { rank: "#02", name: "Ahmad Ali", score: "85/100", grade: "A", gCol: "text-green-500", status: "PASSED", sCol: "bg-green-100 text-green-700" },
+               { rank: "#03", name: "Hassan Ahmed", score: "68/100", grade: "B", gCol: "text-indigo-600", status: "PASSED", sCol: "bg-green-100 text-green-700" },
+               { rank: "#04", name: "Aisha Malik", score: "45/100", grade: "F", gCol: "text-red-500", status: "FAILED", sCol: "bg-red-100 text-red-600" },
+             ].map((s, i) => (
+               <tr key={i} className="hover:bg-gray-50/50 transition-all group">
+                 <td className="py-6 px-4 font-black text-gray-300 group-hover:text-indigo-600 transition-colors">{s.rank}</td>
+                 <td className="py-6 px-4 font-bold text-[#0A1128]">{s.name}</td>
+                 <td className="py-6 px-4 font-black text-gray-700">{s.score}</td>
+                 <td className={`py-6 px-4 font-black ${s.gCol}`}>{s.grade}</td>
+                 <td className="py-6 px-4">
+                   <span className={`px-3 py-1 text-[10px] font-black rounded-lg uppercase ${s.sCol}`}>{s.status}</span>
+                 </td>
+                 <td className="py-6 px-4 text-right">
+                   <button onClick={() => triggerToast(`Viewing ${s.name}'s Paper...`)} className="p-2 text-gray-300 hover:text-[#0A1128]"><Eye size={18} /></button>
+                 </td>
+               </tr>
+             ))}
+           </tbody>
+        </table>
       </div>
     </div>
   );
 
   // =======================================
-  // 4. صفحة إنشاء امتحان 
+  // 4. CREATE EXAM VIEW (Extra Details Saisir)
   // =======================================
   const renderCreateExam = () => (
-    <div className="animate-fade-in max-w-4xl mx-auto pb-10">
-      <div className="mb-10 border-b border-gray-200 pb-5">
-        <h2 className="text-3xl font-bold text-[#0A1128] mb-2">Create New Exam</h2>
-        <p className="text-sm text-gray-500">Create an exam by uploading a PDF and providing instructions</p>
+    <div className="animate-in slide-in-from-bottom-8 duration-700 max-w-4xl mx-auto">
+      <div className="flex justify-between items-center mb-10">
+        <div>
+            <h2 className="text-4xl font-black text-[#0A1128] mb-2">Create New Exam</h2>
+            <p className="text-gray-400 font-bold">Configure and deploy a new examination</p>
+        </div>
+        <button onClick={() => setExamView('home')} className="text-gray-400 hover:text-red-500 font-bold flex items-center gap-2">
+            <X size={18}/> Cancel
+        </button>
       </div>
 
-      <div className="flex items-center justify-center mb-12 space-x-6">
-        <div className="flex items-center text-blue-600 font-bold text-base">
-          <span className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center mr-3 text-sm">1</span>
-          Exam Details
+      <div className="flex items-center justify-center mb-16 gap-8">
+        <div className={`flex items-center gap-3 ${createStep === 1 ? 'text-indigo-600' : 'text-gray-300'}`}>
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black transition-all ${createStep === 1 ? 'bg-indigo-600 text-white shadow-lg' : 'bg-gray-100'}`}>1</div>
+          <span className="font-bold text-sm">Exam Details</span>
         </div>
-        <div className={`w-20 h-0.5 ${createStep === 2 ? 'bg-blue-600' : 'bg-gray-200'}`}></div>
-        <div className={`flex items-center text-base font-bold ${createStep === 2 ? 'text-blue-600' : 'text-gray-400'}`}>
-          <span className={`w-8 h-8 rounded-full flex items-center justify-center mr-3 text-sm ${createStep === 2 ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}>2</span>
-          Upload PDF
+        <div className="w-16 h-0.5 bg-gray-100"></div>
+        <div className={`flex items-center gap-3 ${createStep === 2 ? 'text-indigo-600' : 'text-gray-300'}`}>
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black transition-all ${createStep === 2 ? 'bg-indigo-600 text-white shadow-lg' : 'bg-gray-100'}`}>2</div>
+          <span className="font-bold text-sm">Deployment</span>
         </div>
       </div>
 
-      <div className="bg-gray-50/50 border border-gray-100 rounded-3xl p-10 shadow-sm">
+      <div className="bg-white border border-gray-100 rounded-[32px] p-12 shadow-2xl shadow-slate-200/50">
         {createStep === 1 ? (
-          <div className="animate-fade-in">
-            <h3 className="text-xl font-bold text-[#0A1128] mb-2">Step 1: Exam Information</h3>
-            <p className="text-sm text-gray-500 mb-8">Provide basic information about your exam</p>
-
-            <div className="grid grid-cols-2 gap-x-10 gap-y-6 mb-8">
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Exam Title</label>
-                <input type="text" placeholder="math" className="w-full bg-gray-100 border-none rounded-xl px-5 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
+          <div className="space-y-10 animate-in fade-in">
+            <div className="grid grid-cols-2 gap-10">
+              <div className="space-y-3">
+                <label className="text-xs font-black text-[#0A1128] uppercase ml-1 flex items-center gap-2"><Target size={14}/> Exam Title</label>
+                <input type="text" placeholder="e.g. Physics Quarter 1" className="w-full bg-gray-50 border-none rounded-2xl px-6 py-4 outline-none font-bold text-[#0A1128] focus:ring-2 ring-indigo-100" />
               </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Subject</label>
-                <select className="w-full bg-gray-100 border-none rounded-xl px-5 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-sm cursor-pointer">
-                  <option>Physics</option><option>Mathematics</option><option>English</option>
+              <div className="space-y-3">
+                <label className="text-xs font-black text-[#0A1128] uppercase ml-1 flex items-center gap-2"><BookOpen size={14}/> Subject</label>
+                <select className="w-full bg-gray-50 border-none rounded-2xl px-6 py-4 outline-none font-bold text-[#0A1128] appearance-none">
+                   <option>Mathematics</option>
+                   <option>Physics</option>
+                   <option>Computer Science</option>
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Class</label>
-                <select className="w-full bg-gray-100 border-none rounded-xl px-5 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-sm cursor-pointer">
-                  <option>8 Liaqat</option><option>9 Niaz</option>
+              <div className="space-y-3">
+                <label className="text-xs font-black text-[#0A1128] uppercase ml-1 flex items-center gap-2"><Layers size={14}/> Target Class</label>
+                <select className="w-full bg-gray-50 border-none rounded-2xl px-6 py-4 outline-none font-bold text-[#0A1128] appearance-none">
+                   <option>9 Niaz</option>
+                   <option>10 Niaz</option>
+                   <option>8 Liaqat</option>
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Duration (minutes)</label>
-                <input type="number" placeholder="60" className="w-full bg-gray-100 border-none rounded-xl px-5 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
+              <div className="space-y-3">
+                <label className="text-xs font-black text-[#0A1128] uppercase ml-1 flex items-center gap-2"><Clock size={14}/> Duration (min)</label>
+                <input type="number" placeholder="60" className="w-full bg-gray-50 border-none rounded-2xl px-6 py-4 outline-none font-bold text-[#0A1128]" />
+              </div>
+              <div className="col-span-2 space-y-3">
+                <label className="text-xs font-black text-[#0A1128] uppercase ml-1 flex items-center gap-2"><Info size={14}/> Exam Instructions</label>
+                <textarea rows="3" placeholder="Enter special rules or instructions for students..." className="w-full bg-gray-50 border-none rounded-2xl px-6 py-4 outline-none font-bold text-[#0A1128] resize-none"></textarea>
               </div>
             </div>
-            <div className="mb-10">
-              <label className="block text-sm font-bold text-gray-700 mb-2">Exam Instructions</label>
-              <textarea rows="4" placeholder="Instructions here..." className="w-full bg-gray-100 border-none rounded-xl px-5 py-3 outline-none focus:ring-2 focus:ring-blue-500 text-sm resize-none"></textarea>
-            </div>
-            <div className="flex justify-between border-t border-gray-200 pt-8">
-              <button className="text-gray-400 font-medium text-sm cursor-not-allowed">Previous</button>
-              <button onClick={() => setCreateStep(2)} className="bg-[#0A1128] text-white px-8 py-3 rounded-xl text-sm font-bold hover:bg-gray-800 transition-colors cursor-pointer">Next</button>
+            <div className="flex justify-between items-center pt-10 border-t border-gray-50">
+              <button onClick={() => setExamView('home')} className="text-gray-400 font-bold">Exit</button>
+              <button onClick={() => setCreateStep(2)} className="bg-[#0A1128] text-white px-10 py-4 rounded-2xl font-black text-sm hover:bg-indigo-950 transition-all shadow-xl shadow-indigo-100">Proceed to Upload</button>
             </div>
           </div>
         ) : (
-          <div className="animate-fade-in py-6">
-            <h3 className="text-xl font-bold text-[#0A1128] mb-2">Step 2: Upload Exam PDF</h3>
-            <p className="text-sm text-gray-500 mb-8">Upload the PDF containing your exam questions</p>
-            
-            <div className="border-2 border-dashed border-gray-300 rounded-2xl p-20 mb-10 bg-transparent hover:bg-white transition-colors cursor-pointer flex flex-col items-center">
-               <span className="text-5xl text-gray-400 mb-6">📤</span>
-               <p className="font-bold text-[#0A1128] text-lg mb-2">Upload Exam PDF</p>
-               <p className="text-sm text-gray-500 mb-6">Upload the PDF containing the exam questions</p>
-               <button className="bg-transparent text-[#0A1128] px-6 py-2.5 rounded-xl text-sm font-bold border border-gray-300 flex items-center">
-                 <span className="mr-2 text-lg">↑</span> Choose PDF File
-               </button>
+          <div className="animate-in fade-in text-center py-10">
+            <div className="border-4 border-dashed border-gray-50 rounded-[40px] p-20 mb-10 hover:border-indigo-100 transition-all cursor-pointer bg-gray-50/30 group">
+                <div className="w-20 h-20 bg-white rounded-3xl shadow-xl mx-auto flex items-center justify-center text-gray-200 group-hover:text-indigo-600 transition-all mb-6">
+                    <Upload size={40} />
+                </div>
+                <p className="font-black text-[#0A1128] text-xl">Upload Paper Template (PDF)</p>
+                <p className="text-gray-400 font-medium mt-2">Maximum file size: 10MB</p>
             </div>
-
-            <div className="flex justify-between border-t border-gray-200 pt-8">
-              <button onClick={() => setCreateStep(1)} className="text-gray-600 font-bold text-sm hover:text-black cursor-pointer">Previous</button>
-              <button onClick={() => setExamView('manage')} className="bg-[#0A1128] text-white px-8 py-3 rounded-xl text-sm font-bold hover:bg-gray-800 transition-colors cursor-pointer">Finish & Save</button>
+            <div className="flex justify-between items-center pt-10 border-t border-gray-50">
+              <button onClick={() => setCreateStep(1)} className="text-gray-400 font-bold">Back to Details</button>
+              <button onClick={() => { setExamView('schedule'); triggerToast("Exam deployed to the calendar successfully!", "system"); }} className="bg-green-600 text-white px-10 py-4 rounded-2xl font-black text-sm shadow-xl shadow-green-100 hover:bg-green-700 transition-all">Finalize & Schedule</button>
             </div>
           </div>
         )}
@@ -444,78 +353,59 @@ const Exams = ({ examView, setExamView }) => {
   );
 
   // =======================================
-  // 5. صفحة جدول الامتحانات
+  // 5. EXAM SCHEDULE VIEW (Synced Navigation)
   // =======================================
   const renderSchedule = () => (
-    <div className="animate-fade-in pb-10">
-      <div className="mb-8 border-b border-gray-200 pb-5">
-        <h2 className="text-3xl font-bold text-[#0A1128] mb-2">Exam Schedule</h2>
+    <div className="animate-in fade-in slide-in-from-top-4 duration-500">
+      <div className="flex justify-between items-center mb-10">
+        <h2 className="text-4xl font-black text-[#0A1128]">Exam Schedule</h2>
+        <div className="flex gap-4">
+            <button className="p-3 bg-white border border-gray-100 rounded-xl text-gray-400 hover:text-indigo-600 shadow-sm"><ChevronRight className="rotate-180" size={20} /></button>
+            <button className="px-6 py-3 bg-white border border-gray-100 rounded-xl font-bold text-[#0A1128] shadow-sm">October 2026</button>
+            <button className="p-3 bg-white border border-gray-100 rounded-xl text-gray-400 hover:text-indigo-600 shadow-sm"><ChevronRight size={20} /></button>
+            <button onClick={() => setExamView('home')} className="ml-4 bg-gray-100 p-3 rounded-xl text-gray-500 hover:bg-gray-200 transition-all">
+                <X size={20} />
+            </button>
+        </div>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-2xl p-8 shadow-sm overflow-x-auto">
+      <div className="bg-white border border-gray-100 rounded-[40px] p-12 shadow-xl overflow-x-auto">
         <div className="min-w-[900px]">
-          <div className="grid grid-cols-6 gap-4 mb-6 text-center border-b border-gray-100 pb-6">
-            <div className="text-gray-400 font-bold text-sm">🕒 Time</div>
-            <div><p className="text-blue-600 font-bold text-sm uppercase mb-1">Mon</p><p className="text-xl font-black text-[#0A1128]">Oct 23</p></div>
-            <div><p className="text-gray-500 font-bold text-sm uppercase mb-1">Tue</p><p className="text-xl font-black text-[#0A1128]">Oct 24</p></div>
-            <div><p className="text-gray-500 font-bold text-sm uppercase mb-1">Wed</p><p className="text-xl font-black text-[#0A1128]">Oct 25</p></div>
-            <div><p className="text-gray-500 font-bold text-sm uppercase mb-1">Thu</p><p className="text-xl font-black text-[#0A1128]">Oct 26</p></div>
-            <div><p className="text-gray-500 font-bold text-sm uppercase mb-1">Fri</p><p className="text-xl font-black text-[#0A1128]">Oct 27</p></div>
+          <div className="grid grid-cols-6 gap-8 mb-12 text-center border-b border-gray-50 pb-8">
+            <div className="flex items-center justify-center font-black text-gray-200 uppercase text-[10px] tracking-widest">Time Slot</div>
+            {['MON 23', 'TUE 24', 'WED 25', 'THU 26', 'FRI 27'].map((d, i) => (
+              <div key={i} className="text-[#0A1128] font-black">
+                <p className="text-3xl tracking-tighter">{d.split(' ')[1]}</p>
+                <p className="text-[10px] opacity-40 uppercase tracking-widest">{d.split(' ')[0]}</p>
+              </div>
+            ))}
           </div>
 
-          <div className="grid grid-cols-6 gap-4 text-base relative">
-            <div className="space-y-20 text-gray-400 font-bold text-sm text-center pt-6">
-              <div>10:00 AM</div>
-              <div>12:00 PM</div>
-              <div>02:00 PM</div>
-              <div>04:00 PM</div>
+          <div className="grid grid-cols-6 gap-8 relative min-h-[400px]">
+            <div className="space-y-24 text-gray-300 font-black text-[10px] uppercase text-center pt-6">
+              <div>09:00 AM</div>
+              <div>11:00 AM</div>
+              <div>01:00 PM</div>
             </div>
 
-            <div className="relative">
-              <div className="absolute top-4 w-full bg-green-50 border-l-4 border-green-500 p-4 rounded-r-xl shadow-sm">
-                <p className="text-xs font-bold text-green-600 mb-2 uppercase tracking-wide">Level A1</p>
-                <p className="font-bold text-[#0A1128] text-base mb-1">German Quiz</p>
-                <p className="text-xs text-gray-500">Room 4 • Dr. Sara</p>
+            <div className="relative border-r border-gray-50 px-2 space-y-6">
+              <div onClick={() => triggerToast("Viewing Math Mid-Term Entry")} className="bg-indigo-600 p-6 rounded-[24px] shadow-2xl shadow-indigo-200 text-white transform hover:scale-[1.02] transition-all cursor-pointer">
+                <p className="text-[10px] font-black uppercase opacity-60 mb-2">9 NIAZ</p>
+                <p className="font-bold text-xl mb-3">Math Mid-Term</p>
+                <div className="flex items-center gap-2 text-[10px] font-bold"><Layout size={12}/> Room 12 • Mr. Adil</div>
               </div>
-              <div className="absolute top-48 w-full bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-xl shadow-sm">
-                <p className="text-xs font-bold text-blue-600 mb-2 uppercase tracking-wide">Level B2</p>
-                <p className="font-bold text-[#0A1128] text-base mb-1">English Test</p>
-              </div>
-            </div>
-
-            <div className="relative">
-              <div className="absolute top-12 w-full bg-orange-50 border-l-4 border-orange-500 p-4 rounded-r-xl shadow-sm">
-                <p className="text-xs font-bold text-orange-600 mb-2 uppercase tracking-wide">Level C1</p>
-                <p className="font-bold text-[#0A1128] text-base mb-1">Spanish Oral</p>
-                <p className="text-xs text-gray-500">Room 2</p>
+              <div onClick={() => triggerToast("Viewing English Quiz Entry")} className="bg-[#0A1128] p-6 rounded-[24px] text-white transform hover:scale-[1.02] transition-all cursor-pointer">
+                <p className="text-[10px] font-black uppercase opacity-40 mb-2">8 LIAQAT</p>
+                <p className="font-bold text-xl mb-3 text-white">English Quiz</p>
+                <div className="flex items-center gap-2 text-[10px] font-bold opacity-60"><Layout size={12}/> Room 04 • Ms. Sara</div>
               </div>
             </div>
 
-            <div className="relative">
-              <div className="absolute top-4 w-full bg-green-50 border-l-4 border-green-500 p-4 rounded-r-xl shadow-sm">
-                <p className="text-xs font-bold text-green-600 mb-2 uppercase tracking-wide">Level A1</p>
-                <p className="font-bold text-[#0A1128] text-base mb-1">German Quiz</p>
+            {[1, 2, 3, 4].map((col) => (
+              <div key={col} className="border-r last:border-0 border-gray-50 px-2 flex flex-col justify-center">
+                <div className="h-24 w-full border-2 border-dashed border-gray-50 rounded-[24px] flex items-center justify-center text-[10px] font-black text-gray-200 uppercase tracking-widest">No Exams</div>
               </div>
-              <div className="absolute top-32 w-full bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-xl shadow-sm">
-                <p className="text-xs font-bold text-blue-600 mb-2 uppercase tracking-wide">Level B2</p>
-                <p className="font-bold text-[#0A1128] text-base mb-1">English Final</p>
-                <p className="text-xs text-gray-500">Hall B</p>
-              </div>
-            </div>
-
-            <div className="relative">
-              <div className="absolute top-10 w-full bg-purple-50 border-l-4 border-purple-500 p-4 rounded-r-xl shadow-sm">
-                <p className="text-xs font-bold text-purple-600 mb-2 uppercase tracking-wide">Level B1</p>
-                <p className="font-bold text-[#0A1128] text-base mb-1">French Written</p>
-                <p className="text-xs text-gray-500">Room 5</p>
-              </div>
-            </div>
-
-            <div className="relative border-l border-dashed border-gray-200 pl-4">
-               <div className="absolute top-32 w-full bg-gray-100 p-5 rounded-xl text-center border border-gray-200">
-                <p className="text-sm font-bold text-gray-400 mt-2 uppercase tracking-widest">No Exams</p>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </div>
@@ -523,7 +413,24 @@ const Exams = ({ examView, setExamView }) => {
   );
 
   return (
-    <div className="p-8 h-full overflow-y-auto bg-transparent custom-scrollbar">
+    <div className="p-10 h-full overflow-y-auto bg-transparent relative">
+      
+      {/* --- MODERN NOTIFICATION COMPONENT --- */}
+      {notification && (
+        <div className="fixed top-10 right-10 z-[100] animate-in slide-in-from-right duration-500">
+           <div className="bg-[#0A1128] border-l-4 border-pink-500 rounded-2xl p-5 shadow-2xl flex items-center gap-4 min-w-[300px]">
+              <div className="w-10 h-10 rounded-xl bg-pink-500/20 flex items-center justify-center text-pink-500">
+                <Bell size={20} className="animate-pulse" />
+              </div>
+              <div className="flex-1">
+                <p className="text-pink-500 text-[10px] font-black uppercase tracking-widest mb-1">System Notification</p>
+                <p className="text-white font-bold italic text-sm">{notification.msg}</p>
+              </div>
+              <button onClick={() => setNotification(null)} className="text-gray-500 hover:text-white"><X size={16}/></button>
+           </div>
+        </div>
+      )}
+
       {examView === 'home' && renderHome()}
       {examView === 'manage' && renderManageExams()}
       {examView === 'results' && renderResults()}
