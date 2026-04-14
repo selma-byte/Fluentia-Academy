@@ -1,280 +1,206 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabaseClient';
 
-const StudentClasses = () => {
-  // --- States للتحكم في الواجهات ---
-  const [currentView, setCurrentView] = useState('list'); // 'list', 'detail', 'video'
+const StudentCourses = () => {
+  const [currentView, setCurrentView] = useState('list');
   const [selectedClass, setSelectedClass] = useState(null);
-  const [selectedLecture, setSelectedLecture] = useState(null);
-  const [activeSubTab, setActiveSubTab] = useState('Lectures');
-
-  // --- States للداتا ---
   const [classes, setClasses] = useState([]);
-  const [students, setStudents] = useState([]);
-  const [resources, setResources] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // --- Library ---
-  const [activeCategory, setActiveCategory] = useState('Books');
-  const [searchQuery, setSearchQuery] = useState('');
-
-  // ==========================================
-  // 💡 FETCH DATA
-  // ==========================================
   const fetchData = async () => {
     setLoading(true);
+    const { data } = await supabase.from('classes').select('*');
+    
+    const courseMockData = [
+      { 
+        name: "French Intermediate – B1", 
+        rating: "4.8", 
+        students: "22 Students", 
+        schedule: "Tue & Thu 9:00 AM", 
+        room: "Room 2", 
+        img: "https://i.ibb.co/vxs497z/french.png" 
+      },
+      { 
+        name: "German Beginner – A1", 
+        rating: "4.5", 
+        students: "27 Students", 
+        schedule: "Wed 14:00 PM", 
+        room: "Room 14", 
+        img: "https://i.ibb.co/0Ym6V0p/german.png" 
+      },
+      { 
+        name: "English Communication – B2", 
+        rating: "4.9", 
+        students: "30 Students", 
+        schedule: "Mon & Wed 9:00 AM", 
+        room: "Room 3", 
+        img: "https://i.ibb.co/S6D6m4z/english.png" 
+      }
+    ];
 
-    // 1. classes
-    const { data: classesData } = await supabase.from('classes').select('*');
-    if (classesData) {
-      const icons = ["🇬🇧", "🇫🇷", "🇪🇸", "🇩🇪"];
-      const colors = ["from-blue-100 to-blue-50", "from-red-100 to-red-50", "from-orange-100 to-orange-50", "from-green-100 to-green-50"];
-
-      setClasses(classesData.map((c, i) => ({
-        ...c,
-        icon: icons[i % icons.length],
-        color: colors[i % colors.length],
-        studentsCount: Math.floor(Math.random() * 10) + 10
+    if (data && data.length > 0) {
+      setClasses(data.map((c, i) => ({ 
+        ...c, 
+        ...courseMockData[i % courseMockData.length] 
       })));
+    } else {
+      setClasses(courseMockData);
     }
-
-    // 2. students (ONLY CLASSMATES VIEW)
-    const { data: studentsData } = await supabase.from('students').select('*');
-    if (studentsData) {
-      setStudents(studentsData.map(s => ({
-        id: s.id,
-        name: `${s.first_name || ''} ${s.last_name || ''}`,
-        email: s.email,
-        progress: `${Math.floor(Math.random() * 100)}%`,
-        status: "Active"
-      })));
-    }
-
-    // 3. library
-    const { data: resData } = await supabase.from('library_resources').select('*');
-    if (resData) setResources(resData);
-
     setLoading(false);
   };
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
-  // ==========================================
-  // 1️⃣ LIST VIEW
-  // ==========================================
-  const renderClassesList = () => (
-    <div className="animate-fadeIn p-4">
-
-      <h1 className="text-[28px] font-bold text-[#1B254B] mb-6">
-        👋 Welcome, Student
-      </h1>
-
-      <div className="bg-white border border-blue-100 rounded-2xl p-6 mb-8 shadow-sm flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-[#1B254B] mb-1">
-            My Courses:
-          </h2>
-          <p className="text-[#A3AED0] text-sm font-medium">
-            Track your learning progress and lessons.
-          </p>
+  if (currentView !== 'list') {
+    return (
+      <div className="flex-1 p-8 animate-fadeIn">
+        <button 
+          onClick={() => setCurrentView('list')} 
+          className="text-[#A3AED0] text-xs mb-6 hover:text-[#4318FF] flex items-center gap-2 font-bold transition-all"
+        >
+          <span className="text-lg">←</span> Back to My Courses
+        </button>
+        <div className="bg-white rounded-[30px] p-10 shadow-sm border border-gray-100">
+            <h2 className="text-3xl font-bold text-[#1B254B] mb-4">{selectedClass?.name}</h2>
+            <div className="h-[300px] w-full rounded-[20px] overflow-hidden mb-6">
+                <img src={selectedClass?.img} className="w-full h-full object-cover" alt="" />
+            </div>
+            <p className="text-[#A3AED0]">Welcome to the {selectedClass?.name} classroom.</p>
         </div>
-        <div className="text-4xl">📚</div>
       </div>
+    );
+  }
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {loading ? (
-          <p className="italic text-gray-400">Loading classes...</p>
-        ) : (
-          classes.map((cls) => (
-            <div
-              key={cls.id}
-              className="bg-white rounded-[20px] overflow-hidden border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer group flex flex-col"
-              onClick={() => {
-                setSelectedClass(cls);
-                setCurrentView('detail');
-              }}
-            >
-              <div className={`h-40 w-full bg-gradient-to-br ${cls.color} flex items-center justify-center text-6xl relative`}>
-                {cls.icon}
-                <div className="absolute bottom-2 right-2 bg-white px-2 py-1 rounded-md text-[10px] font-bold text-[#1B254B] shadow-sm">
-                  ⭐ 4.9
+  return (
+    <div className="flex-1 flex flex-col xl:flex-row gap-6 animate-fadeIn">
+      
+      {/* LEFT SIDE: Courses Content */}
+      <div className="flex-1 flex flex-col space-y-6">
+        
+        {/* --- FIXED HERO CARD (MATCHES EXAM BOARD EXACTLY) --- */}
+        <div className="bg-[#EBE9F1] rounded-[30px] p-8 flex justify-between items-center relative overflow-hidden min-h-[180px] shadow-sm">
+          <div className="z-10 w-full md:w-2/3 flex flex-col justify-center">
+            <h2 className="text-2xl font-bold text-[#1B254B] mb-2 leading-tight">
+              My courses:
+            </h2>
+            <p className="text-[#A3AED0] text-[13px] mb-5 leading-relaxed font-medium max-w-md">
+              Track your learning progress, attend live sessions, and access your materials in one place.
+            </p>
+            <div>
+              <button className="bg-[#111C44] text-white px-6 py-2.5 rounded-xl text-sm font-bold flex items-center hover:bg-black transition-all shadow-sm">
+                Learn More <span className="ml-2">→</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Decorative Icons with proper spacing and sizing */}
+          <div className="absolute right-8 top-1/2 -translate-y-1/2 hidden md:flex items-center gap-4">
+             <div className="bg-white/40 p-4 rounded-full backdrop-blur-sm border border-white/50 shadow-sm">
+               <span className="text-4xl">🎓</span>
+             </div>
+             <div className="bg-white/40 p-3 rounded-full backdrop-blur-sm border border-white/50 shadow-sm -rotate-12 mt-8">
+               <span className="text-3xl">📚</span>
+             </div>
+          </div>
+        </div>
+
+        {/* Courses Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-6">
+          {classes.map((cls) => (
+            <div key={cls.id} className="bg-white rounded-[24px] overflow-hidden shadow-sm hover:shadow-md transition-all border border-gray-50 flex flex-col group">
+              <div className="h-[160px] w-full relative overflow-hidden bg-[#F4F7FE]">
+                <img 
+                  src={cls.img} 
+                  alt={cls.name} 
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
+                  onError={(e) => { e.target.src = "https://via.placeholder.com/400x200?text=Course+Image"; }}
+                />
+                <div className="absolute top-3 right-3 bg-white/95 backdrop-blur-md px-2 py-1 rounded-lg flex items-center gap-1 shadow-sm border border-white/20">
+                    <span className="text-orange-400 text-[10px]">★</span>
+                    <span className="text-[#1B254B] text-[10px] font-black">{cls.rating}</span>
                 </div>
               </div>
-
+              
               <div className="p-5 flex flex-col flex-1">
-                <h4 className="font-bold text-[#1B254B] text-[15px] mb-2 group-hover:text-[#4318FF]">
+                <h3 className="text-[15px] font-bold text-[#1B254B] mb-3 leading-tight group-hover:text-[#4318FF] transition-colors">
                   {cls.name}
-                </h4>
-
-                <p className="text-[#A3AED0] text-[11px] mb-4 flex-1">
-                  Lessons and progress tracking for {cls.language}.
-                </p>
-
-                <div className="flex items-center gap-4 mb-4">
-                  <span className="text-[11px] font-bold text-[#1B254B]">
-                    👥 {cls.studentsCount} Students
-                  </span>
-                  <span className="text-[11px] font-bold text-[#A3AED0]">
-                    📝 {cls.level || 'B2'}
-                  </span>
+                </h3>
+                
+                <div className="space-y-2 mb-6">
+                  <div className="flex items-center gap-3 text-[#A3AED0] text-[11px] font-bold">
+                    <span className="text-base grayscale opacity-70">👥</span> {cls.students}
+                  </div>
+                  <div className="flex items-center gap-3 text-[#A3AED0] text-[11px] font-bold">
+                    <span className="text-base grayscale opacity-70">🕒</span> {cls.schedule}
+                  </div>
+                  <div className="flex items-center gap-3 text-[#A3AED0] text-[11px] font-bold">
+                    <span className="text-base grayscale opacity-70">📍</span> {cls.room}
+                  </div>
                 </div>
 
-                <button className="w-full py-2 border border-blue-100 rounded-xl text-[#4318FF] text-xs font-bold hover:bg-blue-50 transition-colors">
-                  View Course →
+                <button 
+                  onClick={() => { setSelectedClass(cls); setCurrentView('detail'); }}
+                  className="mt-auto w-full py-2.5 bg-[#F4F7FE] text-[#4318FF] rounded-xl text-[12px] font-bold hover:bg-[#4318FF] hover:text-white transition-all shadow-sm active:scale-[0.98]"
+                >
+                  Enter Classroom
                 </button>
               </div>
             </div>
-          ))
-        )}
+          ))}
+        </div>
       </div>
-    </div>
-  );
 
-  // ==========================================
-  // 2️⃣ DETAIL VIEW
-  // ==========================================
-  const renderClassDetail = () => {
-    const currentItems = resources.filter(
-      r =>
-        r.type === activeCategory &&
-        r.title.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+      {/* RIGHT SIDEBAR: Standardized with Semester Progress + Calendar */}
+      <div className="w-full xl:w-[320px] shrink-0 flex flex-col space-y-6">
+        <div className="text-right text-xs font-bold text-[#A3AED0]">Tuesday, 14 Apr 2026</div>
 
-    const heroItem = currentItems.find(r => r.is_hero) || currentItems[0];
-    const gridItems = currentItems.filter(r => !r.is_hero);
-
-    return (
-      <div className="animate-fadeIn p-4">
-
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setCurrentView('list')}
-              className="w-10 h-10 bg-white border border-gray-200 rounded-full flex items-center justify-center"
-            >
-              ←
-            </button>
-
-            <h1 className="text-[24px] font-bold text-[#1B254B]">
-              {selectedClass?.name}
-            </h1>
+        {/* Semester Progress (Matches Dashboard exactly) */}
+        <div className="bg-white p-6 rounded-[20px] shadow-sm border border-gray-50">
+          <p className="text-[10px] font-bold text-[#1B254B] mb-2 uppercase tracking-widest">Semester Progress</p>
+          <div className="h-2 w-full bg-[#F4F7FE] rounded-full overflow-hidden">
+            <div className="h-full bg-[#4318FF] w-[37%] rounded-full shadow-[0_0_8px_rgba(67,24,255,0.3)]"></div>
           </div>
         </div>
 
-        {/* TABS */}
-        <div className="flex gap-10 mb-8 border-b border-gray-100">
-          {['Lectures', 'Students', 'Library'].map((t) => (
-            <button
-              key={t}
-              onClick={() => setActiveSubTab(t)}
-              className={`pb-4 px-2 text-sm font-bold ${
-                activeSubTab === t ? 'text-[#4318FF]' : 'text-gray-400'
-              }`}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
-
-        {/* ================= LECTURES ================= */}
-        {activeSubTab === 'Lectures' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[1, 2, 3].map((id) => (
-              <div
-                key={id}
-                onClick={() => {
-                  setSelectedLecture({ id, title: `Lesson ${id}` });
-                  setCurrentView('video');
-                }}
-                className="bg-white rounded-2xl border shadow-sm cursor-pointer"
-              >
-                <img
-                  src={`https://picsum.photos/seed/${id}/400/200`}
-                  className="w-full h-36 object-cover"
-                />
-                <div className="p-4">
-                  <h4 className="font-bold text-sm">
-                    Lesson {id}
-                  </h4>
+        {/* Calendar Widget (Standardized Sizing) */}
+        <div className="bg-white border border-gray-50 rounded-[20px] p-5 shadow-sm">
+          <div className="flex justify-between items-center mb-4 font-bold text-sm text-[#1B254B]">
+            <button className="text-[#A3AED0] hover:text-[#4318FF] transition-colors">{'<'}</button> 
+            <span>April 2026</span> 
+            <button className="text-[#A3AED0] hover:text-[#4318FF] transition-colors">{'>'}</button>
+          </div>
+          <div className="grid grid-cols-7 gap-1 text-center text-[10px] text-[#A3AED0] font-bold mb-3 uppercase">
+            {['Mo','Tu','We','Th','Fr','Sa','Su'].map(d => <div key={d}>{d}</div>)}
+          </div>
+          <div className="grid grid-cols-7 gap-y-2 text-center text-[13px] font-bold text-[#1B254B]">
+            {[...Array(30)].map((_, i) => (
+              <div key={i} className="flex items-center justify-center">
+                <div 
+                  className={i+1 === 12 
+                    ? "bg-[#4318FF] text-white rounded-full w-8 h-8 flex items-center justify-center shadow-md shadow-blue-200" 
+                    : "w-8 h-8 flex items-center justify-center hover:bg-[#F4F7FE] rounded-lg cursor-pointer transition-colors"
+                  }
+                >
+                  {i+1}
                 </div>
               </div>
             ))}
           </div>
-        )}
+        </div>
 
-        {/* ================= STUDENTS (CLASSMATES) ================= */}
-        {activeSubTab === 'Students' && (
-          <div className="bg-white rounded-2xl border overflow-hidden">
-            <table className="w-full">
-              <thead className="bg-gray-50 text-xs text-gray-500">
-                <tr>
-                  <th className="p-4">Student</th>
-                  <th>Progress</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {students.map((s) => (
-                  <tr key={s.id} className="border-t">
-                    <td className="p-4">
-                      {s.name}
-                    </td>
-                    <td>{s.progress}</td>
-                    <td>{s.status}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {/* Quick Note / Guidelines */}
+        <div className="bg-white rounded-[20px] p-6 shadow-sm border border-gray-50">
+          <h4 className="text-[11px] font-bold text-[#1B254B] uppercase mb-4 tracking-wider">Quick Note</h4>
+          <div className="p-3 bg-[#F4F7FE] rounded-xl border border-gray-100">
+            <p className="text-[10px] text-[#A3AED0] leading-relaxed">
+              Assignments for <span className="font-bold text-[#4318FF]">French B1</span> are due by the end of this week. Please check your homework tab.
+            </p>
           </div>
-        )}
-
-        {/* ================= LIBRARY ================= */}
-        {activeSubTab === 'Library' && (
-          <div className="grid grid-cols-3 gap-6">
-            {resources.map((item) => (
-              <div key={item.id} className="bg-white border rounded-xl p-3">
-                <img src={item.img} className="w-full h-32 object-cover rounded-lg" />
-                <h4 className="text-sm font-bold mt-2">
-                  {item.title}
-                </h4>
-              </div>
-            ))}
-          </div>
-        )}
-
-      </div>
-    );
-  };
-
-  // ==========================================
-  // 3️⃣ VIDEO VIEW
-  // ==========================================
-  const renderVideoPlayer = () => (
-    <div className="p-4">
-      <button onClick={() => setCurrentView('detail')}>
-        ← Back
-      </button>
-
-      <div className="bg-black aspect-video rounded-xl mt-4 flex items-center justify-center text-white">
-        ▶ Video Player
+        </div>
       </div>
 
-      <h2 className="text-xl font-bold mt-4">
-        {selectedLecture?.title}
-      </h2>
-    </div>
-  );
-
-  return (
-    <div className="h-full w-full overflow-y-auto">
-      {currentView === 'list' && renderClassesList()}
-      {currentView === 'detail' && renderClassDetail()}
-      {currentView === 'video' && renderVideoPlayer()}
     </div>
   );
 };
 
-export default StudentClasses;
+export default StudentCourses;

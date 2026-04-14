@@ -1,180 +1,177 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 const StudentSchedule = () => {
-  // نفس الداتا لكن من منظور الطالب
-  const myClasses = [
-    { name: "English B2", bg: "bg-gradient-to-br from-[#E6E0F8] to-[#FFFFFF]", flag: "🇬🇧" },
-    { name: "French B1", bg: "bg-gradient-to-br from-[#FFF5D1] to-[#FFFFFF]", flag: "🇫🇷" },
-    { name: "Spanish A2", bg: "bg-gradient-to-br from-[#DCE8FF] to-[#FFFFFF]", flag: "🇪🇸" },
-    { name: "German A1", bg: "bg-gradient-to-br from-[#D1F4E0] to-[#FFFFFF]", flag: "🇩🇪" }
+  // --- Filtering State ---
+  // Combined Language and Level into one selection
+  const [selectedFilter, setSelectedFilter] = useState('Spanish B1');
+
+  const timeSlots = ["10:00", "12:00", "2:00", "4:00", "6:00", "8:00"];
+  const days = ["MON", "TUE", "WED", "THU", "FRI", "SUN"];
+
+  // --- Data with Combined Keys for Filtering ---
+  const scheduleData = [
+    { day: "MON", time: "10:00", type: "CLASSE 1", subject: "German A1", teacher: "J. Lee", color: "border-[#00C566] bg-[#00C566]/10 text-[#00C566]" },
+    { day: "MON", time: "4:00", time: "4:00", type: "CLASSE 1", subject: "German A1", teacher: "J. Lee", color: "border-[#00C566] bg-[#00C566]/10 text-[#00C566]" },
+    { day: "WED", time: "2:00", type: "LECTURE", subject: "Spanish B2", teacher: "Er. Rahul", color: "border-[#4318FF] bg-[#4318FF]/10 text-[#4318FF]" },
+    { day: "THU", time: "10:00", type: "LECTURE", subject: "Spanish B1", teacher: "Ar. Collins", color: "border-[#4318FF] bg-[#4318FF]/10 text-[#4318FF]" },
+    { day: "FRI", time: "2:00", type: "SEMINAR", subject: "French B1", teacher: "Mme. Dupont", color: "border-[#A301EF] bg-[#A301EF]/10 text-[#A301EF]" },
+    { day: "SUN", time: "10:00", type: "CLASSE 1", subject: "German A1", teacher: "J. Lee", color: "border-[#00C566] bg-[#00C566]/10 text-[#00C566]" }
   ];
 
+  // Filter Logic: Only show sessions that match the selected "Subject Level"
+  const filteredData = scheduleData.filter(session => session.subject === selectedFilter);
+
   return (
-    <div className="flex-1 bg-white p-8 overflow-y-auto custom-scrollbar">
-      
-      {/* =========================================
-          🟢 TOP SECTION (UNCHANGED DESIGN)
-          ========================================= */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-[#1B254B] mb-6">👋 Welcome, [Student Name]</h1>
+    <div className="flex-1 flex flex-col xl:flex-row gap-6 animate-fadeIn">
+      {/* --- Main Content --- */}
+      <div className="flex-1 flex flex-col space-y-6">
         
-        {/* Banner */}
-        <div className="bg-[#f8fafc] rounded-2xl p-6 flex justify-between items-center mb-8 border border-gray-100 shadow-sm">
-          <div className="flex items-center gap-6">
-            <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm text-3xl">
-              📚
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-[#1B254B] mb-1">My Learning Schedule:</h2>
-              <p className="text-gray-500 text-sm">Track your classes and upcoming sessions</p>
-            </div>
+        {/* Unified Hero Card */}
+        <div className="bg-[#EBE9F1] rounded-[30px] p-8 flex justify-between items-center relative overflow-hidden h-[180px] shadow-sm">
+          <div className="z-10 w-2/3">
+            <h2 className="text-2xl font-bold text-[#1B254B] mb-2 leading-tight">Your Weekly Schedule</h2>
+            <p className="text-[#A3AED0] text-[13px] mb-5 leading-relaxed">
+              Viewing schedule for <span className="text-[#4318FF] font-bold">{selectedFilter}</span>. Access your virtual classroom and materials.
+            </p>
+            <button className="bg-[#111C44] text-white px-5 py-2 rounded-lg text-sm font-bold flex items-center hover:bg-black transition-all">
+              Full Overview <span className="ml-2">→</span>
+            </button>
           </div>
-          <div className="hidden md:flex gap-4 items-center">
-            <span className="text-5xl">🎓📅</span>
+          <div className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/40 p-4 rounded-full backdrop-blur-sm border border-white/50">
+             <span className="text-3xl">📅</span>
           </div>
         </div>
 
-        {/* My Classes */}
-        <div className="mb-10">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-bold text-[#1B254B]">My classes</h3>
-            <span className="text-xs text-gray-400">Upcoming Classes/Events</span>
-            <button className="text-[#4318FF] text-sm font-medium hover:underline">See all {'>'}</button>
+        {/* Unified Filter Row */}
+        <div className="flex items-center justify-between">
+          <div className="flex bg-white px-6 py-4 rounded-[20px] shadow-sm border border-gray-100 min-w-[300px]">
+            <div className="flex flex-col w-full">
+              <label className="text-[10px] font-bold text-[#4318FF] uppercase mb-1 tracking-widest">Selected Course & Level</label>
+              <select 
+                value={selectedFilter}
+                onChange={(e) => setSelectedFilter(e.target.value)}
+                className="text-sm font-bold text-[#1B254B] bg-transparent outline-none cursor-pointer appearance-none"
+              >
+                <option value="Spanish B1">Spanish B1 - Intermediate</option>
+                <option value="Spanish B2">Spanish B2 - Upper Intermediate</option>
+                <option value="German A1">German A1 - Beginner</option>
+                <option value="French B1">French B1 - Intermediate</option>
+              </select>
+            </div>
           </div>
-          <div className="flex gap-4 overflow-x-auto pb-2">
-            {myClasses.map((cls, idx) => (
-              <div key={idx} className={`${cls.bg} rounded-2xl p-4 min-w-[140px] border border-gray-100 shadow-sm flex flex-col items-center justify-center text-center cursor-pointer hover:shadow-md transition-shadow`}>
-                <span className="text-2xl mb-2">{cls.flag}</span>
-                <h4 className="font-bold text-[#1B254B] text-sm mb-2">{cls.name}</h4>
-                <span className="text-[10px] text-gray-500 font-medium">View Schedule</span>
+          
+          <div className="flex gap-3">
+             <button className="bg-white border border-gray-200 text-[#1B254B] px-5 py-2.5 rounded-xl font-bold text-xs hover:bg-gray-50 transition-all">
+               📥 Export PDF
+             </button>
+             <button className="bg-[#4318FF] text-white px-6 py-2.5 rounded-xl font-bold text-xs shadow-lg shadow-indigo-100 hover:bg-[#3311CC] transition-all">
+               ✏️ Edit
+             </button>
+          </div>
+        </div>
+
+        {/* Timetable Grid */}
+        <div className="bg-white rounded-[25px] p-6 shadow-sm border border-gray-100 overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr>
+                <th className="p-4 border-r border-gray-50 w-20">
+                   <span className="text-gray-400">🕒</span>
+                </th>
+                {days.map((day, idx) => (
+                  <th key={day} className="p-4 text-center border-b border-gray-50">
+                    <div className="text-[10px] font-bold text-[#A3AED0] uppercase">{day}</div>
+                    <div className="text-sm font-bold text-[#1B254B]">1{idx + 4} Apr</div>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {timeSlots.map(time => (
+                <tr key={time}>
+                  <td className="p-6 text-xs font-bold text-[#1B254B] border-r border-gray-50 text-center">
+                    {time}
+                  </td>
+                  {days.map(day => {
+                    const session = filteredData.find(s => s.day === day && s.time === time);
+                    return (
+                      <td key={day + time} className="p-2 border-b border-r border-gray-50 min-w-[140px] h-[120px] align-top">
+                        {session ? (
+                          <div className={`h-full w-full rounded-xl border-l-[4px] p-3 ${session.color} flex flex-col justify-between hover:scale-[1.02] transition-transform cursor-pointer shadow-sm`}>
+                            <div>
+                              <div className="text-[9px] font-bold uppercase truncate opacity-80">{session.type}</div>
+                              <div className="text-[11px] font-bold leading-tight mt-1">{session.subject}</div>
+                            </div>
+                            <div className="text-[10px] opacity-90 font-medium">👤 {session.teacher}</div>
+                          </div>
+                        ) : (
+                          <div className="h-full w-full flex items-center justify-center">
+                            <div className="w-1 h-1 bg-gray-100 rounded-full"></div>
+                          </div>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* --- Right Sidebar: Matches Dashboard exactly --- */}
+      <div className="w-full xl:w-[320px] shrink-0 flex flex-col space-y-6">
+        <div className="text-right text-xs font-bold text-[#A3AED0]">Tuesday, 14 Apr 2026</div>
+
+        {/* Semester Progress */}
+        <div className="bg-white p-6 rounded-[20px] shadow-sm border border-gray-50">
+          <p className="text-[10px] font-bold text-[#1B254B] mb-2 uppercase tracking-widest">Semester Progress</p>
+          <div className="h-2 w-full bg-[#F4F7FE] rounded-full overflow-hidden">
+            <div className="h-full bg-[#4318FF] w-[37%] rounded-full shadow-[0_0_8px_rgba(67,24,255,0.3)]"></div>
+          </div>
+        </div>
+
+        {/* Calendar Widget */}
+        <div className="bg-white border border-gray-50 rounded-[20px] p-5 shadow-sm">
+          <div className="flex justify-between items-center mb-4 font-bold text-sm text-[#1B254B]">
+            <button className="hover:text-[#4318FF]">{'<'}</button> 
+            <span>April 2026</span> 
+            <button className="hover:text-[#4318FF]">{'>'}</button>
+          </div>
+          <div className="grid grid-cols-7 gap-1 text-center text-[10px] text-[#A3AED0] font-bold mb-3 uppercase">
+            {['Mo','Tu','We','Th','Fr','Sa','Su'].map(d => <div key={d}>{d}</div>)}
+          </div>
+          <div className="grid grid-cols-7 gap-y-2 text-center text-[13px] font-bold text-[#1B254B]">
+            {[...Array(30)].map((_, i) => (
+              <div 
+                key={i} 
+                className={i+1 === 12 
+                  ? "bg-[#4318FF] text-white rounded-full w-7 h-7 flex items-center justify-center mx-auto shadow-md" 
+                  : "py-1 hover:text-[#4318FF] cursor-pointer"
+                }
+              >
+                {i+1}
               </div>
             ))}
           </div>
         </div>
-      </div>
 
-      {/* =========================================
-          🟢 TIMETABLE (UNCHANGED DESIGN)
-          ========================================= */}
-      <div>
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-[#1B254B]">Timetable & Schedule</h2>
-          <div className="flex gap-3">
-            <div className="bg-gray-100 rounded-lg p-1 flex">
-              <button className="bg-white shadow-sm px-4 py-1.5 rounded-md text-sm font-bold text-[#1B254B]">Week</button>
-              <button className="px-4 py-1.5 rounded-md text-sm font-medium text-gray-500 hover:text-[#1B254B]">Month</button>
+        {/* Dynamic Legend */}
+        <div className="bg-white rounded-[20px] p-6 shadow-sm border border-gray-50">
+          <h4 className="text-[11px] font-bold text-[#1B254B] uppercase mb-4 tracking-wider">Status</h4>
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-2 h-2 rounded-full bg-[#4318FF]"></div>
+              <span className="text-xs font-bold text-[#1B254B]">Active Course</span>
             </div>
-            <select className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm outline-none">
-              <option>All Languages</option>
-            </select>
-            <select className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm outline-none">
-              <option>All Levels</option>
-            </select>
+            <div className="p-3 bg-gray-50 rounded-xl">
+              <p className="text-[10px] text-[#A3AED0] leading-relaxed">
+                You are currently viewing classes specifically for <strong>{selectedFilter}</strong>.
+              </p>
+            </div>
           </div>
         </div>
-
-        <div className="flex gap-6">
-          
-          {/* LEFT COLUMN */}
-          <div className="w-[280px] shrink-0 flex flex-col gap-6">
-            <div className="border border-gray-200 rounded-2xl p-5 bg-white">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="font-bold text-[#1B254B]">Today's Classes</h3>
-                <span className="text-xs text-[#4318FF] font-bold bg-blue-50 px-2 py-1 rounded">MON ⌄</span>
-              </div>
-
-              <div className="space-y-6 relative before:absolute before:inset-0 before:ml-[5px] before:-translate-x-px before:h-full before:w-0.5 before:bg-gray-100">
-                
-                <div className="relative flex items-start gap-4">
-                  <div className="w-3 h-3 rounded-full bg-[#00B087] ring-4 ring-white z-10 mt-1.5"></div>
-                  <div>
-                    <span className="text-xs text-gray-400 font-medium">10:00</span>
-                    <h4 className="font-bold text-[#1B254B] text-sm">German A1</h4>
-                    <p className="text-xs text-gray-500">Room 4</p>
-                  </div>
-                </div>
-
-                <div className="relative flex items-start gap-4">
-                  <div className="w-3 h-3 rounded-full bg-[#4318FF] ring-4 ring-white z-10 mt-1.5"></div>
-                  <div>
-                    <span className="text-xs text-gray-400 font-medium">12:00</span>
-                    <h4 className="font-bold text-[#1B254B] text-sm">Spanish B1</h4>
-                    <p className="text-xs text-gray-500">Room 2</p>
-                  </div>
-                </div>
-
-                <div className="relative flex items-start gap-4">
-                  <div className="w-3 h-3 rounded-full bg-[#00B087] ring-4 ring-white z-10 mt-1.5"></div>
-                  <div>
-                    <span className="text-xs text-gray-400 font-medium">4:00</span>
-                    <h4 className="font-bold text-[#1B254B] text-sm">German A1</h4>
-                    <p className="text-xs text-gray-500">Room 4</p>
-                  </div>
-                </div>
-              </div>
-
-              <button className="w-full text-center text-[#4318FF] text-sm font-bold mt-6 hover:underline">
-                View Full Daily
-              </button>
-            </div>
-
-            {/* Progress بدل Class Health */}
-            <div className="border border-gray-200 rounded-2xl p-5 bg-white">
-              <h3 className="font-bold text-[#1B254B] mb-4">My Progress</h3>
-              <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden mb-4">
-                <div className="h-full bg-[#1B254B] w-[70%] rounded-full"></div>
-              </div>
-              <div className="flex justify-between items-end">
-                <div>
-                  <h4 className="text-2xl font-bold text-[#1B254B]">18</h4>
-                  <p className="text-xs text-gray-400">Hours/W</p>
-                </div>
-                <div className="text-right">
-                  <h4 className="text-2xl font-bold text-[#4318FF]">05</h4>
-                  <p className="text-xs text-gray-400">Classes</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* RIGHT COLUMN (UNCHANGED) */}
-          <div className="flex-1 border border-gray-200 rounded-2xl p-6 bg-white overflow-x-auto custom-scrollbar">
-            <div className="min-w-[800px]">
-
-              <div className="grid grid-cols-7 gap-4 mb-4 text-center border-b border-gray-100 pb-4">
-                {['MON Oct 23', 'TUE Oct 24', 'WED Oct 25', 'THU Oct 26', 'FRI Oct 27', 'SAT Oct 28', 'SUN Oct 29'].map((day, i) => (
-                  <div key={i} className="text-xs font-bold text-[#1B254B] uppercase">
-                    {day.split(' ')[0]} <br/>
-                    <span className="text-gray-500 font-medium">
-                      {day.split(' ')[1]} {day.split(' ')[2]}
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              <div className="relative h-[500px] border-l border-gray-50">
-                {['10:00', '12:00', '2:00', '4:00', '6:00'].map((time, i) => (
-                  <div key={i} className="absolute w-full border-b border-gray-50 flex items-start" style={{ top: `${i * 25}%` }}>
-                    <span className="text-[10px] font-bold text-gray-400 absolute -left-10 bg-white pr-2">{time}</span>
-                  </div>
-                ))}
-
-                {/* SAME BLOCKS — unchanged */}
-                <div className="absolute left-[0%] top-[0%] w-[13.5%] h-[20%] bg-[#f0fdf4] border-l-4 border-[#00B087] rounded p-2 m-1 shadow-sm">
-                  <h4 className="text-xs font-bold text-[#1B254B]">German A1</h4>
-                </div>
-
-                <div className="absolute left-[14.28%] top-[0%] w-[13.5%] h-[20%] bg-[#fff7ed] border-l-4 border-[#F6AD55] rounded p-2 m-1 shadow-sm">
-                  <h4 className="text-xs font-bold text-[#1B254B]">English B2</h4>
-                </div>
-
-              </div>
-            </div>
-          </div>
-
-        </div>
       </div>
-
     </div>
   );
 };

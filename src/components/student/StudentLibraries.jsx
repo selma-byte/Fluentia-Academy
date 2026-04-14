@@ -1,163 +1,181 @@
 import React, { useState } from 'react';
 
 const StudentLibraries = () => {
-  // State تاع الفلترة
-  const [activeCategory, setActiveCategory] = useState('Books');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState('books'); 
+  const [selectedLang, setSelectedLang] = useState('English');
+  const [showLangMenu, setShowLangMenu] = useState(false);
 
-  // الداتا (same as teacher, read-only for student)
-  const [resources] = useState([
-    // Books
-    { id: 1, type: 'Books', title: 'Batman: The Dark Knight', author: 'Frank Miller', isHero: true, img: 'https://images.unsplash.com/photo-1612036782180-6f0b6cd846fe?q=80&w=800&auto=format&fit=crop' },
-    { id: 2, type: 'Books', title: 'The Flash, Vol. 1', author: 'Joshua Williamson', isGrid: true, img: 'https://images.unsplash.com/photo-1534809027769-b00d750a6bac?q=80&w=400&auto=format&fit=crop' },
-    { id: 3, type: 'Books', title: 'Titans, Vol. 2', author: 'Andrew Robinson', isGrid: true, img: 'https://images.unsplash.com/photo-1531259683007-016a7b628fc3?q=80&w=400&auto=format&fit=crop' },
-    { id: 4, type: 'Books', title: 'Harley Quinn, Vol 1', author: 'Jimmy Palmiotti', isGrid: true, img: 'https://images.unsplash.com/photo-1580477667995-2b71488140f0?q=80&w=400&auto=format&fit=crop' },
-    { id: 5, type: 'Books', title: 'Kobra Kai: Ultimate', author: 'Continue Reading', isSidebar: true, progress: '39%', img: 'https://images.unsplash.com/photo-1555597673-b21d5c935865?q=80&w=400&auto=format&fit=crop' },
+  const languages = ['English', 'French', 'Spanish', 'German', 'Italian', 'Arabic', 'Hindi'];
 
-    // Videos
-    { id: 6, type: 'Videos', title: 'Numbers song', author: 'Kids Learning', isHero: true, img: 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?q=80&w=800&auto=format&fit=crop' },
-    { id: 7, type: 'Videos', title: 'Learn Colors & Spelling', author: 'Indoor Playground', isGrid: true, img: 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?q=80&w=400&auto=format&fit=crop' },
-    { id: 8, type: 'Videos', title: 'Story of nara & teddy', author: 'Kids Tales', isGrid: true, img: 'https://images.unsplash.com/photo-1555252133-255e2d1ebca5?q=80&w=400&auto=format&fit=crop' },
-    { id: 9, type: 'Videos', title: 'Learning manners', author: 'Continue Watching', isSidebar: true, img: 'https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?q=80&w=400&auto=format&fit=crop' },
-
-    // Articles
-    { id: 10, type: 'Articles', title: 'Kidney disease is called silent killer for a reason', author: 'Medical Journal', isHero: true, img: 'https://images.unsplash.com/photo-1530497610245-94d3c16cda28?q=80&w=800&auto=format&fit=crop' },
-    { id: 11, type: 'Articles', title: "The impact of art of our today's society", author: 'Culture Weekly', isGrid: true, img: 'https://images.unsplash.com/photo-1460661419201-fd4cecdf8a8b?q=80&w=400&auto=format&fit=crop' },
-    { id: 12, type: 'Articles', title: '8 amazing benifits of the sunlight', author: 'Health Tips', isGrid: true, img: 'https://images.unsplash.com/photo-1504386106331-3e4e71712b38?q=80&w=400&auto=format&fit=crop' },
-    { id: 13, type: 'Articles', title: 'Famous Landmarks', author: 'Continue Reading', isSidebar: true, img: 'https://images.unsplash.com/photo-1499856871958-5b9627545d1a?q=80&w=400&auto=format&fit=crop' },
-  ]);
-
-  // filtre
-  const currentItems = resources.filter(
-    r =>
-      r.type === activeCategory &&
-      r.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const heroItem = currentItems.find(r => r.isHero) || currentItems[0];
-  const sidebarItem = currentItems.find(r => r.isSidebar);
-  const gridItems = currentItems.filter(r => !r.isHero && !r.isSidebar);
+  const libraryContent = {
+    books: {
+      featured: { title: "Batman: The Dark Knight", author: "Frank Miller", img: "https://m.media-amazon.com/images/I/815QpgP2SLL._AC_UF1000,1000_QL80_.jpg" },
+      items: [
+        { title: "The flash, Vol. 1", author: "Joshua Williamson", img: "https://m.media-amazon.com/images/I/91M-vVjY0FL._AC_UF1000,1000_QL80_.jpg" },
+        { title: "Titans, Vol. 2", author: "Andrew Robinson", img: "https://m.media-amazon.com/images/I/91-NqXqM+sL._AC_UF1000,1000_QL80_.jpg" },
+        { title: "Harley Quinn, Vol. 1", author: "Jimmy Palmiotti", img: "https://m.media-amazon.com/images/I/81+m5D7C1uL._AC_UF1000,1000_QL80_.jpg" },
+        { title: "Suicide Squad #8", author: "Tom Taylor", img: "https://m.media-amazon.com/images/I/91tW1-O-yKL._AC_UF1000,1000_QL80_.jpg" }
+      ]
+    },
+    videos: {
+      featured: { title: "Numbers Song & Phonics", author: "Kids Learning", img: "https://img.youtube.com/vi/D0Ajq682yrA/maxresdefault.jpg" },
+      items: [
+        { title: "Learn Colors & Spelling", author: "Playground", img: "https://img.youtube.com/vi/n_V-5vSmsY0/0.jpg", duration: "05:20" },
+        { title: "Story of Nara & Teddy", author: "Bedtime Stories", img: "https://img.youtube.com/vi/7D4gVvS7_84/0.jpg", duration: "12:15" },
+        { title: "English Alphabet", author: "ABC Kids", img: "https://img.youtube.com/vi/jPVbJ-Ir2y0/0.jpg", duration: "10:00" },
+        { title: "Phonics Masterclass", author: "Learning Time", img: "https://img.youtube.com/vi/ffeVXvY_uR8/0.jpg", duration: "08:45" }
+      ]
+    },
+    articles: {
+      featured: { title: "Kidney disease is called silent killer for a reason", author: "Medical Insight", img: "https://media.post.rvohealth.io/wp-content/uploads/2020/08/732x549-The_Silent_Killer_of_Kidneys-1-732x549.jpg" },
+      side: { title: "Famous Landmarks", author: "History Channel", img: "https://www.history.com/.image/ar_1:1%2Cc_fill%2Ccs_srgb%2Cfl_progressive%2Cq_auto:good%2Cw_1200/MTY1MTc3MjkyNzExNzczNjE1/statue-of-liberty-gettyimages-530755444.jpg" },
+      items: [
+        { title: "The impact of art of our today's society", author: "Culture Weekly", img: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR_xN8E4r_Y6Y2_E8y_S0uI6D3Xk1_hQ7wXGg&s" },
+        { title: "8 amazing benefits of the sunlight", author: "Health Today", img: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR0NfFwP9_B8w_X6D8_L7e_T_M8o6uU_L8ySg&s" }
+      ]
+    }
+  };
 
   return (
-    <div className="flex-1 p-8 overflow-y-auto custom-scrollbar animate-fadeIn relative">
-
-      {/* HEADER (same design) */}
-      <div className="flex justify-between items-end mb-8">
-        <h1 className="text-3xl font-bold text-[#1B254B]">
-          👋 Welcome, Student
-        </h1>
-        <div className="text-right">
-          <p className="text-xs font-bold text-gray-400">12 Jan 2024, Friday</p>
-          <p className="text-xs font-bold text-[#1B254B]">Semester 3 of 8</p>
-        </div>
-      </div>
-
-      {/* SEARCH (NO ADD BUTTON FOR STUDENT) */}
-      <div className="flex items-center gap-4 mb-8">
-        <div className="relative flex-1 max-w-2xl">
-          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg">🔍</span>
-          <input
-            type="text"
-            placeholder="Search books, videos, or articles..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white border-2 border-gray-100 rounded-2xl py-4 pl-12 pr-4 font-medium text-[#1B254B] outline-none focus:border-[#4318FF] shadow-sm transition-all"
-          />
-        </div>
-
-        <select className="bg-white border-2 border-gray-100 rounded-2xl px-4 py-4 text-sm font-bold text-gray-500 outline-none cursor-pointer">
-          <option>Select Language</option>
-          <option>English</option>
-          <option>French</option>
-        </select>
-      </div>
-
-      <div className="flex gap-8">
-
-        {/* LEFT CONTENT */}
-        <div className="flex-1">
-
-          {/* HERO */}
-          {heroItem && (
-            <div className="relative w-full h-[350px] rounded-[30px] overflow-hidden mb-8 shadow-lg group cursor-pointer">
-              <img src={heroItem.img} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#0A1128]/90 via-[#0A1128]/40 to-transparent"></div>
-
-              {activeCategory === 'Videos' && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-20 h-20 bg-black/50 rounded-full flex items-center justify-center text-white text-3xl">
-                    ▶
-                  </div>
-                </div>
-              )}
-
-              <div className="absolute bottom-8 left-8 pr-8">
-                <p className="text-gray-300 font-medium mb-1">{heroItem.author}</p>
-                <h2 className="text-4xl font-bold text-white mb-4">
-                  {heroItem.title}
-                </h2>
-
-                <button className="bg-white text-[#1B254B] px-6 py-2 rounded-full font-bold text-sm">
-                  {activeCategory === 'Books' || activeCategory === 'Articles'
-                    ? 'Read Now'
-                    : 'Watch Now'}
-                </button>
-              </div>
+    <div className="flex-1 flex flex-col xl:flex-row gap-8 animate-fadeIn pb-10">
+      
+      {/* LEFT CONTENT AREA */}
+      <div className="flex-1 space-y-6">
+        
+        {/* HEADER & SEARCH MATCHED TO ATTENDANCE PAGE */}
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+          <h1 className="text-[28px] font-bold text-[#1B254B]">Media Library</h1>
+          
+          <div className="flex items-center space-x-3 w-full md:w-auto">
+            <div className="relative flex-1 md:w-80">
+              <span className="absolute left-4 top-2.5 text-gray-400">🔍</span>
+              <input 
+                type="text" 
+                placeholder={`Search in ${activeTab}...`} 
+                className="w-full bg-white border border-gray-100 rounded-full py-2.5 pl-10 pr-4 text-[11px] focus:ring-1 focus:ring-[#4318FF] outline-none shadow-sm"
+              />
             </div>
-          )}
+            <button 
+              onClick={() => setShowLangMenu(!showLangMenu)}
+              className="bg-white px-5 py-2.5 rounded-full border border-gray-100 shadow-sm text-[11px] font-bold text-[#1B254B] flex items-center gap-2"
+            >
+              {selectedLang} <span className="text-gray-400 text-[8px]">▼</span>
+            </button>
+          </div>
+        </div>
 
-          {/* TITLE */}
-          <h3 className="text-2xl font-bold text-[#1B254B] mb-6">
-            {activeCategory === 'Books'
-              ? 'Top Rated Comics'
-              : activeCategory === 'Videos'
-              ? 'Best Videos'
-              : 'Most read'}
+        {/* HERO SECTION - Professional Banner */}
+        <div className="relative rounded-[30px] overflow-hidden h-[360px] shadow-sm group">
+          <img 
+            src={libraryContent[activeTab].featured.img} 
+            className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" 
+            alt="Hero" 
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#111C44] via-[#111C44]/40 to-transparent p-10 flex flex-col justify-end">
+            <p className="text-white/70 text-[10px] font-bold uppercase tracking-[0.2em] mb-2">Featured {activeTab}</p>
+            <h2 className="text-4xl font-black text-white mb-6 leading-tight max-w-xl">{libraryContent[activeTab].featured.title}</h2>
+            <button className="bg-[#4318FF] text-white px-8 py-3.5 rounded-xl font-bold w-max hover:bg-[#3311CC] transition-all shadow-lg shadow-blue-900/20 active:scale-95">
+              {activeTab === 'videos' ? '▶ Play Now' : '📖 Start Reading'}
+            </button>
+          </div>
+        </div>
+
+        {/* DYNAMIC GRID CONTENT */}
+        <div className="bg-white rounded-[25px] p-8 shadow-sm border border-gray-50">
+          <h3 className="text-lg font-bold text-[#1B254B] mb-8 flex items-center">
+             <span className="w-1.5 h-6 bg-[#4318FF] rounded-full mr-3"></span>
+             Browse All {activeTab}
           </h3>
 
-          {/* GRID */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-6 pb-4">
-            {gridItems.map((item) => (
-              <div key={item.id} className="cursor-pointer group">
-                <div className="aspect-[4/5] rounded-[20px] overflow-hidden mb-3 shadow-sm">
-                  <img src={item.img} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
-                </div>
-                <h4 className="font-bold text-[#1B254B]">{item.title}</h4>
-                <p className="text-xs text-gray-500">{item.author}</p>
+          {/* Special Layout for Articles */}
+          {activeTab === 'articles' ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="md:col-span-2 space-y-6">
+                {libraryContent.articles.items.map((art, i) => (
+                  <div key={i} className="flex gap-4 p-4 rounded-2xl border border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer group">
+                    <img src={art.img} className="w-32 h-24 object-cover rounded-xl shadow-sm" alt="" />
+                    <div>
+                      <h4 className="font-bold text-[#1B254B] text-[15px] mb-2 group-hover:text-[#4318FF]">{art.title}</h4>
+                      <p className="text-[11px] text-[#A3AED0] font-bold uppercase tracking-widest">{art.author}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+              <div className="bg-[#F4F7FE] p-5 rounded-2xl relative overflow-hidden group cursor-pointer">
+                 <img src={libraryContent.articles.side.img} className="w-full h-40 object-cover rounded-xl mb-4" alt="" />
+                 <h4 className="font-bold text-[#1B254B] text-sm">{libraryContent.articles.side.title}</h4>
+                 <p className="text-[10px] text-[#4318FF] font-bold mt-2">READ SPECIAL →</p>
+              </div>
+            </div>
+          ) : (
+            /* Layout for Books and Videos */
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+              {libraryContent[activeTab].items.map((item, idx) => (
+                <div key={idx} className="group cursor-pointer">
+                  <div className={`rounded-2xl overflow-hidden shadow-sm mb-4 border border-gray-100 relative ${activeTab === 'books' ? 'aspect-[3/4.2]' : 'aspect-video'}`}>
+                    <img src={item.img} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt="" />
+                    {item.duration && (
+                      <span className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] font-bold px-2 py-0.5 rounded-md">{item.duration}</span>
+                    )}
+                    <div className="absolute inset-0 bg-[#4318FF]/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                       <span className="bg-white text-[#4318FF] p-3 rounded-full shadow-xl transform translate-y-4 group-hover:translate-y-0 transition-transform">
+                          {activeTab === 'videos' ? '▶' : '🔍'}
+                       </span>
+                    </div>
+                  </div>
+                  <h4 className="font-bold text-[#1B254B] text-[13px] leading-tight mb-1 group-hover:text-[#4318FF] transition-colors line-clamp-2">{item.title}</h4>
+                  <p className="text-[11px] text-[#A3AED0] font-medium">{item.author}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* RIGHT SIDEBAR - FIXED SIZE MATCHED TO OTHER PAGES */}
+      <div className="w-full xl:w-[320px] shrink-0 space-y-6">
+        <div className="text-right text-[11px] font-bold text-[#A3AED0] uppercase tracking-widest">Library Explorer</div>
+        
+        <div className="bg-white p-6 rounded-[25px] border border-gray-50 shadow-sm space-y-3">
+          {[
+            { id: 'books', label: 'Digital Books', sub: 'Comics & PDF', icon: '📖', color: 'bg-blue-50 text-blue-500', active: 'bg-[#4318FF] text-white' },
+            { id: 'videos', label: 'Video Lessons', sub: 'Tutorials & Stories', icon: '🎥', color: 'bg-green-50 text-green-500', active: 'bg-[#01B574] text-white' },
+            { id: 'articles', label: 'Academic Read', sub: 'Scientific Blogs', icon: '📄', color: 'bg-purple-50 text-purple-500', active: 'bg-[#7551FF] text-white' }
+          ].map((tab) => (
+            <button 
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`w-full flex items-center p-4 rounded-2xl transition-all group border-2 ${activeTab === tab.id ? 'border-transparent ' + tab.active : 'border-transparent hover:bg-gray-50'}`}
+            >
+              <div className={`w-11 h-11 rounded-xl flex items-center justify-center mr-4 shadow-sm ${activeTab === tab.id ? 'bg-white/20' : tab.color}`}>
+                <span className="text-xl">{tab.icon}</span>
+              </div>
+              <div className="text-left">
+                <p className={`text-[14px] font-bold ${activeTab === tab.id ? 'text-white' : 'text-[#1B254B]'}`}>{tab.label}</p>
+                <p className={`text-[10px] font-medium uppercase tracking-tight ${activeTab === tab.id ? 'text-white/70' : 'text-[#A3AED0]'}`}>{tab.sub}</p>
+              </div>
+            </button>
+          ))}
         </div>
 
-        {/* RIGHT SIDEBAR */}
-        <div className="w-64 shrink-0 flex flex-col gap-8">
-
-          {/* CATEGORY FILTER */}
-          <div>
-            <h3 className="text-lg font-bold text-[#1B254B] mb-4 text-center">
-              Resources
-            </h3>
-
-            <div className="flex flex-col gap-3">
-
-              <button onClick={() => setActiveCategory('Books')}
-                className={`py-4 rounded-[20px] font-bold ${activeCategory === 'Books' ? 'bg-[#ffe4e1]' : 'bg-gray-50'}`}>
-                📔 Books
-              </button>
-
-              <button onClick={() => setActiveCategory('Videos')}
-                className={`py-4 rounded-[20px] font-bold ${activeCategory === 'Videos' ? 'bg-[#e0f7fa]' : 'bg-gray-50'}`}>
-                🎬 Videos
-              </button>
-
-              <button onClick={() => setActiveCategory('Articles')}
-                className={`py-4 rounded-[20px] font-bold ${activeCategory === 'Articles' ? 'bg-[#f3e5f5]' : 'bg-gray-50'}`}>
-                📰 Articles
-              </button>
-
-            </div>
-          </div>
-
+        {/* PROGRESS CARD */}
+        <div className="bg-[#111C44] rounded-[30px] p-8 text-white relative overflow-hidden shadow-xl">
+           <div className="relative z-10">
+              <h4 className="text-lg font-bold mb-2">Reading Goal</h4>
+              <p className="text-[11px] text-white/50 mb-6 leading-relaxed">You are only 2 books away from your monthly target!</p>
+              
+              <div className="space-y-2">
+                <div className="flex justify-between text-[10px] font-bold">
+                   <span>Progress</span>
+                   <span>80%</span>
+                </div>
+                <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+                   <div className="w-[80%] h-full bg-[#4318FF] shadow-[0_0_15px_rgba(67,24,255,0.5)]"></div>
+                </div>
+              </div>
+           </div>
+           {/* Decorative Element */}
+           <div className="absolute -right-8 -bottom-8 text-9xl opacity-10 font-black">80</div>
         </div>
       </div>
     </div>

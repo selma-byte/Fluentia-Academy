@@ -1,164 +1,178 @@
 import React, { useState } from 'react';
 
 const StudentPayment = () => {
-  // نفس الفكرة لكن للدفعات تاع الطالب
-  const [paymentHistory] = useState([
-    { id: 1, date: '08/04/2026', amount: '20,000 DZD', transactionId: 'PAY 10003343434', status: 'Pending', receipt: 'April-Receipt.pdf' },
-    { id: 2, date: '08/03/2026', amount: '20,000 DZD', transactionId: 'PAY 10003343435', status: 'Verified', receipt: 'March-Receipt.pdf' },
-    { id: 3, date: '08/02/2026', amount: '20,000 DZD', transactionId: 'PAY 10003343436', status: 'Verified', receipt: 'Feb-Receipt.pdf' },
-    { id: 4, date: '08/01/2026', amount: '20,000 DZD', transactionId: 'PAY 10003343437', status: 'Verified', receipt: 'Jan-Receipt.pdf' },
+  // Student-specific payment data
+  const [paymentHistory, setPaymentHistory] = useState([
+    { id: 1, date: '10/04/2026', amount: '12,000 DZD', transactionId: 'PAY-8829342', status: 'Pending', receipt: 'April-Invoice.pdf' },
+    { id: 2, date: '10/03/2026', amount: '12,000 DZD', transactionId: 'PAY-8829110', status: 'Verified', receipt: 'March-Receipt.pdf' },
+    { id: 3, date: '10/02/2026', amount: '12,000 DZD', transactionId: 'PAY-8828901', status: 'Verified', receipt: 'Feb-Receipt.pdf' },
+    { id: 4, date: '15/01/2026', amount: '45,000 DZD', transactionId: 'PAY-8827000', status: 'Verified', receipt: 'Full-Semester-Deposit.pdf' },
   ]);
 
+  const studentInfo = {
+    name: 'Harboula Selma',
+    id: 'STD-2098',
+    program: 'English / Spanish',
+    level: 'B2 / B1'
+  };
+
   return (
-    <div className="flex-1 bg-white p-8 overflow-y-auto custom-scrollbar animate-fadeIn">
+    <div className="flex-1 bg-[#F4F7FE] p-4 md:p-8 overflow-y-auto custom-scrollbar animate-fadeIn font-['DM_Sans',sans-serif]">
       
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-[#1B254B] mb-2">👋 Welcome, [Student Name]</h1>
-        <p className="text-gray-500 text-sm">View your payments, fees breakdown, and history.</p>
+      {/* HEADER SECTION */}
+      <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-8 rounded-[30px] shadow-sm border border-gray-50">
+        <div>
+          <h1 className="text-3xl font-bold text-[#1B254B] mb-2">👋 Welcome, {studentInfo.name}</h1>
+          <p className="text-[#A3AED0] text-sm font-medium">Manage your tuition fees, scholarship status, and payment history.</p>
+        </div>
+        <div className="mt-4 md:mt-0 bg-[#E2E8F0] px-4 py-2 rounded-2xl">
+            <span className="text-[#4318FF] font-bold text-sm underline cursor-pointer">Download Financial Summary</span>
+        </div>
       </div>
 
-      {/* Title */}
-      <div className="flex items-center justify-center gap-4 mb-8 mt-4">
-        <h2 className="text-3xl font-bold text-[#1B254B]">Payments & Fees</h2>
-        <span className="text-3xl">💳</span>
-        <span className="text-3xl">🎓</span>
+      {/* Main Title Section */}
+      <div className="flex items-center justify-center gap-4 mb-8">
+        <h2 className="text-2xl font-black text-[#1B254B] uppercase tracking-tight">Tuition & Finance</h2>
+        <div className="flex gap-1">
+            <span className="bg-white p-2 rounded-full shadow-sm text-xl">💳</span>
+            <span className="bg-white p-2 rounded-full shadow-sm text-xl">🎓</span>
+        </div>
       </div>
 
-      <div className="max-w-5xl mx-auto space-y-6">
+      <div className="max-w-6xl mx-auto space-y-6">
         
-        {/* =======================================
-            Card 1: Payment Status
-            ======================================= */}
-        <div className="bg-white border border-gray-200 rounded-[20px] p-8 shadow-sm">
-          <h3 className="text-sm font-bold text-gray-500 mb-6">Payment Status:</h3>
+        {/* CARD 1: PAYMENT STATUS */}
+        <div className="bg-white rounded-[30px] p-8 shadow-sm border border-gray-50">
+          <h3 className="text-xs font-bold text-[#A3AED0] uppercase tracking-widest mb-6">Payment Status:</h3>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            
-            {/* Student Info */}
-            <div className="flex flex-col gap-2 md:border-r md:border-gray-200 md:pr-8">
-              <div className="flex items-center">
-                <span className="w-24 text-sm text-gray-500 font-medium">Name:</span>
-                <span className="text-sm font-bold text-[#1B254B]">Student Name</span>
+            {/* Left Side: Student Branding */}
+            <div className="flex flex-col gap-4 md:border-r md:border-gray-100 md:pr-8">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-[#A3AED0] font-bold uppercase">Full Name:</span>
+                <span className="text-sm font-bold text-[#1B254B]">{studentInfo.name}</span>
               </div>
-              <div className="flex items-center">
-                <span className="w-24 text-sm text-gray-500 font-medium">Student ID:</span>
-                <span className="text-sm font-bold text-[#1B254B]">STD-2026-04</span>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-[#A3AED0] font-bold uppercase">Student ID:</span>
+                <span className="text-sm font-bold text-[#1B254B]">{studentInfo.id}</span>
               </div>
-              <div className="flex items-center">
-                <span className="w-24 text-sm text-gray-500 font-medium">Course:</span>
-                <span className="text-sm font-bold text-[#1B254B]">English / Spanish</span>
-              </div>
-              <div className="flex items-center">
-                <span className="w-24 text-sm text-gray-500 font-medium">Level:</span>
-                <span className="text-sm font-bold text-[#1B254B]">B2 / A2</span>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-[#A3AED0] font-bold uppercase">Program:</span>
+                <span className="text-sm font-bold text-[#1B254B]">{studentInfo.program}</span>
               </div>
             </div>
 
-            {/* Financial Info */}
-            <div className="flex flex-col gap-2 md:pl-4">
-              <div className="flex items-center justify-between md:justify-start md:gap-4">
-                <span className="w-32 text-sm text-gray-500 font-medium">Current Month:</span>
-                <span className="text-sm font-bold text-[#1B254B]">April 2026</span>
+            {/* Right Side: Financial Math */}
+            <div className="flex flex-col gap-4 md:pl-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-[#A3AED0] font-bold uppercase">Total Tuition:</span>
+                <span className="text-sm font-bold text-[#1B254B]">120,000 DZD</span>
               </div>
-              <div className="flex items-center justify-between md:justify-start md:gap-4">
-                <span className="w-32 text-sm text-gray-500 font-medium">Total Fees:</span>
-                <span className="text-sm font-bold text-[#1B254B]">20,000 DZD</span>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-[#A3AED0] font-bold uppercase">Paid to Date:</span>
+                <span className="text-sm font-bold text-[#05CD99]">69,000 DZD</span>
               </div>
-              <div className="flex items-center justify-between md:justify-start md:gap-4">
-                <span className="w-32 text-sm text-gray-500 font-medium">Paid:</span>
-                <span className="text-sm font-bold text-[#00a65e]">20,000 DZD</span>
-              </div>
-              <div className="flex items-center justify-between md:justify-start md:gap-4">
-                <span className="w-32 text-sm text-gray-500 font-medium">Remaining:</span>
-                <span className="text-sm font-bold text-[#e02424]">0 DZD</span>
+              <div className="flex items-center justify-between p-3 bg-red-50 rounded-xl">
+                <span className="text-sm text-red-500 font-bold uppercase tracking-tighter">Remaining Balance:</span>
+                <span className="text-lg font-black text-red-600">51,000 DZD</span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* =======================================
-            Card 2: Fee Breakdown
-            ======================================= */}
-        <div className="bg-white border border-gray-200 rounded-[20px] p-8 shadow-sm">
-          <h3 className="text-sm font-bold text-gray-500 mb-6">Fee Breakdown:</h3>
+        {/* CARD 2: FEE BREAKDOWN */}
+        <div className="bg-white rounded-[30px] p-8 shadow-sm border border-gray-50">
+          <h3 className="text-xs font-bold text-[#A3AED0] uppercase tracking-widest mb-6">Fee Breakdown:</h3>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="md:border-r md:border-gray-200 md:pr-8">
-              <ul className="list-disc pl-5 space-y-3 text-sm font-medium text-[#1B254B]">
-                <li>English Course (B2): <span className="float-right">10,000 DZD</span></li>
-                <li>Spanish Course (A2): <span className="float-right">8,000 DZD</span></li>
-              </ul>
+            <div className="md:border-r md:border-gray-100 md:pr-8">
+              <div className="space-y-4">
+                <div className="flex justify-between items-center text-sm">
+                    <span className="font-bold text-[#1B254B]">Semester Tuition (B2 English)</span>
+                    <span className="font-medium text-[#A3AED0]">45,000 DZD</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                    <span className="font-bold text-[#1B254B]">Semester Tuition (B1 Spanish)</span>
+                    <span className="font-medium text-[#A3AED0]">40,000 DZD</span>
+                </div>
+              </div>
             </div>
             <div className="md:pl-4">
-              <ul className="list-disc pl-5 space-y-3 text-sm font-medium text-[#1B254B]">
-                <li>Registration Fee: <span className="float-right">2,000 DZD</span></li>
-                <li>Materials: <span className="float-right">0 DZD</span></li>
-              </ul>
+              <div className="space-y-4">
+                <div className="flex justify-between items-center text-sm">
+                    <span className="font-bold text-[#1B254B]">Registration & Admin Fees</span>
+                    <span className="font-medium text-[#A3AED0]">15,000 DZD</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                    <span className="font-bold text-[#1B254B]">Library & Lab Access</span>
+                    <span className="font-medium text-[#A3AED0]">20,000 DZD</span>
+                </div>
+              </div>
             </div>
           </div>
           
-          <div className="mt-8 pt-6 border-t border-gray-100 flex justify-center">
-            <p className="text-xs text-gray-400 flex items-center gap-2">
-              <span>ℹ️</span> Payments are typically due before the 5th of each month.
+          <div className="mt-8 pt-6 border-t border-gray-50 flex justify-center">
+            <p className="text-[11px] text-[#A3AED0] font-bold flex items-center gap-2 uppercase tracking-widest">
+              <span className="text-[#4318FF]">ℹ️</span> Monthly installments are due by the 5th of every month.
             </p>
           </div>
         </div>
 
-        {/* =======================================
-            Card 3: Payment History
-            ======================================= */}
-        <div className="bg-white border border-gray-200 rounded-[20px] p-8 shadow-sm">
-          <h3 className="text-sm font-bold text-gray-500 mb-6">Payment History:</h3>
-          
-          {/* Filters */}
-          <div className="flex flex-wrap items-center justify-between mb-6 gap-4 bg-[#f8fafc] p-3 rounded-xl border border-gray-100">
-            <div className="flex items-center gap-4">
-              <select className="bg-blue-50 border border-blue-100 text-[#4318FF] text-xs font-bold rounded-lg px-3 py-1.5 outline-none">
-                <option>2025-26</option>
-              </select>
-              <select className="bg-blue-50 border border-blue-100 text-[#4318FF] text-xs font-bold rounded-lg px-3 py-1.5 outline-none">
-                <option>All Payments</option>
-                <option>Pending</option>
-                <option>Verified</option>
-              </select>
-            </div>
+        {/* CARD 3: PAYMENT HISTORY TABLE */}
+        <div className="bg-white rounded-[30px] p-8 shadow-sm border border-gray-50">
+          <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+            <h3 className="text-xs font-bold text-[#A3AED0] uppercase tracking-widest">Payment History:</h3>
             
-            <input 
-              type="text" 
-              placeholder="Search..." 
-              className="bg-[#1B254B] text-white text-xs rounded-full py-2 px-4 outline-none w-48 placeholder-gray-400"
-            />
+            <div className="flex gap-2">
+                <select className="bg-[#F4F7FE] border-none text-[#1B254B] text-xs font-bold rounded-xl px-4 py-2 outline-none cursor-pointer">
+                    <option>2023-2024</option>
+                </select>
+                <div className="relative">
+                    <input 
+                        type="text" 
+                        placeholder="Search Transactions..." 
+                        className="bg-[#F4F7FE] text-[#1B254B] text-xs font-bold rounded-xl py-2 pl-4 pr-10 outline-none w-48 placeholder-[#A3AED0]"
+                    />
+                </div>
+            </div>
           </div>
 
-          {/* Table */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[700px]">
+          <div className="overflow-x-auto rounded-2xl border border-gray-50">
+            <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-[#1B254B] text-white text-xs">
-                  <th className="py-3 px-6 font-bold">Date</th>
-                  <th className="py-3 px-6 font-bold text-center">Amount</th>
-                  <th className="py-3 px-6 font-bold text-center">Transaction ID</th>
-                  <th className="py-3 px-6 font-bold text-center">Status</th>
-                  <th className="py-3 px-6 font-bold text-center">Receipt</th>
+                <tr className="bg-[#F4F7FE] text-[#A3AED0]">
+                  <th className="py-4 px-6 text-[10px] font-black uppercase tracking-widest rounded-tl-2xl">Date</th>
+                  <th className="py-4 px-6 text-[10px] font-black uppercase tracking-widest text-center">Amount</th>
+                  <th className="py-4 px-6 text-[10px] font-black uppercase tracking-widest text-center">Transaction ID</th>
+                  <th className="py-4 px-6 text-[10px] font-black uppercase tracking-widest text-center">Status</th>
+                  <th className="py-4 px-6 text-[10px] font-black uppercase tracking-widest text-center rounded-tr-2xl">Receipt</th>
                 </tr>
               </thead>
-              <tbody>
-                {paymentHistory.map((item, index) => (
-                  <tr key={item.id} className={`${index % 2 === 0 ? 'bg-[#f8fafc]' : 'bg-white'}`}>
-                    <td className="py-4 px-6 text-xs">{item.date}</td>
-                    <td className="py-4 px-6 text-xs text-center">{item.amount}</td>
-                    <td className="py-4 px-6 text-xs text-center">{item.transactionId}</td>
-                    <td className="py-4 px-6 text-xs text-center">{item.status}</td>
-                    <td className="py-4 px-6 text-xs text-center">
-                      📄 {item.receipt}
+              <tbody className="divide-y divide-gray-50">
+                {paymentHistory.map((item) => (
+                  <tr key={item.id} className="hover:bg-[#F4F7FE]/50 transition-colors">
+                    <td className="py-4 px-6 text-sm text-[#1B254B] font-bold">{item.date}</td>
+                    <td className="py-4 px-6 text-sm text-[#1B254B] font-black text-center">{item.amount}</td>
+                    <td className="py-4 px-6 text-xs text-[#A3AED0] font-bold text-center font-mono">{item.transactionId}</td>
+                    <td className="py-4 px-6 text-center">
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter ${
+                        item.status === 'Verified' 
+                        ? 'bg-[#05CD99]/10 text-[#05CD99]' 
+                        : 'bg-amber-100 text-amber-600'
+                      }`}>
+                        {item.status === 'Verified' ? '● Verified' : '○ Pending'}
+                      </span>
+                    </td>
+                    <td className="py-4 px-6 text-center">
+                      <button className="text-[#4318FF] hover:bg-[#4318FF] hover:text-white p-2 rounded-lg transition-all border border-[#4318FF]/20">
+                        <span className="text-xs font-bold">PDF</span>
+                      </button>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-
         </div>
       </div>
     </div>

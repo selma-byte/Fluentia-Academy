@@ -1,169 +1,184 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 const StudentMessages = () => {
-  // داتا تاع الإدارة + الأساتذة (student view)
+  const [activeChat, setActiveChat] = useState(1);
+  const [messageText, setMessageText] = useState("");
+  const scrollRef = useRef(null);
+
+  // Auto-scroll to bottom of messages
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [activeChat]);
+
   const contacts = [
-    { id: 1, name: "Mr. David (Teacher)", role: "English Teacher", avatar: "D", status: "online", lastMsg: "Don’t forget homework for tomorrow.", time: "10:30 AM", unread: 2 },
-    { id: 2, name: "Ms. Lina (Teacher)", role: "French Teacher", avatar: "L", status: "offline", lastMsg: "Good job on your last test!", time: "Yesterday", unread: 0 },
-    { id: 3, name: "Administration", role: "School Office", avatar: "A", status: "online", lastMsg: "Your schedule has been updated.", time: "09:15 AM", unread: 0 },
-    { id: 4, name: "IT Support", role: "Technical Help", avatar: "IT", status: "offline", lastMsg: "Password reset completed.", time: "Monday", unread: 0 }
+    { id: 1, name: "Tee💖🧡💛", lastMsg: "You: Hey whats up", time: "15 Min", color: "bg-red-100 text-red-600", initial: "T", status: "online" },
+    { id: 2, name: "Zeepay", lastMsg: "Hi Neequaye Kotey...", time: "12:36 PM", color: "bg-yellow-100 text-yellow-600", initial: "Z", status: "offline" },
+    { id: 3, name: "CloudOTP", lastMsg: "798508 is your veri...", time: "Yesterday", color: "bg-blue-100 text-blue-600", initial: "C", status: "offline" },
+    { id: 4, name: "Gatekeeper", lastMsg: "Welcome to Our G...", time: "2 days ago", color: "bg-indigo-100 text-indigo-600", initial: "GK", status: "online" },
+    { id: 5, name: "MyMTN 2.0", lastMsg: "Y'ello MTNner, do...", time: "Monday", color: "bg-orange-100 text-orange-600", initial: "M", status: "offline" },
+    { id: 6, name: "Mama K 🤱🏼🤱🏼🤱🏼", lastMsg: "Where is you fath...", time: "05/04", color: "bg-green-100 text-green-600", initial: "MK", status: "online" },
+    { id: 7, name: "Nana", lastMsg: "yo man, food dey...", time: "01/04", color: "bg-red-200 text-red-700", initial: "N", status: "offline" },
   ];
 
-  const [messages, setMessages] = useState([
-    { id: 1, sender: "Mr. David (Teacher)", text: "Hello! Please revise unit 3 before next class.", time: "10:15 AM", isMe: false },
-    { id: 2, sender: "Me", text: "Okay sir, I will revise it today.", time: "10:20 AM", isMe: true },
-    { id: 3, sender: "Mr. David (Teacher)", text: "Great, keep it up 👍", time: "10:30 AM", isMe: false },
-  ]);
+  const currentMessages = [
+    { id: 1, sender: "them", text: "Yo mandem", time: "Thursday, Jan 4 • 6:21 PM" },
+    { id: 2, sender: "them", text: "Cho dey house?" },
+    { id: 3, sender: "me", text: "Kwasia 😂😭" },
+    { id: 4, sender: "me", text: "You dey hung dier you kai say house dey" },
+  ];
 
-  const [activeContact, setActiveContact] = useState(contacts[0]);
-  const [newMessage, setNewMessage] = useState('');
-
-  // إرسال رسالة
-  const handleSendMessage = (e) => {
-    e.preventDefault();
-    if (newMessage.trim() === '') return;
-
-    const newMsg = {
-      id: messages.length + 1,
-      sender: "Me",
-      text: newMessage,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      isMe: true
-    };
-
-    setMessages([...messages, newMsg]);
-    setNewMessage('');
-  };
+  const activeContact = contacts.find(c => c.id === activeChat);
 
   return (
-    <div className="flex-1 flex flex-col h-full animate-fadeIn">
+    <div className="flex-1 flex bg-white rounded-[30px] overflow-hidden shadow-sm border border-gray-50 animate-fadeIn h-[calc(100vh-140px)] mb-6">
+      
+      {/* LEFT: SIDEBAR - CONTACT LIST */}
+      <div className="w-[320px] border-r border-gray-100 flex flex-col bg-white shrink-0">
+        <div className="p-6 border-b border-gray-50">
+          <h2 className="text-[20px] font-bold text-[#1B254B] mb-4">Messages</h2>
+          <div className="relative">
+            <span className="absolute left-4 top-2.5 text-gray-400 text-xs">🔍</span>
+            <input 
+              type="text" 
+              placeholder="Search conversations..." 
+              className="w-full bg-[#F4F7FE] border-none rounded-full py-2.5 pl-10 pr-4 text-[11px] outline-none focus:ring-1 focus:ring-[#4318FF] transition-all"
+            />
+          </div>
+        </div>
 
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-[#1B254B]">💬 Messages</h1>
-        <p className="text-gray-500 text-sm mt-1">
-          Stay in touch with your teachers and school staff.
-        </p>
+        <div className="flex-1 overflow-y-auto custom-scrollbar py-2">
+          {contacts.map((contact) => (
+            <button
+              key={contact.id}
+              onClick={() => setActiveChat(contact.id)}
+              className={`w-full flex items-center px-6 py-4 transition-all relative ${
+                activeChat === contact.id 
+                ? 'bg-[#F4F7FE]' 
+                : 'hover:bg-gray-50'
+              }`}
+            >
+              {activeChat === contact.id && (
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#4318FF] rounded-r-md" />
+              )}
+              
+              <div className="relative shrink-0">
+                <div className={`w-11 h-11 rounded-full flex items-center justify-center font-bold text-xs ${contact.color}`}>
+                  {contact.initial}
+                </div>
+                {contact.status === 'online' && (
+                  <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
+                )}
+              </div>
+
+              <div className="ml-4 text-left overflow-hidden flex-1">
+                <div className="flex justify-between items-center mb-0.5">
+                  <h4 className={`text-[13px] truncate ${activeChat === contact.id ? 'font-bold text-[#1B254B]' : 'font-semibold text-[#A3AED0]'}`}>
+                    {contact.name}
+                  </h4>
+                  <span className="text-[10px] text-gray-400 font-medium">{contact.time}</span>
+                </div>
+                <p className="text-[11px] text-[#A3AED0] truncate font-medium">
+                  {contact.lastMsg}
+                </p>
+              </div>
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Chat Container */}
-      <div className="flex-1 flex bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden min-h-[500px] h-[calc(100vh-220px)]">
-
-        {/* LEFT SIDE */}
-        <div className="w-1/3 border-r border-gray-100 flex flex-col bg-[#f8fafc]">
-
-          <div className="p-4 border-b border-gray-100 bg-white">
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
-              <input 
-                type="text" 
-                placeholder="Search teachers..."
-                className="w-full bg-gray-50 border border-gray-200 rounded-full py-2 pl-9 pr-4 text-sm outline-none"
-              />
+      {/* RIGHT: CHAT AREA */}
+      <div className="flex-1 flex flex-col bg-[#FAFCFF]">
+        
+        {/* CHAT HEADER */}
+        <div className="h-[76px] bg-white border-b border-gray-100 flex items-center px-8 justify-between shrink-0">
+          <div className="flex items-center">
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs ${activeContact.color}`}>
+              {activeContact.initial}
+            </div>
+            <div className="ml-4">
+              <h3 className="font-bold text-[#1B254B] text-sm leading-tight">{activeContact.name}</h3>
+              <p className="text-[10px] text-green-500 font-bold uppercase tracking-wider">
+                {activeContact.status === 'online' ? 'Online' : 'Offline'}
+              </p>
             </div>
           </div>
-
-          <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
-            {contacts.map((contact) => (
-              <div 
-                key={contact.id} 
-                onClick={() => setActiveContact(contact)}
-                className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors mb-1
-                  ${activeContact.id === contact.id ? 'bg-blue-50 border border-blue-100' : 'hover:bg-white border border-transparent'}`}
-              >
-                <div className="relative shrink-0">
-                  <div className="w-10 h-10 rounded-full bg-[#1B254B] text-white flex items-center justify-center font-bold text-sm">
-                    {contact.avatar}
-                  </div>
-                  <span className={`absolute bottom-0 right-0 w-3 h-3 border-2 border-white rounded-full ${contact.status === 'online' ? 'bg-[#00a65e]' : 'bg-gray-400'}`}></span>
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-baseline mb-1">
-                    <h4 className="text-sm font-bold text-[#1B254B] truncate pr-2">{contact.name}</h4>
-                    <span className="text-[10px] text-gray-400 whitespace-nowrap">{contact.time}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <p className={`text-xs truncate pr-2 ${contact.unread > 0 ? 'font-bold text-[#1B254B]' : 'text-gray-500'}`}>
-                      {contact.lastMsg}
-                    </p>
-                    {contact.unread > 0 && (
-                      <span className="bg-[#e02424] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
-                        {contact.unread}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
+          
+          <div className="flex items-center space-x-2">
+            {['📞', '📹', 'ℹ️'].map((icon, i) => (
+              <button key={i} className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-50 text-gray-400 hover:bg-[#F4F7FE] hover:text-[#4318FF] transition-all text-sm shadow-sm border border-gray-100">
+                {icon}
+              </button>
             ))}
           </div>
         </div>
 
-        {/* RIGHT SIDE */}
-        <div className="w-2/3 flex flex-col bg-white">
-
-          {/* Chat Header */}
-          <div className="h-16 border-b border-gray-100 flex items-center justify-between px-6 shrink-0">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-[#1B254B] text-white flex items-center justify-center font-bold">
-                {activeContact.avatar}
-              </div>
-              <div>
-                <h3 className="font-bold text-[#1B254B]">{activeContact.name}</h3>
-                <p className="text-xs text-gray-500">{activeContact.role}</p>
-              </div>
-            </div>
-
-            <div className="flex gap-3 text-gray-400">
-              <button>📞</button>
-              <button>📹</button>
-              <button>⋮</button>
-            </div>
-          </div>
-
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-6 bg-[#f8fafc] custom-scrollbar flex flex-col gap-4">
-            {messages.map((msg) => (
-              <div key={msg.id} className={`flex ${msg.isMe ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[70%] rounded-2xl px-4 py-3 shadow-sm ${
-                  msg.isMe 
-                    ? 'bg-[#4318FF] text-white rounded-br-none' 
-                    : 'bg-white border border-gray-100 text-[#1B254B] rounded-bl-none'
-                }`}>
-                  <p className="text-sm leading-relaxed">{msg.text}</p>
-                  <p className={`text-[10px] mt-1 text-right ${msg.isMe ? 'text-blue-200' : 'text-gray-400'}`}>
+        {/* MESSAGES AREA */}
+        <div 
+          ref={scrollRef}
+          className="flex-1 overflow-y-auto p-8 flex flex-col space-y-6 custom-scrollbar"
+        >
+          {currentMessages.map((msg, idx) => (
+            <div key={msg.id} className="flex flex-col">
+              {msg.time && (
+                <div className="flex items-center justify-center my-6">
+                  <div className="h-[1px] bg-gray-100 flex-1"></div>
+                  <span className="px-4 text-[9px] font-bold text-[#A3AED0] uppercase tracking-widest">
                     {msg.time}
-                  </p>
+                  </span>
+                  <div className="h-[1px] bg-gray-100 flex-1"></div>
+                </div>
+              )}
+              
+              <div className={`flex items-end ${msg.sender === 'me' ? 'justify-end' : 'justify-start'}`}>
+                {msg.sender === 'them' && (
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold mr-2 mb-1 shrink-0 ${activeContact.color}`}>
+                    {activeContact.initial}
+                  </div>
+                )}
+                
+                <div className={`max-w-[65%] px-5 py-3 text-[13px] font-medium leading-relaxed shadow-sm ${
+                  msg.sender === 'me' 
+                  ? 'bg-[#111C44] text-white rounded-t-[20px] rounded-bl-[20px]' 
+                  : 'bg-white text-[#1B254B] rounded-t-[20px] rounded-br-[20px] border border-gray-50'
+                }`}>
+                  {msg.text}
                 </div>
               </div>
-            ))}
-          </div>
-
-          {/* Input */}
-          <div className="p-4 bg-white border-t border-gray-100 shrink-0">
-            <form onSubmit={handleSendMessage} className="flex items-center gap-3">
-              <button type="button" className="text-gray-400 hover:text-[#4318FF] text-xl">
-                📎
-              </button>
-
-              <input 
-                type="text" 
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                placeholder="Type your message to your teacher..."
-                className="flex-1 bg-gray-50 border border-gray-200 rounded-full py-2.5 px-4 text-sm outline-none focus:border-[#4318FF]"
-              />
-
-              <button 
-                type="submit"
-                className="w-10 h-10 bg-[#4318FF] rounded-full flex items-center justify-center text-white shadow-md"
-              >
-                ➤
-              </button>
-            </form>
-          </div>
-
+            </div>
+          ))}
         </div>
+
+        {/* INPUT AREA */}
+        <div className="p-6 bg-white border-t border-gray-100">
+          <div className="bg-[#F4F7FE] rounded-[20px] p-2 flex items-center gap-2 border border-transparent focus-within:border-[#4318FF]/20 focus-within:bg-white transition-all shadow-sm">
+            <button className="p-2.5 hover:bg-white rounded-xl transition-all text-gray-400 text-lg">📎</button>
+            
+            <input 
+              value={messageText}
+              onChange={(e) => setMessageText(e.target.value)}
+              type="text" 
+              placeholder={`Write a message to ${activeContact.name}...`} 
+              className="flex-1 bg-transparent border-none px-2 text-[13px] font-medium outline-none text-[#1B254B] placeholder:text-[#A3AED0]"
+            />
+            
+            <div className="flex items-center space-x-1 pr-1">
+              {['😊', '🖼️'].map((icon, i) => (
+                <button key={i} className="p-2 hover:bg-white rounded-xl transition-all grayscale hover:grayscale-0">
+                  {icon}
+                </button>
+              ))}
+              <button className="bg-[#4318FF] text-white p-3 rounded-xl hover:bg-[#3311CC] hover:scale-105 active:scale-95 transition-all shadow-lg shadow-blue-900/20">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13"></line>
+                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   );
