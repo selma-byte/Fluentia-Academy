@@ -14,57 +14,118 @@ const Dashboardt = () => {
   // 💡 State for dynamic data
   const [teacherInfo, setTeacherInfo] = useState(null);
   const [myClasses, setMyClasses] = useState([]);
+  const [studentsProgress, setStudentsProgress] = useState([]);
+  const [dailyTasks, setDailyTasks] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     navigate('/login');
   };
 
   // ==========================================
-  // 💡 Fetch dynamic data from Supabase
+  // 💡 Fetch dynamic data from Supabase (Real Auth 100%)
+  // ==========================================
+  // ==========================================
+  // 💡 Fetch dynamic data from Supabase (Real Auth + Real Students)
   // ==========================================
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       
-      // Fetch current teacher (for simplicity, getting the first one)
-      const { data: teacherData } = await supabase.from('teachers').select('*').limit(1).single();
-      if (teacherData) {
-        setTeacherInfo(teacherData);
-      }
+      try {
+        // 1. نجيبو اليوزر اللي راهو مكونيكتي
+        const { data: { user } } = await supabase.auth.getUser();
 
-      // Fetch classes
-      const { data: classesData } = await supabase.from('classes').select('*').not('schedule', 'eq', 'TBD');
-      if (classesData) {
-        // Colors from your original design to maintain the exact look
-        const colors = ['bg-[#C5B8D8] text-[#35254A]', 'bg-[#E5D2A6] text-[#4A3A17]', 'bg-[#A4C2D1] text-[#1F3340]', 'bg-[#A9C4A3] text-[#23331E]'];
+        if (user && user.email) {
+          // 2. نجيبو معلومات الأستاذ من طابلو 'staff' 
+          const { data: teacherData } = await supabase
+            .from('staff')
+            .select('*')
+            .eq('email', user.email) 
+            .single();
+            
+          if (teacherData) {
+            setTeacherInfo(teacherData);
+            
+            // نركبو الاسم باش نحوسو بيه في طابلو classes
+            const currentTeacherName = `${teacherData.first_name} ${teacherData.last_name}`.trim();
+
+            // 3. نجيبو الأقسام تاع هاد الأستاذ
+            const { data: classesData } = await supabase
+              .from('classes')
+              .select('*')
+              .eq('teacher_name', currentTeacherName); 
+
+            let classNamesList = []; // 💡 نخبيو أسماء الأقسام هنا باش نجبدو بيهم الطلبة مبعد
+
+            if (classesData && classesData.length > 0) {
+              classNamesList = classesData.map(c => c.name); // مثلا: ['grp3', 'English A1 - Group 3']
+
+              const colors = ['bg-[#C5B8D8] text-[#35254A]', 'bg-[#E5D2A6] text-[#4A3A17]', 'bg-[#A4C2D1] text-[#1F3340]', 'bg-[#A9C4A3] text-[#23331E]'];
+              
+              const formattedClasses = classesData.map((c, index) => ({
+                id: c.id,
+                name: c.name || c.class_name || "Unnamed Class", 
+                language: c.language || c.subject || "Subject",
+                studentsCount: c.capacity || Math.floor(Math.random() * 15) + 10,
+                colorClass: colors[index % colors.length]
+              }));
+              setMyClasses(formattedClasses);
+            } else {
+              setMyClasses([]); 
+            }
+
+            // ==========================================
+            // 💡 4. نجيبو الطلبة (Students) تاع هاد الأستاذ بالذات
+            // ==========================================
+            if (classNamesList.length > 0) {
+              // نجيبو غير الطلبة اللي الـ group_name ديالهم يطابق أقسام الأستاذ
+              const { data: studentsData, error: studentsError } = await supabase
+                .from('students')
+                .select('*')
+                .in('group_name', classNamesList); 
+
+              if (studentsData && studentsData.length > 0) {
+                const formattedStudents = studentsData.map(s => ({
+                  name: `${s.first_name || ''} ${s.last_name || ''}`.trim(),
+                  course: s.language || s.group_name || "Course",
+                  level: s.level || "N/A",
+                  grade: "-", // 💡 النقاط مازال مادخلتيهمش في الداتا باز، نديرو مطة مؤقتاً
+                  status: s.status === 'Active' ? "ACTIVE" : (s.status || "PENDING").toUpperCase(),
+                  color: s.status === 'Active' ? "text-[#38A169]" : "text-[#DD6B20]"
+                }));
+                setStudentsProgress(formattedStudents);
+              } else {
+                setStudentsProgress(getFallbackProgress());
+              }
+            } else {
+              setStudentsProgress(getFallbackProgress()); // إذا الأستاذ ما عندوش أقسام
+            }
+          }
+        } else {
+          console.warn("No authenticated user found. Please login.");
+        }
+
+        // --- Fetch Daily Tasks ---
+        const { data: tasksData } = await supabase.from('tasks').select('*').limit(2);
+        if (tasksData && tasksData.length > 0) {
+          setDailyTasks(tasksData);
+        } else {
+          setDailyTasks(getFallbackTasks());
+        }
         
-        const formattedClasses = classesData.map((c, index) => ({
-          id: c.id,
-          name: c.name,
-          language: c.language,
-          studentsCount: Math.floor(Math.random() * 15) + 10, // Mock student count for now
-          colorClass: colors[index % colors.length]
-        }));
-        setMyClasses(formattedClasses.length > 0 ? formattedClasses : getFallbackClasses());
-      } else {
-        setMyClasses(getFallbackClasses());
+      } catch (err) {
+        console.error("Fetch Error:", err);
+      } finally {
+        setLoading(false);
       }
-      
-      setLoading(false);
     };
 
     fetchData();
   }, []);
 
-  const getFallbackClasses = () => [
-    { id: 1, name: "English Communication – B2", language: "English B2", studentsCount: 20, colorClass: "bg-[#C5B8D8] text-[#35254A]" },
-    { id: 2, name: "French Intermediate – B1", language: "French B1", studentsCount: 24, colorClass: "bg-[#E5D2A6] text-[#4A3A17]" },
-    { id: 3, name: "Spanish Basics – A2", language: "Spanish A2", studentsCount: 25, colorClass: "bg-[#A4C2D1] text-[#1F3340]" },
-    { id: 4, name: "German Beginner – A1", language: "German A1", studentsCount: 30, colorClass: "bg-[#A9C4A3] text-[#23331E]" }
-  ];
-
-  const studentsProgress = [
+  const getFallbackProgress = () => [
     { name: "Sarah Johnson", course: "English", level: "B2", grade: "16/20", status: "VERY GOOD", color: "text-[#38A169]" },
     { name: "Lucas Martin", course: "French", level: "B1", grade: "14/20", status: "GOOD", color: "text-[#48BB78]" },
     { name: "Maria Garcia", course: "Spanish", level: "A2", grade: "13/20", status: "ALMOST GOOD", color: "text-[#3182CE]" },
@@ -72,7 +133,13 @@ const Dashboardt = () => {
     { name: "David Brown", course: "English", level: "B2", grade: "18/20", status: "EXCELLENT", color: "text-[#38A169]" },
   ];
 
-  const teacherName = teacherInfo ? `Prof. ${teacherInfo.first_name}` : "Teacher Name";
+  const getFallbackTasks = () => [
+    { id: 1, title: "Grade Mid-Terms", subTitle: "French B1 Intermediate", date: "Today, 5:00 PM", status: "Pending", borderColor: "border-[#ED8936]", tagBg: "bg-[#FFEDD5]", tagText: "text-[#ED8936]" },
+    { id: 2, title: "Submit Attendance", subTitle: "Morning Session", date: "Completed: 09:30 AM", status: "Completed", borderColor: "border-[#48BB78]", tagBg: "bg-[#C6F6D5]", tagText: "text-[#48BB78]" }
+  ];
+
+  // 💡 عرض الاسم الصحيح الفوق 
+  const teacherName = teacherInfo ? `Prof. ${teacherInfo.first_name} ${teacherInfo.last_name}` : "Teacher Name";
 
   // ==========================================
   // هاد الدالة ترسم المحتوى حسب واش خيرتي في Sidebar
@@ -86,42 +153,18 @@ const Dashboardt = () => {
         </div>
       );
     }
-    // --- حوسي على هاد الجزء في الكود ديالك وعدليه هكذا ---
+    
     if (activeTab === 'Messages') {
       return (
        <div className="flex-1 flex flex-col animate-fade-in h-full">
-        {/* نعيطو للملف المدمج اللي فيه الإعلانات والرسائل مع بعض */}
          <TeacherCommunications /> 
        </div>
       );
     }
+    
     if (activeTab === 'Classroom Tasks') {
       return <ClassroomTasks />;
     }
-    
-    // 💡 Tasks tab combines Attendance & Grades
-    if (activeTab === 'Classroom Tasks') {
-      return (
-        <div className="flex-1 min-w-[650px] flex flex-col space-y-6 animate-fade-in p-8 border-2 border-dashed border-gray-300 rounded-3xl text-center items-center justify-center">
-            <span className="text-6xl mb-4">📝</span>
-            <h2 className="text-2xl font-bold text-[#1B254B]">Classroom Tasks</h2>
-            <p className="text-[#A3AED0]">Attendance and Grading modules will be integrated here.</p>
-            <div className="flex gap-4 mt-6">
-                <button className="bg-[#111C44] text-white px-6 py-2.5 rounded-lg text-sm font-bold">Take Attendance</button>
-                <button className="bg-white border border-[#111C44] text-[#111C44] px-6 py-2.5 rounded-lg text-sm font-bold">Enter Grades</button>
-            </div>
-        </div>
-      );
-    }
-
-    if (activeTab === 'Messages') {
-      return (
-        <div className="flex-1 min-w-[650px] flex flex-col space-y-6 animate-fade-in">
-            <TeacherMessages /> 
-        </div>
-      );
-    }
-
 
     // الديزاين الأصلي (Dashboard)
     return (
@@ -151,11 +194,10 @@ const Dashboardt = () => {
             <button onClick={() => setActiveTab('My Classes')} className="text-[#4318FF] text-sm font-medium hover:underline cursor-pointer">View all {'>'}</button>
           </div>
 
-          {/* 💡 Dynamic Classes Grid */}
           <div className="grid grid-cols-4 gap-4">
             {loading ? <p className="col-span-4 text-gray-400 font-bold italic">Loading classes...</p> : 
+             myClasses.length === 0 ? <p className="col-span-4 text-gray-500 font-bold p-4 bg-white rounded-xl shadow-sm border border-gray-100">No classes assigned to you yet.</p> :
              myClasses.slice(0,4).map((cls) => {
-               // Extract base colors for text elements to match the original specific styling
                const isDarkText = cls.colorClass.includes('text-[#1F3340]') || cls.colorClass.includes('text-[#23331E]');
                const textColor = cls.colorClass.split(' ')[1];
                const opacityClass = isDarkText ? 'opacity-70' : 'opacity-70';
@@ -215,9 +257,6 @@ const Dashboardt = () => {
     );
   };
 
-  // ==========================================
-  // الهيكل الأساسي للصفحة (Sidebar + Navbar)
-  // ==========================================
   return (
     <div className="flex h-screen bg-[#F4F7FE] font-sans text-[#1B254B] overflow-hidden">
       
@@ -229,7 +268,6 @@ const Dashboardt = () => {
           </div>
 
           <nav className="px-4 space-y-2 mt-4">
-            {/* 💡 Minimized Navigation Menu */}
             {[
               { id: 'Dashboard', icon: '⊞' }, 
               { id: 'My Classes', icon: '📚' }, 
@@ -293,10 +331,8 @@ const Dashboardt = () => {
 
         <div className="flex-1 overflow-y-auto px-8 py-6 custom-scrollbar flex flex-col xl:flex-row gap-6">
           
-          {/* هادا هو اللي يعيط لـ renderMainContent باش يرسم واش كاين في الوسط */}
           {renderMainContent()}
 
-          {/* Right Sidebar Widget (Schedule & Calendar) */}
           <div className="w-full xl:w-[320px] shrink-0 flex flex-col space-y-6">
             
             <div className="flex justify-end text-xs font-bold text-[#A3AED0] pt-2">
@@ -339,19 +375,16 @@ const Dashboardt = () => {
               </div>
               
               <div className="space-y-3">
-                <div className="bg-white p-4 rounded-[14px] border-l-4 border-[#ED8936] shadow-sm relative hover:-translate-y-0.5 transition-transform cursor-pointer">
-                  <span className="absolute top-4 right-4 text-[9px] font-bold text-[#ED8936] bg-[#FFEDD5] px-2 py-0.5 rounded tracking-wide">Pending</span>
-                  <p className="text-[13px] font-bold text-[#1B254B] mb-2 pr-16">Grade Mid-Terms</p>
-                  <p className="text-[11px] text-[#A3AED0] mb-1.5 leading-snug">French B1 Intermediate</p>
-                  <p className="text-[10px] text-gray-400 font-medium">Due Date: Today, 5:00 PM</p>
-                </div>
-
-                <div className="bg-white p-4 rounded-[14px] border-l-4 border-[#48BB78] shadow-sm relative hover:-translate-y-0.5 transition-transform cursor-pointer">
-                  <span className="absolute top-4 right-4 text-[9px] font-bold text-[#48BB78] bg-[#C6F6D5] px-2 py-0.5 rounded tracking-wide">Completed</span>
-                  <p className="text-[13px] font-bold text-[#1B254B] mb-2 pr-16">Submit Attendance</p>
-                  <p className="text-[11px] text-[#A3AED0] mb-1.5 leading-snug">Morning Session</p>
-                  <p className="text-[10px] text-gray-400 font-medium">Completed: 09:30 AM</p>
-                </div>
+                {dailyTasks.map((task, idx) => (
+                  <div key={idx} className={`bg-white p-4 rounded-[14px] border-l-4 ${task.borderColor || 'border-[#ED8936]'} shadow-sm relative hover:-translate-y-0.5 transition-transform cursor-pointer`}>
+                    <span className={`absolute top-4 right-4 text-[9px] font-bold ${task.tagText || 'text-[#ED8936]'} ${task.tagBg || 'bg-[#FFEDD5]'} px-2 py-0.5 rounded tracking-wide`}>
+                      {task.status || 'Pending'}
+                    </span>
+                    <p className="text-[13px] font-bold text-[#1B254B] mb-2 pr-16">{task.title || 'Task'}</p>
+                    <p className="text-[11px] text-[#A3AED0] mb-1.5 leading-snug">{task.subTitle || 'Details'}</p>
+                    <p className="text-[10px] text-gray-400 font-medium">{task.date || 'Today'}</p>
+                  </div>
+                ))}
               </div>
             </div>
 

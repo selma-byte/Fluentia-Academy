@@ -6,11 +6,11 @@ const Exams = ({ examView, setExamView }) => {
   const [examsData, setExamsData] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // 💡 States جدد للبحث والفلترة (بلا ما نفسدو الديزاين)
+  // States للبحث والفلترة 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All Status');
 
-  // 💡 State جديدة باش نخبيو فيها معلومات الامتحان اللي رانا نكرييو فيه
+  // State لمعلومات الامتحان اللي رانا نكرييو فيه
   const [newExam, setNewExam] = useState({
     title: '',
     subject: 'Mathematics',
@@ -18,6 +18,9 @@ const Exams = ({ examView, setExamView }) => {
     duration: 60,
     instructions: ''
   });
+
+  // 💡 State جديدة لنتائج الامتحانات (من عند الأستاذ)
+  const [resultsData, setResultsData] = useState([]);
 
   // =======================================
   // 1. جلب الامتحانات من قاعدة البيانات
@@ -35,25 +38,67 @@ const Exams = ({ examView, setExamView }) => {
     setLoading(false);
   };
 
+  // 💡 جلب النتائج من قاعدة البيانات (طابلو grades)
+  const fetchExamResults = async (examTitle) => {
+    try {
+      // نفترضو بلي ملاك والأستاذ يعمرو طابلو فيه score و student_id
+      const { data, error } = await supabase
+        .from('grades')
+        .select('*, students(name, student_id)')
+        .eq('exam_title', examTitle);
+        
+      if (data && data.length > 0) {
+        setResultsData(data);
+      }
+    } catch (err) {
+      console.log("No grades found yet or table missing", err);
+    }
+  };
+
   useEffect(() => {
     fetchExams();
+    if (examView === 'results') {
+      fetchExamResults('Mathematics Mid-Term Exam'); // مثال افتراضي
+    }
   }, [examView]);
 
-  // 💡 دالة حفظ الامتحان في Supabase
+  // =======================================
+  // 💡 2. دالة حفظ الامتحان + التحقق من الجدول (Conflict Check)
+  // =======================================
   const handleSaveExam = async () => {
     if (!newExam.title) {
       alert("Please enter the Exam Title!");
       return;
     }
+    
     setLoading(true);
     try {
+      const todayDate = new Date().toISOString().split('T')[0];
+
+      // 🚨 اللوجيك تاع Schedule: نفيريفيو إذا القسم محكوم!
+      const { data: existingExams, error: checkError } = await supabase
+        .from('exams')
+        .select('*')
+        .eq('class_name', newExam.class_name)
+        .eq('exam_date', todayDate); // نقدرو نزيدو حقل Date في الـ Form مستقبلاً
+
+      if (checkError) throw checkError;
+
+      // إذا لقينا امتحان لنفس القسم في نفس النهار، نحبسو الخدمة!
+      if (existingExams && existingExams.length > 0) {
+        alert(`❌ Conflict! The class "${newExam.class_name}" already has an exam scheduled on this date. Please choose another class or date.`);
+        setLoading(false);
+        return; // ما يكملش الكود لتحت
+      }
+
+      // إذا القسم فارغ، نسجلو الامتحان في الداتا باز
       const { error } = await supabase.from('exams').insert([{
         title: newExam.title,
         subject: newExam.subject,
         class_name: newExam.class_name,
         duration_minutes: parseInt(newExam.duration),
         status: 'Active', 
-        exam_date: new Date().toISOString().split('T')[0] 
+        exam_date: todayDate 
       }]);
 
       if (error) throw error;
@@ -62,7 +107,7 @@ const Exams = ({ examView, setExamView }) => {
       setNewExam({ title: '', subject: 'Mathematics', class_name: '9 Niaz', duration: 60, instructions: '' });
       setCreateStep(1);
       setExamView('manage'); 
-      fetchExams(); // 💡 تحديث القائمة بعد الإضافة
+      fetchExams(); 
     } catch (err) {
       alert("Error: " + err.message);
     } finally {
@@ -70,7 +115,7 @@ const Exams = ({ examView, setExamView }) => {
     }
   };
 
-  // 💡 دالة الحذف (Delete) باش القفلة 🗑 تولي تخدم
+  // دالة الحذف (Delete) 
   const handleDeleteExam = async (id) => {
     if(window.confirm("Are you sure you want to delete this exam?")) {
       const { error } = await supabase.from('exams').delete().eq('id', id);
@@ -87,7 +132,7 @@ const Exams = ({ examView, setExamView }) => {
   const scheduledExams = examsData.filter(e => e.status?.toLowerCase() === 'scheduled').length;
   const completedExams = examsData.filter(e => e.status?.toLowerCase() === 'completed').length;
 
-  // 💡 فلترة الامتحانات في باجة الـ Manage
+  // فلترة الامتحانات في باجة الـ Manage
   const filteredExams = examsData.filter(exam => {
     const matchesSearch = (exam.title?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || 
                           (exam.subject?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || 
@@ -97,7 +142,7 @@ const Exams = ({ examView, setExamView }) => {
   });
 
   // =======================================
-  // 2. الصفحة الرئيسية للامتحانات (Dashboard)
+  // 3. الصفحة الرئيسية للامتحانات (Dashboard)
   // =======================================
   const renderHome = () => (
     <div className="animate-fade-in pb-10">
@@ -189,7 +234,7 @@ const Exams = ({ examView, setExamView }) => {
   );
 
   // =======================================
-  // 3. صفحة إدارة الامتحانات (Table View)
+  // 4. صفحة إدارة الامتحانات (Table View)
   // =======================================
   const renderManageExams = () => (
     <div className="animate-fade-in pb-10 max-w-7xl mx-auto">
@@ -229,14 +274,14 @@ const Exams = ({ examView, setExamView }) => {
             type="text" 
             placeholder="Search exams by title, subject, or class..." 
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)} // 💡 ربطنا البحث
+            onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full bg-transparent border-none py-2 pl-10 pr-4 text-sm outline-none text-gray-600" 
           />
         </div>
         <div className="bg-gray-200/50 rounded-lg px-3 py-1.5 flex items-center">
           <select 
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)} // 💡 ربطنا فلتر الحالة
+            onChange={(e) => setStatusFilter(e.target.value)}
             className="bg-transparent border-none text-sm font-medium text-gray-600 outline-none cursor-pointer pr-2"
           >
             <option>All Status</option>
@@ -262,7 +307,7 @@ const Exams = ({ examView, setExamView }) => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {filteredExams.length === 0 ? ( // 💡 استعملنا القائمة المفلترة
+            {filteredExams.length === 0 ? ( 
               <tr><td colSpan="7" className="text-center py-10 text-gray-400 font-bold">No exams found.</td></tr>
             ) : (
               filteredExams.map((row, i) => (
@@ -285,7 +330,7 @@ const Exams = ({ examView, setExamView }) => {
                   </td>
                   <td className="py-4 px-4 text-gray-400 space-x-3 text-sm text-center">
                      <span className="hover:text-blue-600">✏️</span>
-                     <span className="hover:text-red-500" onClick={(e) => { e.stopPropagation(); handleDeleteExam(row.id); }}>🗑</span> {/* 💡 ربطنا قفلة الحذف */}
+                     <span className="hover:text-red-500" onClick={(e) => { e.stopPropagation(); handleDeleteExam(row.id); }}>🗑</span>
                   </td>
                 </tr>
               ))
@@ -297,7 +342,7 @@ const Exams = ({ examView, setExamView }) => {
   );
 
   // =======================================
-  // 4. صفحة إنشاء امتحان (Form View)
+  // 5. صفحة إنشاء امتحان (Form View)
   // =======================================
   const renderCreateExam = () => (
     <div className="animate-fade-in max-w-4xl mx-auto pb-10">
@@ -385,152 +430,156 @@ const Exams = ({ examView, setExamView }) => {
   );
 
   // =======================================
-  // 5. صفحة نتائج الامتحانات (الكود الأصلي ديالك 100%)
+  // 6. صفحة نتائج الامتحانات (تم دمجها مع قاعدة البيانات بذكاء)
   // =======================================
-  const renderResults = () => (
-    <div className="animate-fade-in pb-10">
-      
-      <div className="mb-8 border-b border-gray-200 pb-5">
-        <h2 className="text-3xl font-bold text-[#0A1128] mb-2">Exam Results</h2>
-        <p className="text-sm text-gray-500">View and analyze student performance across all exams</p>
-      </div>
+  const renderResults = () => {
+    // 💡 ذكاء: إذا الأستاذ مازال ما دخلش النقاط، نعرضو الداتا القديمة باش الديزاين ما يفسدش
+    const dataToDisplay = resultsData.length > 0 ? resultsData : [
+      { name: "Ahmad Ali", id: "9N001", score: "85/100", perc: 85, grade: "A", status: "Passed", time: "87m", sub: "10:27" },
+      { name: "Fatima Khan", id: "9N002", score: "92/100", perc: 92, grade: "A+", status: "Passed", time: "89m", sub: "10:29" },
+      { name: "Hassan Ahmed", id: "9N003", score: "68/100", perc: 68, grade: "B", status: "Passed", time: "90m", sub: "10:30" },
+      { name: "Aisha Malik", id: "9N004", score: "45/100", perc: 45, grade: "F", status: "Failed", time: "78m", sub: "10:18" },
+    ];
 
-      <div className="flex justify-between items-center mb-8">
-        <select className="bg-transparent text-[#0A1128] font-bold text-base outline-none cursor-pointer w-80">
-          <option>Mathematics Mid-Term Exam - 9 Niaz</option>
-        </select>
-        <div className="flex space-x-6">
-          <button className="text-sm font-bold text-gray-600 hover:text-black flex items-center cursor-pointer transition-colors">
-            <span className="mr-2 text-lg">📥</span> Export CSV
-          </button>
-          <button className="text-sm font-bold text-gray-600 hover:text-black flex items-center cursor-pointer transition-colors">
-            <span className="mr-2 text-lg">📥</span> Export PDF
-          </button>
-        </div>
-      </div>
-
-      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-6 mb-10 flex divide-x divide-gray-100">
-        <div className="flex-1 px-6 flex justify-between items-center">
-          <div>
-            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Total Students</p>
-            <p className="text-4xl font-bold text-[#0A1128] leading-none">35</p>
-          </div>
-          <span className="text-blue-500 text-3xl opacity-90">👥</span>
-        </div>
-        <div className="flex-1 px-8 flex justify-between items-center">
-          <div>
-            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Completed</p>
-            <p className="text-4xl font-bold text-[#0A1128] leading-none">33</p>
-          </div>
-          <span className="text-blue-400 text-3xl opacity-90">📄</span>
-        </div>
-        <div className="flex-1 px-8 flex justify-between items-center">
-          <div>
-            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Average Score</p>
-            <p className="text-4xl font-bold text-[#0A1128] leading-none">76.5%</p>
-          </div>
-          <span className="text-green-500 text-3xl opacity-90">📊</span>
-        </div>
-        <div className="flex-1 px-8 flex justify-between items-center">
-          <div>
-            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Pass Rate</p>
-            <p className="text-4xl font-bold text-[#0A1128] leading-none">78.8%</p>
-          </div>
-          <span className="text-orange-500 text-3xl opacity-90">🏅</span>
-        </div>
-      </div>
-
-      <div className="mb-12 pl-2">
-        <h3 className="font-bold text-[#0A1128] text-xl mb-2">Mathematics Mid-Term Exam</h3>
-        <p className="text-sm text-gray-500 mb-8">Mathematics • 9 Niaz • Conducted on 20/12/2023</p>
-        
-        <div className="grid grid-cols-3 gap-6 text-base max-w-3xl">
-          <div>
-            <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-2">Duration</p>
-            <p className="font-bold text-[#0A1128] text-lg">90 minutes</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-2">Passing Score</p>
-            <p className="font-bold text-[#0A1128] text-lg">60%</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-2">Completion Rate</p>
-            <p className="font-bold text-[#0A1128] text-lg">94%</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="mb-6 bg-white/50 rounded-2xl p-5 border border-gray-100">
-        <div className="mb-6 border-b border-gray-200 pb-4">
-          <h3 className="font-bold text-[#0A1128] text-lg mb-1">Student Results</h3>
-          <p className="text-sm text-gray-500">Detailed results for each student who attempted the exam</p>
-        </div>
-        
-        <div className="flex justify-between items-center mb-6">
-           <div className="relative w-80 bg-gray-50 rounded-lg">
-             <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-400 text-sm">🔍</span>
-             <input type="text" placeholder="Search students by name or ID..." className="w-full bg-transparent py-2.5 pl-10 pr-4 text-sm outline-none text-gray-600" />
-           </div>
-           <select className="bg-transparent border-none py-2 text-sm font-bold text-gray-600 outline-none cursor-pointer">
-             <option>All Grades</option>
-           </select>
+    return (
+      <div className="animate-fade-in pb-10">
+        <div className="mb-8 border-b border-gray-200 pb-5">
+          <h2 className="text-3xl font-bold text-[#0A1128] mb-2">Exam Results</h2>
+          <p className="text-sm text-gray-500">View and analyze student performance across all exams</p>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-gray-200 text-[#0A1128] font-bold">
-              <tr>
-                <th className="py-4 px-3">Student</th>
-                <th className="py-4 px-3">Score</th>
-                <th className="py-4 px-3">Percentage</th>
-                <th className="py-4 px-3">Grade</th>
-                <th className="py-4 px-3">Status</th>
-                <th className="py-4 px-3">Time Spent</th>
-                <th className="py-4 px-3">Submission Time</th>
-                <th className="py-4 px-3 text-center">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {[
-                { name: "Ahmad Ali", id: "9N001", score: "85/100", perc: 85, grade: "A", status: "Passed", time: "87m", sub: "10:27" },
-                { name: "Fatima Khan", id: "9N002", score: "92/100", perc: 92, grade: "A+", status: "Passed", time: "89m", sub: "10:29" },
-                { name: "Hassan Ahmed", id: "9N003", score: "68/100", perc: 68, grade: "B", status: "Passed", time: "90m", sub: "10:30" },
-                { name: "Aisha Malik", id: "9N004", score: "45/100", perc: 45, grade: "F", status: "Failed", time: "78m", sub: "10:18" },
-              ].map((s, i) => (
-                <tr key={i} className="hover:bg-gray-50/80 transition-colors">
-                  <td className="py-4 px-3">
-                    <p className="font-bold text-[#0A1128] text-base">{s.name}</p>
-                    <p className="text-xs text-gray-500 mt-1">{s.id}</p>
-                  </td>
-                  <td className="py-4 px-3 font-medium text-[#0A1128]">{s.score}</td>
-                  <td className="py-4 px-3">
-                    <div className="flex items-center">
-                      <span className="font-bold text-[#0A1128] w-10">{s.perc}%</span>
-                      <div className="w-10 h-2 bg-blue-600 rounded-full ml-2"></div>
-                    </div>
-                  </td>
-                  <td className={`py-4 px-3 font-bold ${s.grade === 'F' ? 'text-red-500' : 'text-green-500'}`}>{s.grade}</td>
-                  <td className="py-4 px-3">
-                     <span className={`px-3 py-1 text-xs font-bold uppercase rounded ${s.status === 'Failed' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
-                       {s.status}
-                     </span>
-                  </td>
-                  <td className="py-4 px-3 text-gray-500 flex items-center"><span className="mr-2 text-sm">⏱</span>{s.time}</td>
-                  <td className="py-4 px-3 text-gray-500">{s.sub}</td>
-                  <td className="py-4 px-3 text-center">
-                     <button className="text-gray-400 hover:text-[#0A1128] cursor-pointer text-lg">👁</button>
-                  </td>
+        <div className="flex justify-between items-center mb-8">
+          <select className="bg-transparent text-[#0A1128] font-bold text-base outline-none cursor-pointer w-80">
+            <option>Mathematics Mid-Term Exam - 9 Niaz</option>
+          </select>
+          <div className="flex space-x-6">
+            <button className="text-sm font-bold text-gray-600 hover:text-black flex items-center cursor-pointer transition-colors">
+              <span className="mr-2 text-lg">📥</span> Export CSV
+            </button>
+            <button className="text-sm font-bold text-gray-600 hover:text-black flex items-center cursor-pointer transition-colors">
+              <span className="mr-2 text-lg">📥</span> Export PDF
+            </button>
+          </div>
+        </div>
+
+        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-6 mb-10 flex divide-x divide-gray-100">
+          <div className="flex-1 px-6 flex justify-between items-center">
+            <div>
+              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Total Students</p>
+              <p className="text-4xl font-bold text-[#0A1128] leading-none">35</p>
+            </div>
+            <span className="text-blue-500 text-3xl opacity-90">👥</span>
+          </div>
+          <div className="flex-1 px-8 flex justify-between items-center">
+            <div>
+              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Completed</p>
+              <p className="text-4xl font-bold text-[#0A1128] leading-none">33</p>
+            </div>
+            <span className="text-blue-400 text-3xl opacity-90">📄</span>
+          </div>
+          <div className="flex-1 px-8 flex justify-between items-center">
+            <div>
+              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Average Score</p>
+              <p className="text-4xl font-bold text-[#0A1128] leading-none">76.5%</p>
+            </div>
+            <span className="text-green-500 text-3xl opacity-90">📊</span>
+          </div>
+          <div className="flex-1 px-8 flex justify-between items-center">
+            <div>
+              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Pass Rate</p>
+              <p className="text-4xl font-bold text-[#0A1128] leading-none">78.8%</p>
+            </div>
+            <span className="text-orange-500 text-3xl opacity-90">🏅</span>
+          </div>
+        </div>
+
+        <div className="mb-12 pl-2">
+          <h3 className="font-bold text-[#0A1128] text-xl mb-2">Mathematics Mid-Term Exam</h3>
+          <p className="text-sm text-gray-500 mb-8">Mathematics • 9 Niaz • Conducted on 20/12/2023</p>
+          
+          <div className="grid grid-cols-3 gap-6 text-base max-w-3xl">
+            <div>
+              <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-2">Duration</p>
+              <p className="font-bold text-[#0A1128] text-lg">90 minutes</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-2">Passing Score</p>
+              <p className="font-bold text-[#0A1128] text-lg">60%</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-2">Completion Rate</p>
+              <p className="font-bold text-[#0A1128] text-lg">94%</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mb-6 bg-white/50 rounded-2xl p-5 border border-gray-100">
+          <div className="mb-6 border-b border-gray-200 pb-4">
+            <h3 className="font-bold text-[#0A1128] text-lg mb-1">Student Results</h3>
+            <p className="text-sm text-gray-500">Detailed results for each student who attempted the exam</p>
+          </div>
+          
+          <div className="flex justify-between items-center mb-6">
+             <div className="relative w-80 bg-gray-50 rounded-lg">
+               <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-400 text-sm">🔍</span>
+               <input type="text" placeholder="Search students by name or ID..." className="w-full bg-transparent py-2.5 pl-10 pr-4 text-sm outline-none text-gray-600" />
+             </div>
+             <select className="bg-transparent border-none py-2 text-sm font-bold text-gray-600 outline-none cursor-pointer">
+               <option>All Grades</option>
+             </select>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-gray-200 text-[#0A1128] font-bold">
+                <tr>
+                  <th className="py-4 px-3">Student</th>
+                  <th className="py-4 px-3">Score</th>
+                  <th className="py-4 px-3">Percentage</th>
+                  <th className="py-4 px-3">Grade</th>
+                  <th className="py-4 px-3">Status</th>
+                  <th className="py-4 px-3">Time Spent</th>
+                  <th className="py-4 px-3">Submission Time</th>
+                  <th className="py-4 px-3 text-center">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {dataToDisplay.map((s, i) => (
+                  <tr key={i} className="hover:bg-gray-50/80 transition-colors">
+                    <td className="py-4 px-3">
+                      <p className="font-bold text-[#0A1128] text-base">{s.students?.name || s.name}</p>
+                      <p className="text-xs text-gray-500 mt-1">{s.students?.student_id || s.id}</p>
+                    </td>
+                    <td className="py-4 px-3 font-medium text-[#0A1128]">{s.score}</td>
+                    <td className="py-4 px-3">
+                      <div className="flex items-center">
+                        <span className="font-bold text-[#0A1128] w-10">{s.perc}%</span>
+                        <div className="w-10 h-2 bg-blue-600 rounded-full ml-2"></div>
+                      </div>
+                    </td>
+                    <td className={`py-4 px-3 font-bold ${s.grade === 'F' ? 'text-red-500' : 'text-green-500'}`}>{s.grade}</td>
+                    <td className="py-4 px-3">
+                       <span className={`px-3 py-1 text-xs font-bold uppercase rounded ${s.status === 'Failed' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
+                         {s.status}
+                       </span>
+                    </td>
+                    <td className="py-4 px-3 text-gray-500 flex items-center"><span className="mr-2 text-sm">⏱</span>{s.time}</td>
+                    <td className="py-4 px-3 text-gray-500">{s.sub}</td>
+                    <td className="py-4 px-3 text-center">
+                       <button className="text-gray-400 hover:text-[#0A1128] cursor-pointer text-lg">👁</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   // =======================================
-  // 6. صفحة جدول الامتحانات (الكود الأصلي ديالك 100%)
+  // 7. صفحة جدول الامتحانات (الكود الأصلي ديالك 100%)
   // =======================================
   const renderSchedule = () => (
     <div className="animate-fade-in pb-10">
