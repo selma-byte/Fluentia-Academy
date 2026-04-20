@@ -8,6 +8,12 @@ const ParentPortal = () => {
   const [modalView, setModalView] = useState(null); 
   const [chatType, setChatType] = useState(null);
   const [newMessage, setNewMessage] = useState(''); 
+  const [selectedRecipient, setSelectedRecipient] = useState(null); // { id, name, role }
+  const [studentsList, setStudentsList] = useState([]); // 💡 زدنا قائمة التلاميذ
+  const [staffList, setStaffList] = useState([]); 
+  
+  // 💡 State زدناه باش نرفدو واش تكتبي في الإعلان
+  const [announcementForm, setAnnouncementForm] = useState({ title: '', content: '' });
 
   // --- حالات الفلترة لصناديق الاختيار (تمت إضافة teacher و admin) ---
   const [selectedAudiences, setSelectedAudiences] = useState({
@@ -19,27 +25,19 @@ const ParentPortal = () => {
     admin: false
   });
 
-  useEffect(() => {
-    const fetchMessages = async () => {
-      if (!chatType) return;
+ useEffect(() => {
+  const fetchData = async () => {
+    // 1. جلب قاع الـ Staff (أساتذة وأدمن)
+    const { data: staffData } = await supabase.from('staff').select('*');
+    if (staffData) setStaffList(staffData);
 
-      let filterQuery = `type.eq.${chatType},type.eq.smart,type.eq.General`;
-      
-      if (chatType === 'staff') {
-        filterQuery += `,type.eq.teacher,type.eq.admin`;
-      }
-
-      const { data } = await supabase
-        .from('communications')
-        .select('*')
-        .or(filterQuery)
-        .order('created_at', { ascending: true });
-      
-      if (data) setChatMessages(data);
-    };
-
-    fetchMessages();
-  }, [chatType, activeTab]); 
+    // 2. جلب قاع التلاميذ (Students)
+    const { data: studentData } = await supabase.from('students').select('*');
+    if (studentData) setStudentsList(studentData);
+  };
+  
+  fetchData();
+ }, []);
 
   const handleAudienceChange = (audience) => {
     if (audience === 'all') {
@@ -59,6 +57,22 @@ const ParentPortal = () => {
         }
         return newState;
       });
+    }
+  };
+
+  // 💡 الدالة اللي تنشر الإعلان في قاعدة البيانات
+  const handlePublishAnnouncement = async () => {
+    if (!announcementForm.title || !announcementForm.content) return alert("Please fill title and content");
+    const { error } = await supabase.from('communications').insert([{
+      content: `📢 ${announcementForm.title}\n\n${announcementForm.content}`,
+      type: 'announcement',
+      recipient_name: 'All',
+      recipient_id: 'all',
+      sender_role: 'admin'
+    }]);
+    if (!error) {
+      alert("✅ Announcement Published!");
+      setModalView(null);
     }
   };
 
@@ -152,25 +166,32 @@ const ParentPortal = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            <tr className="hover:bg-gray-50/50 transition-colors">
-              <td className="py-4 px-6">
-                <p className="font-bold text-[#0A1128]">Yacine Benali</p>
-              </td>
-              <td className="py-4 px-6 text-xs text-gray-600 space-y-1">
-                <p className="flex items-center"><span className="mr-2">✉️</span> yacine.b@email.com</p>
-                <p className="flex items-center"><span className="mr-2">📱</span> +213 555 123 456</p>
-              </td>
-              <td className="py-4 px-6">
-                <p className="font-bold text-[#0A1128]">English (A1)</p>
-              </td>
-              <td className="py-4 px-6 text-gray-600">Group 1</td>
-              <td className="py-4 px-6"><span className="text-green-600 font-bold flex items-center"><span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-2"></span>Active</span></td>
-              <td className="py-4 px-6 text-center space-x-4">
-                <button className="text-gray-500 hover:text-blue-600 font-bold text-xs transition-colors">View</button>
-                <button onClick={() => { setMainView('chat'); setChatType('student'); }} className="text-gray-400 hover:text-blue-600 text-lg transition-colors cursor-pointer">💬</button>
-              </td>
-            </tr>
-          </tbody>
+  {studentsList.map((student) => (
+    <tr key={student.id} className="hover:bg-gray-50/50 transition-colors">
+      <td className="py-4 px-6 font-bold text-[#0A1128]">{student.first_name} {student.last_name}</td>
+      <td className="py-4 px-6 text-xs text-gray-600 space-y-1">
+        <p>✉️ {student.email}</p>
+        <p>📱 {student.phone}</p>
+      </td>
+      <td className="py-4 px-6 font-bold text-[#0A1128]">{student.language || 'N/A'} ({student.level || '-'})</td>
+      <td className="py-4 px-6 text-gray-600">{student.group_name || 'No Group'}</td>
+      <td className="py-4 px-6">
+        <span className="text-green-600 font-bold flex items-center">
+          <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-2"></span>Active
+        </span>
+      </td>
+      <td className="py-4 px-6 text-center space-x-4">
+        <button className="text-gray-500 hover:text-blue-600 font-bold text-xs">View</button>
+        {/* 💡 قفلة الشات مع التلميذ الحقيقي */}
+        <button onClick={() => { 
+            setMainView('chat'); 
+            setChatType('student_individual'); 
+            setSelectedRecipient({ id: student.id, name: `${student.first_name} ${student.last_name}`, role: 'Student' }); 
+        }} className="text-gray-400 hover:text-blue-600 text-lg transition-colors cursor-pointer">💬</button>
+      </td>
+    </tr>
+  ))}
+</tbody>
         </table>
       </div>
     </div>
@@ -220,7 +241,15 @@ const ParentPortal = () => {
               <td className="py-4 px-6"><span className="text-green-600 font-bold flex items-center"><span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-2"></span>Active</span></td>
               <td className="py-4 px-6 text-center space-x-4">
                 <button className="text-gray-500 hover:text-blue-600 font-bold text-xs transition-colors">View</button>
-                <button onClick={() => { setMainView('chat'); setChatType('staff'); }} className="text-gray-400 hover:text-blue-600 text-lg transition-colors cursor-pointer">💬</button>
+                <button 
+                  onClick={() => {  setMainView('chat'); 
+                  setChatType('staff_individual'); // نوع جديد للمراسلة الفردية
+                  setSelectedRecipient({ id: 'staff_1', name: 'Sarah Jamel', role: 'Teacher' }); 
+                 }} 
+                 className="text-gray-400 hover:text-blue-600 text-lg transition-colors cursor-pointer"
+                >
+                 💬
+                </button>
               </td>
             </tr>
           </tbody>
@@ -281,7 +310,7 @@ const ParentPortal = () => {
         <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
           <h4 className="font-bold text-[#0A1128] text-base mb-4">Targeted Messages</h4>
           <div className="space-y-3">
-            <button onClick={() => { setMainView('chat'); setChatType('smart'); }} className="w-full bg-[#0A1128] hover:bg-gray-800 text-white font-bold text-sm py-3.5 rounded-xl transition-colors flex items-center justify-center shadow-sm">
+            <button onClick={() => { setMainView('chat'); setChatType('smart'); setSelectedRecipient(null); }} className="w-full bg-[#0A1128] hover:bg-gray-800 text-white font-bold text-sm py-3.5 rounded-xl transition-colors flex items-center justify-center shadow-sm">
               <span className="mr-2">💬</span> Send Message
             </button>
           </div>
@@ -290,10 +319,10 @@ const ParentPortal = () => {
         <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
           <h4 className="font-bold text-[#0A1128] text-base mb-4">Bulk Communications</h4>
           <div className="space-y-3">
-            <button onClick={() => { setMainView('chat'); setChatType('staff'); }} className="w-full bg-gray-50 hover:bg-gray-100 text-[#0A1128] border border-gray-200 font-bold text-sm py-3.5 rounded-xl transition-colors flex items-center justify-center">
+            <button onClick={() => { setMainView('chat'); setChatType('staff'); setSelectedRecipient(null); }} className="w-full bg-gray-50 hover:bg-gray-100 text-[#0A1128] border border-gray-200 font-bold text-sm py-3.5 rounded-xl transition-colors flex items-center justify-center">
               <span className="mr-2 text-gray-500">👨‍🏫</span> Send to Staff
             </button>
-            <button onClick={() => { setMainView('chat'); setChatType('emergency'); }} className="w-full bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold text-sm py-3.5 rounded-xl transition-colors flex items-center justify-center">
+            <button onClick={() => { setMainView('chat'); setChatType('emergency'); setSelectedRecipient(null); }} className="w-full bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold text-sm py-3.5 rounded-xl transition-colors flex items-center justify-center">
               <span className="mr-2">🚨</span> Emergency Notification
             </button>
           </div>
@@ -403,8 +432,8 @@ const ParentPortal = () => {
     let isBulkChat = false;
     let emergencyIcon = null;
 
-    if (chatType === 'parent' || chatType === 'student') {
-      chatTitle = 'Ahmed Al-Mansouri';
+    if (chatType === 'parent' || chatType === 'student' || chatType === 'staff_individual' || chatType === 'student_individual') {
+      chatTitle = selectedRecipient?.name || 'Ahmed Al-Mansouri';
     } else if (chatType === 'smart') {
       chatTitle = 'Send Smart Message';
       isBulkChat = true;
@@ -420,47 +449,32 @@ const ParentPortal = () => {
     const handleSendMessage = async () => {
       if (!newMessage.trim()) return;
       
-      let messageTypeToSave = chatType; 
-      if (chatType === 'smart') {
-        if (selectedAudiences.all) messageTypeToSave = 'General';
-        else if (selectedAudiences.students) messageTypeToSave = 'student';
-        else if (selectedAudiences.parents) messageTypeToSave = 'parent';
-        else if (selectedAudiences.staff) messageTypeToSave = 'staff';
-      } else if (chatType === 'staff') {
-        if (selectedAudiences.all) messageTypeToSave = 'staff';
-        else if (selectedAudiences.teacher) messageTypeToSave = 'teacher';
-        else if (selectedAudiences.admin) messageTypeToSave = 'admin';
-      } else {
-        messageTypeToSave = chatType || 'General';
-      }
-
+      // 💡 هنا سقمنا الكود باش يبعث Emergency كي تكوني في قسم الطوارئ
+      const messageData = {
+        content: chatType === 'emergency' ? `🚨 EMERGENCY: ${newMessage}` : newMessage,
+        type: chatType, // staff_individual, parent, smart...
+        recipient_name: selectedRecipient?.name || 'Bulk Message',
+        recipient_id: selectedRecipient?.id || 'all'
+      };
+    
       const { data, error } = await supabase
         .from('communications')
-        .insert([{ content: newMessage, type: messageTypeToSave }])
+        .insert([messageData])
         .select(); 
     
-      if (error) {
-        console.error("Error:", error.message);
-      } else {
+      if (!error) {
         setNewMessage('');
         if (data) setChatMessages([...chatMessages, data[0]]);
+      } else {
+        console.error("Error sending message:", error.message);
       }
     };
 
     const displayMessages = chatMessages.filter(msg => {
-      if (chatType === 'smart') {
-         if (selectedAudiences.all && msg.type === 'General') return true; 
-         if (selectedAudiences.students && msg.type === 'student') return true;
-         if (selectedAudiences.parents && msg.type === 'parent') return true;
-         if (selectedAudiences.staff && msg.type === 'staff') return true;
-         return false;
-      } else if (chatType === 'staff') {
-         if (selectedAudiences.all && msg.type === 'staff') return true;
-         if (selectedAudiences.teacher && msg.type === 'teacher') return true;
-         if (selectedAudiences.admin && msg.type === 'admin') return true;
-         return false;
+      if (selectedRecipient) {
+        return msg.recipient_id === selectedRecipient.id;
       }
-      return msg.type === chatType || msg.type === 'General';
+      return msg.type === chatType;
     });
 
     return (
@@ -478,7 +492,9 @@ const ParentPortal = () => {
             )}
             {emergencyIcon}
             <div>
-              <h3 className={`font-bold ${chatType === 'emergency' ? 'text-red-600' : 'text-[#0A1128]'} text-base`}>{chatTitle}</h3>
+             <h3 className={`font-bold ${chatType === 'emergency' ? 'text-red-600' : 'text-[#0A1128]'} text-base`}>
+              {chatTitle}
+             </h3>
               <p className="text-xs text-green-600 font-medium">System Ready</p>
             </div>
           </div>
@@ -547,41 +563,44 @@ const ParentPortal = () => {
             </div>
           </div>
 
-          {!isBulkChat && (
+          {/* 💡 السايدبار اللي رجعنالوا الشرط الصحيح */}
+          {selectedRecipient && (
             <div className="w-80 bg-white border-l border-gray-100 flex flex-col p-6 overflow-y-auto custom-scrollbar shrink-0">
               <div className="flex flex-col items-center justify-center mb-8 pt-4">
-                <img src="https://i.pravatar.cc/150?u=ahmed" alt="Ahmed" className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-lg mb-4" />
-                <h3 className="font-bold text-[#0A1128] text-lg">Ahmed Mansouri</h3>
-                <p className="text-sm text-gray-500">Parent / Guardian</p>
+                <div className="w-24 h-24 rounded-full bg-blue-100 flex items-center justify-center text-3xl mb-4 shadow-lg border-4 border-white">👤</div>
+                <h3 className="font-bold text-[#0A1128] text-lg text-center">{selectedRecipient.name}</h3>
+                <p className="text-sm text-gray-500 font-bold uppercase">{selectedRecipient.role}</p>
               </div>
+              
               <div className="space-y-6">
                 <div>
-                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center"><span className="mr-2">📄</span> Contact Information</h4>
+                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center">📄 Contact Information</h4>
                   <div className="space-y-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
                     <div>
                       <p className="text-[10px] font-bold text-gray-400 uppercase">Phone Number</p>
-                      <p className="text-sm font-bold text-[#0A1128]">+971 50 123 4567</p>
+                      <p className="text-sm font-bold text-[#0A1128]">{selectedRecipient.phone || 'No phone provided'}</p>
                     </div>
                     <div>
                       <p className="text-[10px] font-bold text-gray-400 uppercase">Email Address</p>
-                      <p className="text-sm font-bold text-[#2563eb]">ahmed.mansouri@email.com</p>
+                      <p className="text-sm font-bold text-[#2563eb] break-all">{selectedRecipient.email || 'No email'}</p>
                     </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-gray-400 uppercase">Current Address</p>
-                      <p className="text-sm font-bold text-[#0A1128] leading-snug">123 Main Street<br/>Dubai, UAE</p>
-                    </div>
+                    {selectedRecipient.dept && (
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase">Department</p>
+                        <p className="text-sm font-bold text-[#0A1128]">{selectedRecipient.dept}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
-                <div>
-                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center"><span className="mr-2">🎓</span> Student Information</h4>
-                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex items-center">
-                    <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold mr-3">A</div>
-                    <div>
-                      <p className="text-sm font-bold text-[#0A1128]">Alex Mansouri</p>
-                      <p className="text-[11px] text-gray-500">Level: Intermediate (B1)</p>
+                
+                {selectedRecipient.level && (
+                  <div>
+                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center">🎓 Student Info</h4>
+                    <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                       <p className="text-sm font-bold text-blue-700">{selectedRecipient.level}</p>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           )}
@@ -738,13 +757,14 @@ const ParentPortal = () => {
             </div>
             <div className="p-8 overflow-y-auto custom-scrollbar">
               <form className="space-y-6">
+                {/* 💡 هنا ربطنا الانبوتس مع الـ State */}
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Title</label>
-                  <input type="text" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 outline-none text-sm focus:border-blue-500" />
+                  <input type="text" onChange={(e) => setAnnouncementForm({...announcementForm, title: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 outline-none text-sm focus:border-blue-500" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Content</label>
-                  <textarea rows="4" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 outline-none text-sm focus:border-blue-500 resize-none"></textarea>
+                  <textarea rows="4" onChange={(e) => setAnnouncementForm({...announcementForm, content: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 outline-none text-sm focus:border-blue-500 resize-none"></textarea>
                 </div>
                 <div className="grid grid-cols-2 gap-6">
                   <div>
@@ -782,7 +802,8 @@ const ParentPortal = () => {
                   </div>
                 </div>
                 <div className="pt-4">
-                  <button type="button" onClick={() => setModalView(null)} className="w-full bg-[#2563eb] hover:bg-blue-700 text-white py-3.5 rounded-xl font-bold text-sm shadow-sm transition-colors">
+                  {/* 💡 هنا ربطنا قفلة النشر مع الدالة الحقيقية */}
+                  <button type="button" onClick={handlePublishAnnouncement} className="w-full bg-[#2563eb] hover:bg-blue-700 text-white py-3.5 rounded-xl font-bold text-sm shadow-sm transition-colors">
                     Publish Announcement
                   </button>
                 </div>

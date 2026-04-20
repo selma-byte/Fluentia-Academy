@@ -2,94 +2,160 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../supabaseClient';
 
-// IMPORTS
+// --- CORE UI COMPONENTS ---
 import Topbar from './Topbar';
-import RegistrationRequests from './RegistrationRequests';
-import StudentRegistration from './StudentRegistration';
-import StudentRecords from './StudentRecords';
+import StudentsManagement from './StudentsManagement';
 import AttendanceRecords from './AttendanceRecords';
-import SchoolSchedule from './SchoolSchedule';
-import Enrollment from './Enrollment';
+import SchedulingHub from './SchedulingHub';
 import ParentPortal from './ParentPortal';
-import Appointments from './Appointments';
 import Documents from './Documents';
-import Exams from './exams'; 
-import Payment from './payment'; 
-import PaymentStaff from './paymentstaff'; 
-import TeacherApplicant from './teacherapplicant'; 
-import Reports from './reports'; 
-import Users from './users'; 
-import Settings from './settings'; 
+import Exams from './exams';
+import Payment from './payment';
+import SchoolSchedule from './SchoolSchedule';
 
+// --- ADMIN SPECIFIC MODULES ---
+import TeacherManagement from './TeacherManagement';
+import Reports from './reports';
+import Users from './users';
+import Settings from './settings';
+
+// ==========================================
+// 🏠 DASHBOARD CONTENT (DEFINED FIRST)
+// ==========================================
+const DashboardContent = ({ setActiveTab }) => {
+  const stats = [
+    { label: 'TOTAL STUDENTS', val: '2,450', icon: '👥', grad: 'from-[#4F46E5] to-[#3B82F6]', growth: '+12.5%', glow: 'shadow-blue-500/20', tab: 'Students Management' },
+    { label: 'TOTAL TEACHERS', val: '120', icon: '👨‍🏫', grad: 'from-[#F59E0B] to-[#EA580C]', growth: 'STABLE', glow: 'shadow-orange-500/20', tab: 'Teacher Management' },
+    { label: 'TOTAL COURSES', val: '45', icon: '📚', grad: 'from-[#6366F1] to-[#4F46E5]', growth: '+4 NEW', glow: 'shadow-indigo-500/20', tab: 'Scheduling Hub' }
+  ];
+
+  // Logic for Quick Action buttons
+  const quickActions = [
+    { name: 'Add Student', tab: 'Students Management' },
+    { name: 'Hire Teacher', tab: 'Teacher Management' },
+    { name: 'Create Class', tab: 'Scheduling Hub' }
+  ];
+
+  return (
+    <div className="animate-in fade-in duration-500 w-full text-left">
+      <div className="mb-8 flex justify-between items-end">
+        <div>
+          <h1 className="text-3xl font-bold text-[#0A1128]">Welcome back, Admin</h1>
+          <p className="text-sm text-gray-400 mt-1 uppercase tracking-widest font-black opacity-50">Polyglot Academy Management</p>
+        </div>
+        {/* Export Analytics button removed per request */}
+      </div>
+
+      {/* MODERN DYNAMIC CARDS */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+        {stats.map((stat, i) => (
+          <div key={i} onClick={() => setActiveTab(stat.tab)} className={`group relative bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-50 flex flex-col hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden ${stat.glow}`}>
+            <div className="absolute -top-10 -right-10 w-32 h-32 bg-gray-50/50 rounded-full transition-transform group-hover:scale-110" />
+            <div className="flex justify-between items-start mb-8 relative z-10">
+              <div className={`w-14 h-14 bg-gradient-to-br ${stat.grad} text-white rounded-2xl flex items-center justify-center text-2xl shadow-xl transform group-hover:rotate-6 transition-transform`}>{stat.icon}</div>
+              <span className="text-[10px] font-black px-3 py-1.5 rounded-full bg-blue-50 text-blue-600 tracking-tighter">{stat.growth}</span>
+            </div>
+            <div className="relative z-10">
+              <h3 className="text-[10px] font-black text-gray-300 uppercase tracking-[0.2em] mb-1">{stat.label}</h3>
+              <p className="text-4xl font-black text-[#0A1128] tracking-tighter">{stat.val}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2">
+          <div className="flex justify-between items-center mb-6 px-2">
+            <h2 className="text-lg font-bold text-[#0A1128]">System Activity</h2>
+            <button className="text-xs font-bold text-blue-600 hover:underline">View All</button>
+          </div>
+          <div className="space-y-3">
+            {["New student registered", "Teacher attendance updated", "Exam schedule published"].map((title, idx) => (
+              <div key={idx} className="flex items-center p-4 bg-white border border-transparent hover:border-gray-100 hover:shadow-sm rounded-[1.5rem] cursor-pointer transition-all">
+                <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center mr-4 text-lg">🔔</div>
+                <div className="flex-1">
+                  <h4 className="text-sm font-bold text-[#0A1128]">{title}</h4>
+                  <p className="text-xs text-gray-400 mt-0.5">Automated system update log.</p>
+                </div>
+                <span className="text-[9px] font-bold text-gray-300 uppercase tracking-widest">{idx + 1}H AGO</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <h2 className="text-lg font-bold text-[#0A1128] px-2">Quick Actions</h2>
+          <div className="space-y-2.5">
+            {quickActions.map((action) => (
+              <button 
+                key={action.name} 
+                onClick={() => setActiveTab(action.tab)}
+                className="w-full flex justify-between items-center px-5 py-4 bg-white border border-gray-100 rounded-[1.5rem] text-[11px] font-black uppercase tracking-wider text-[#0A1128] hover:bg-gray-50 transition-all shadow-sm active:scale-95"
+              >
+                <span>{action.name}</span>
+                <span className="text-gray-300 text-lg">➔</span>
+              </button>
+            ))}
+          </div>
+          <div className="bg-[#FFF8F8] border border-red-50 rounded-[2.5rem] p-7 relative overflow-hidden group">
+            <div className="absolute top-0 left-0 w-1.5 h-full bg-[#D90429]" />
+            <h4 className="text-[10px] font-black text-red-800 uppercase tracking-[0.2em] mb-2 flex items-center gap-2">
+              <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" /> Action Needed
+            </h4>
+            <p className="text-xs text-red-700 leading-relaxed mb-6 font-medium">Monthly staff attendance reports are pending.</p>
+            <button className="w-full bg-[#D90429] hover:bg-red-700 text-white text-[10px] font-black py-4 rounded-2xl tracking-widest active:scale-95 shadow-xl shadow-red-200">
+              NOTIFY STAFF
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==========================================
+// 🛡️ ADMIN DASHBOARD MAIN COMPONENT
+// ==========================================
 const AdminDashboard = () => {
-  const [activeTab, setActiveTab] = useState('ADMIN Dashboard');
+  const [activeTab, setActiveTab] = useState('Dashboard');
   const [examView, setExamView] = useState('home');
   const navigate = useNavigate();
 
   const handleLogout = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (!error) navigate('/login');
+    try {
+      await supabase.auth.signOut();
+      navigate('/login');
+    } catch (err) {
+      console.error("Logout failed:", err);
+    }
   };
 
-  const menuSections = [
-    {
-      title: "Main",
-      items: [{ icon: "🏠", text: "ADMIN Dashboard" }]
-    },
-    {
-      title: "Management",
-      items: [
-        { icon: "📩", text: "Registration Requests" },
-        { icon: "📝", text: "Student Registration" },
-        { icon: "📂", text: "Student Records" },
-        { icon: "👩‍🏫", text: "Teacher Applicants" },
-      ]
-    },
-    {
-      title: "Academic",
-      items: [
-        { icon: "📅", text: "Attendance Records" },
-        { icon: "⏰", text: "School Schedule" },
-        { icon: "🏫", text: "Enrollment" },
-        { icon: "✍️", text: "Exams" },
-        { icon: "📄", text: "Documents" },
-      ]
-    },
-    {
-      title: "Finance & Portal",
-      items: [
-        { icon: "💳", text: "Payment" },
-        { icon: "💰", text: "Payment Staff" },
-        { icon: "💬", text: "Parent Portal" },
-        { icon: "🤝", text: "Appointments" },
-      ]
-    },
-    {
-      title: "System",
-      items: [
-        { icon: "📊", text: "Reports" },
-        { icon: "👤", text: "Users" },
-        { icon: "🏠", text: "School Profile" },
-      ]
-    }
+  const menuItems = [
+    { icon: "🏠", text: "Dashboard" },
+    { icon: "👨‍🏫", text: "Teacher Management" },
+    { icon: "🎓", text: "Students Management" },
+    { icon: "📋", text: "Attendance Records" },
+    { icon: "🏫", text: "Scheduling Hub" },
+    { icon: "💬", text: "Communicate Parents" },
+    { icon: "📄", text: "Documents" },
+    { icon: "📝", text: "Exams" },
+    { icon: "💳", text: "Payment" },
+    { icon: "📊", text: "Reports" },
+    { icon: "👥", text: "Users" },
+    { icon: "🏫", text: "School Profile" },
   ];
 
   const renderTabContent = () => {
     switch (activeTab) {
-      case 'ADMIN Dashboard': return <DashboardContent setActiveTab={setActiveTab} />;
-      case 'Registration Requests': return <RegistrationRequests />;
-      case 'Student Registration': return <StudentRegistration />;
-      case 'Student Records': return <StudentRecords />;
+      case 'Dashboard': return <DashboardContent setActiveTab={setActiveTab} />;
+      case 'Teacher Management': return <TeacherManagement />;
+      case 'Students Management': return <StudentsManagement />;
       case 'Attendance Records': return <AttendanceRecords />;
-      case 'School Schedule': return <SchoolSchedule />;
-      case 'Enrollment': return <Enrollment />;
-      case 'Parent Portal': return <ParentPortal />;
-      case 'Appointments': return <Appointments />;
+      case 'Scheduling Hub': return <SchedulingHub />;
+      case 'Communicate Parents': return <ParentPortal />;
       case 'Documents': return <Documents />;
       case 'Exams': return <Exams examView={examView} setExamView={setExamView} />;
       case 'Payment': return <Payment />;
-      case 'Payment Staff': return <PaymentStaff />;
-      case 'Teacher Applicants': return <TeacherApplicant />;
       case 'Reports': return <Reports />;
       case 'Users': return <Users />;
       case 'School Profile': return <Settings />;
@@ -98,130 +164,54 @@ const AdminDashboard = () => {
   };
 
   return (
-    <div className="flex h-screen bg-[#F8FAFC] font-sans overflow-hidden text-gray-900">
-      <aside className="w-72 bg-[#1A2252] text-white flex flex-col m-4 rounded-[2.5rem] shadow-2xl shrink-0 z-20">
-        <div className="p-8 flex items-center gap-3">
-          <div className="bg-white p-2 rounded-xl shadow-lg">
-            <span className="text-[#1A2252] font-black text-xl">S</span>
-          </div>
-          <h1 className="text-2xl font-bold italic tracking-tight">Smansys</h1>
+    <div className="flex h-screen w-full bg-[#F8F9FA] font-sans text-[#0A1128] overflow-hidden">
+      
+      {/* SIDEBAR */}
+      <aside className="w-64 bg-[#0A1128] text-white flex flex-col shrink-0 border-r border-white/5">
+        <div className="p-6 flex items-center space-x-3 cursor-pointer" onClick={() => setActiveTab('Dashboard')}>
+          <div className="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center font-bold text-sm border border-white/10">S</div>
+          <span className="text-xl font-bold tracking-tight">Smansys</span>
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-4 mt-2 custom-scrollbar">
-          {menuSections.map((section, idx) => (
-            <div key={idx} className="mb-6">
-              <p className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] px-6 mb-2 italic">
-                {section.title}
-              </p>
-              <ul className="space-y-1">
-                {section.items.map((item) => (
-                  <li key={item.text}>
-                    <button
-                      onClick={() => setActiveTab(item.text)}
-                      className={`w-full flex items-center gap-4 px-6 py-3 rounded-2xl transition-all duration-300 font-bold italic text-sm cursor-pointer ${
-                        activeTab === item.text 
-                        ? 'bg-white text-[#1A2252] shadow-lg translate-x-2' 
-                        : 'text-gray-300 hover:bg-white/10 hover:text-white'
-                      }`}
-                    >
-                      <span className="text-lg">{item.icon}</span>
-                      {item.text}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
+        <nav className="flex-1 overflow-y-auto px-3 mt-1 space-y-0.5 custom-scrollbar">
+          {menuItems.map((item) => (
+            <button
+              key={item.text}
+              onClick={() => setActiveTab(item.text)}
+              className={`w-full flex items-center px-4 py-2.5 rounded-xl text-[13px] transition-all duration-200 
+                ${activeTab === item.text 
+                  ? 'bg-white text-[#0A1128] font-bold shadow-lg' 
+                  : 'text-gray-400 font-medium hover:text-white hover:bg-white/10 cursor-pointer'
+                }`}
+            >
+              <span className="mr-3 text-base">{item.icon}</span> 
+              <span>{item.text}</span>
+            </button>
           ))}
         </nav>
 
-        <div className="p-6">
-          <button onClick={handleLogout} className="flex items-center justify-between w-full bg-red-500 text-white px-6 py-4 rounded-2xl font-bold italic hover:bg-red-600 transition-all cursor-pointer shadow-lg">
-            <span>Log Out</span>
-            <span>➔</span>
+        <div className="p-4 border-t border-white/5">
+          <button onClick={handleLogout} className="flex items-center justify-between w-full px-4 py-3 bg-white text-[#0A1128] rounded-xl text-sm font-bold hover:bg-gray-100 transition-all active:scale-95 shadow-sm group">
+            <span>Log Out</span> <span className="font-bold text-lg">➔</span>
           </button>
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col overflow-hidden relative">
+      {/* MAIN CONTENT AREA */}
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#F8F9FA]">
         <Topbar setActiveTab={setActiveTab} />
         
-        <section className="flex-1 overflow-y-auto px-10 pb-10 mt-4 custom-scrollbar">
-          <div className="max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-6 duration-700">
+        <div className="flex-1 overflow-y-auto px-8 py-8 custom-scrollbar">
+          <div className="w-full max-w-none"> 
             {renderTabContent()}
           </div>
-        </section>
+        </div>
       </main>
 
       <style>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-        input:focus, select:focus, textarea:focus {
-          ring: 2px;
-          ring-color: #f472b6;
-          outline: none;
-        }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
       `}</style>
-    </div>
-  );
-};
-
-const DashboardContent = ({ setActiveTab }) => {
-  const stats = [
-    { title: 'Total Students', value: '2,450', change: '+12%', icon: '👥', color: 'text-blue-600', bg: 'bg-blue-50', target: 'Student Registration' },
-    { title: 'Total Teachers', value: '120', change: '+5%', icon: '👨‍🏫', color: 'text-green-600', bg: 'bg-green-50', target: 'Teacher Applicants' },
-    { title: 'Pending Exams', value: '12', change: 'Urgent', icon: '📝', color: 'text-orange-600', bg: 'bg-orange-50', target: 'Exams' },
-  ];
-
-  const notifications = [
-    { id: 1, title: 'New Registration', desc: 'Sarah Ahmed submitted a request', time: '2 mins ago', target: 'Registration Requests' },
-    { id: 2, title: 'Payment Alert', desc: 'Tuition received from Group 2', time: '1 hour ago', target: 'Payment' },
-  ];
-  
-  return (
-    <div className="space-y-10">
-      <div className="mb-10">
-        <h2 className="text-5xl font-black text-[#1A2252] mb-3 italic">
-          Welcome back, <span className="text-blue-600 underline decoration-pink-500 decoration-4">Malak</span>
-        </h2>
-        <p className="text-gray-400 font-bold italic text-lg">Platform Summary</p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
-        {stats.map((stat, i) => (
-          <div key={i} onClick={() => setActiveTab(stat.target)} className="bg-white p-8 rounded-[3rem] shadow-sm border border-gray-50 flex flex-col justify-between h-64 hover:shadow-2xl hover:-translate-y-2 transition-all cursor-pointer group relative overflow-hidden">
-            <div className={`w-16 h-16 ${stat.bg} rounded-2xl flex items-center justify-center text-3xl group-hover:scale-110 transition-transform relative z-10`}>{stat.icon}</div>
-            <div className="relative z-10">
-              <p className="text-xs font-black text-gray-300 uppercase mb-1 italic">{stat.title}</p>
-              <p className="text-4xl font-black text-[#1A2252]">{stat.value}</p>
-            </div>
-            <div className="absolute -right-4 -bottom-4 text-8xl opacity-5 group-hover:opacity-10 transition-opacity rotate-12">{stat.icon}</div>
-          </div>
-        ))}
-      </div>
-
-      <div id="notification-section" className="bg-white p-10 rounded-[3.5rem] shadow-xl border border-gray-100 scroll-mt-10">
-        <h3 className="text-2xl font-black text-[#1A2252] italic mb-8">Recent Notifications</h3>
-        <div className="space-y-4">
-          {notifications.map((n) => (
-            <div 
-              key={n.id} 
-              onClick={() => setActiveTab(n.target)}
-              className="flex items-center justify-between p-6 bg-gray-50 rounded-[2rem] hover:bg-pink-50 transition-all cursor-pointer group"
-            >
-              <div className="flex items-center gap-6">
-                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm">🔔</div>
-                <div>
-                  <p className="font-black text-[#1A2252] italic">{n.title}</p>
-                  <p className="text-sm text-gray-500 font-bold">{n.desc}</p>
-                </div>
-              </div>
-              <p className="text-xs font-black text-gray-300 italic uppercase">{n.time}</p>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 };
