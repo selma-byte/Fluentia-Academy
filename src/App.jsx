@@ -13,21 +13,15 @@ import spanishImg from './assets/spn.jpg';
 import SecretaryDashboard from './components/secretery/dashboard';
 import AdminDashboard from './components/admin/dashboardA';
 import TeacherDashboard from './components/teacher/Dashboardt';
-import StudentDashboard from './components/student/StudentDashboard'; // بدلي المسار على حساب وين خبيتي الملف
+// FIXED: Updated the import path to match your renamed folder "student-parent"
+import StudentDashboard from './components/student-parent/StudentDashboard'; 
 
 import Login from './components/login';
 import Join from './components/join';
-// import MyStudents from './MyStudents';
-// import EnterGrades from './EnterGrades';
-// import UploadCourse from './UploadCourse';
-// import Messages from './Messages';
-// import Libraries from './Libraries';
 
 const HomePage = () => {
   const navigate = useNavigate();
 
-  
-  
   return (
     <div className="min-h-screen font-sans bg-[#0A1128]"> 
 
@@ -46,9 +40,7 @@ const HomePage = () => {
               <button className="hover:text-blue-300 cursor-pointer">Contact</button>
             </div>
             <div className="flex items-center space-x-5">
-              {/* تم تعديل هذا الزر ليفتح صفحة Login */}
               <button onClick={() => navigate('/login')} className="text-sm font-semibold hover:text-blue-300 cursor-pointer text-white">Login</button>
-              {/* تم تعديل هذا الزر ليفتح صفحة Join */}
               <button onClick={() => navigate('/join')} className="bg-[#2D428B] hover:bg-blue-600 px-5 py-2 rounded-md text-sm font-bold flex items-center transition-all cursor-pointer text-white">
                 JOIN US <span className="ml-2">→</span>
               </button>
@@ -60,7 +52,6 @@ const HomePage = () => {
               <h1 className="text-5xl md:text-6xl font-bold leading-tight text-white">Join +500 <br /> Successful <br /> Students</h1>
               <p className="text-gray-300 text-base max-w-md pt-2">Master a New Language, Open a New World.</p>
               <div className="flex space-x-4 pt-4">
-                {/* تم تعديل هذا الزر ليفتح صفحة Join */}
                 <button onClick={() => navigate('/login')} className="bg-[#2D428B] hover:bg-blue-600 text-white px-7 py-3 rounded-md font-semibold transition-all cursor-pointer">Join Us</button>
                 <button className="border border-white/70 hover:bg-white hover:text-[#0A1128] text-white px-7 py-3 rounded-md font-semibold transition-all cursor-pointer">Learn More</button>
               </div>
@@ -72,7 +63,6 @@ const HomePage = () => {
       {/* =======================
           2. ABOUT SCHOOL SECTION 
           ======================= */}
-      {/* غيرنا لون الخلفية هنا ليكون مطابقاً للقسم التالي bg-[#0A1128] */}
       <div className="bg-[#0A1128] py-24 px-8"> 
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center gap-16">
           <div className="md:w-1/2">
@@ -100,10 +90,7 @@ const HomePage = () => {
           3. PROGRAMS SECTION 
           ======================= */}
       <div className="bg-[#0A1128] pb-24 px-8">
-        
-        {/* الخط الفاصل المحدود المتمركز في الوسط */}
         <div className="w-[85%] max-w-6xl mx-auto h-[1px] bg-white/10 mb-16"></div>
-
         <div className="max-w-6xl mx-auto">
           <div className="mb-14">
             <h2 className="text-4xl font-bold text-white mb-4">Explore Our Programs</h2>
@@ -111,10 +98,7 @@ const HomePage = () => {
               Enhancing linguistic abilities to open <br className="hidden md:block"/> global horizons
             </p>
           </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            
-            {/* بطاقات اللغات */}
             {[
               { name: 'English', desc: 'Master the Global Language for Career & Study', image: englishImg },
               { name: 'French', desc: 'Refine Your Professional & Academic Communication', image: frenchImg },
@@ -134,15 +118,12 @@ const HomePage = () => {
                 </div>
               </div>
             ))}
-
           </div>
-
           <div className="mt-16 text-center">
             <p className="text-gray-300 text-lg">
               Not sure which level you are? Take our Free <span className="text-[#2D428B] font-bold hover:text-white transition-colors cursor-pointer">Placement Test ›</span>
             </p>
           </div>
-
         </div>
       </div>
 
@@ -150,16 +131,12 @@ const HomePage = () => {
           4. OUR TEAM SECTION 
           ======================= */}
       <div className="bg-[#0A1128] pb-24 px-8">
-        
-        {/* الخط الفاصل الوحيد هنا (محدود الطول) */}
         <div className="w-[85%] max-w-6xl mx-auto h-[1px] bg-white/10 mb-20"></div>
-
         <div className="max-w-6xl mx-auto">
           <div className="mb-14">
             <h2 className="text-4xl font-bold text-white mb-4">Our Team</h2>
             <p className="text-gray-400 text-lg">Guided by Passionate Educators</p>
           </div>
-          
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
               { name: "Dr. Ahmed Benali", role: "English Specialist" },
@@ -185,17 +162,15 @@ const HomePage = () => {
           </div>
         </div>
       </div>
+
       {/* =======================
           5. NEWSLETTER & FOOTER 
           ======================= */}
       <div className="bg-[#0A1128] pt-10 pb-6 px-8">
         <div className="max-w-6xl mx-auto">
-          
-          {/* Newsletter Box */}
           <div className="text-center py-16 mb-10">
             <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Ready to Start Your Language Journey?</h2>
             <p className="text-gray-400">Join +500 students receiving weekly tips, free resources, and the latest course updates</p>
-            
             <div className="mt-8 flex justify-center max-w-lg mx-auto">
               <input 
                 type="email" 
@@ -207,8 +182,6 @@ const HomePage = () => {
               </button>
             </div>
           </div>
-
-          {/* Footer Links */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-8 border-t border-white/10 pt-16">
             <div>
               <h4 className="text-white font-bold mb-6">Company Info</h4>
@@ -254,24 +227,20 @@ const HomePage = () => {
               </ul>
             </div>
           </div>
-
-          {/* Copyright Bar */}
           <div className="mt-16 pt-8 border-t border-white/10 flex flex-col md:flex-row justify-between items-center text-sm text-gray-500">
-           
-           <p>Made With Love By Marwa & Malak & Selma All Right Reserved</p>
+            <p>Made With Love By Marwa & Malak & Selma All Right Reserved</p>
             <div className="flex space-x-4 mt-4 md:mt-0 text-[#2D428B]">
               <span className="cursor-pointer hover:text-white">FB</span>
               <span className="cursor-pointer hover:text-white">IG</span>
               <span className="cursor-pointer hover:text-white">TW</span>
             </div>
           </div>
-
         </div>
       </div>
-
     </div>
   );
 }
+
 function App() {
   return (
     <Router>
@@ -279,17 +248,14 @@ function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/join" element={<Join />} />
-        
-        {/* صفحة السكرتيرة */}
         <Route path="/secretary/dashboard" element={<SecretaryDashboard />} />
-
-        {/* 💡 زيدي هاد السطر باش يولي يشوف صفحة المدير */}
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
         <Route path="/teacher/dashboard" element={<TeacherDashboard />} />
-        <Route path="/student" element={<StudentDashboard />} />
+        {/* FIXED: Updated the path to match what you likely typed in the browser */}
+        <Route path="/student-parent" element={<StudentDashboard />} />
       </Routes>
     </Router>
-    
   );
 }
+
 export default App;
