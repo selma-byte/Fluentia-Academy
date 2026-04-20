@@ -1,9 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabaseClient';
 
-// ==========================================
-// 🔔 MODERN NOTIFICATION COMPONENT
-// ==========================================
 
 // ==========================================
 // 🔔 MODERN NOTIFICATION COMPONENT (ENLARGED)
@@ -322,13 +319,13 @@ const TeacherManagement = ({ initialAction }) => {
         <div className="flex space-x-2 bg-white p-2 rounded-2xl shadow-sm border border-gray-200 w-max">
           <button 
             onClick={() => setActiveTab('applicants')} 
-            className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'applicants' ? 'bg-[#0A1128] text-white shadow-md' : 'text-gray-500 hover:bg-gray-50 cursor-pointer'}`}
+            className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'applicants' ? 'bg-[#1A2252] text-white shadow-md' : 'text-gray-500 hover:bg-gray-50 cursor-pointer'}`}
           >
             📋 Teacher Applicants
           </button>
           <button 
             onClick={() => setActiveTab('add')} 
-            className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'add' ? 'bg-[#2563eb] text-white shadow-md' : 'text-gray-500 hover:bg-gray-50 cursor-pointer border border-gray-100'}`}
+            className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'add' ? 'bg-[#1A2252] text-white shadow-md' : 'text-gray-500 hover:bg-gray-50 cursor-pointer'}`}
           >
             👨‍🏫 Add Teacher
           </button>
