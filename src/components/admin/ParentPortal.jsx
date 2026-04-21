@@ -1,15 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../supabaseClient'; // تأكدي من مسار الملف
-  
+import { supabase } from '../../supabaseClient';
+
 const ParentPortal = () => {
   const [chatMessages, setChatMessages] = useState([]);
-  const [mainView, setMainView] = useState('portal'); 
-  const [activeTab, setActiveTab] = useState('parents'); 
-  const [modalView, setModalView] = useState(null); 
+  const [mainView, setMainView] = useState('portal');
+  const [activeTab, setActiveTab] = useState('parents');
+  const [modalView, setModalView] = useState(null);
   const [chatType, setChatType] = useState(null);
-  const [newMessage, setNewMessage] = useState(''); 
+  const [newMessage, setNewMessage] = useState('');
+  const [selectedRecipient, setSelectedRecipient] = useState(null);
+  const [studentsList, setStudentsList] = useState([]);
+  const [staffList, setStaffList] = useState([]);
 
-  // --- حالات الفلترة لصناديق الاختيار (تمت إضافة teacher و admin) ---
+  const [announcementForm, setAnnouncementForm] = useState({ title: '', content: '' });
+
   const [selectedAudiences, setSelectedAudiences] = useState({
     all: true,
     students: false,
@@ -24,7 +28,7 @@ const ParentPortal = () => {
       if (!chatType) return;
 
       let filterQuery = `type.eq.${chatType},type.eq.smart,type.eq.General`;
-      
+
       if (chatType === 'staff') {
         filterQuery += `,type.eq.teacher,type.eq.admin`;
       }
@@ -34,22 +38,29 @@ const ParentPortal = () => {
         .select('*')
         .or(filterQuery)
         .order('created_at', { ascending: true });
-      
+
       if (data) setChatMessages(data);
     };
 
     fetchMessages();
-  }, [chatType, activeTab]); 
+  }, [chatType, activeTab]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const { data: staffData } = await supabase.from('staff').select('*');
+      if (staffData) setStaffList(staffData);
+
+      const { data: studentData } = await supabase.from('students').select('*');
+      if (studentData) setStudentsList(studentData);
+    };
+
+    fetchData();
+  }, []);
 
   const handleAudienceChange = (audience) => {
     if (audience === 'all') {
       setSelectedAudiences({
-        all: true,
-        students: false,
-        parents: false,
-        staff: false,
-        teacher: false,
-        admin: false
+        all: true, students: false, parents: false, staff: false, teacher: false, admin: false
       });
     } else {
       setSelectedAudiences(prev => {
@@ -62,6 +73,21 @@ const ParentPortal = () => {
     }
   };
 
+  const handlePublishAnnouncement = async () => {
+    if (!announcementForm.title || !announcementForm.content) return alert("Please fill title and content");
+    const { error } = await supabase.from('communications').insert([{
+      content: `📢 ${announcementForm.title}\n\n${announcementForm.content}`,
+      type: 'announcement',
+      recipient_name: 'All',
+      recipient_id: 'all',
+      sender_role: 'admin'
+    }]);
+    if (!error) {
+      alert("✅ Announcement Published!");
+      setModalView(null);
+    }
+  };
+
   const renderParentsTab = () => (
     <div className="flex flex-col flex-1 min-h-0 animate-fade-in">
       <div className="flex justify-between items-center mb-6 shrink-0">
@@ -69,7 +95,7 @@ const ParentPortal = () => {
           <h3 className="font-bold text-[#0A1128] text-lg">Parent Directory</h3>
           <p className="text-xs text-gray-500 mt-1">Manage parent and guardian information for school network</p>
         </div>
-        <button 
+        <button
           onClick={() => setModalView('addParent')}
           className="bg-[#2563eb] hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center"
         >
@@ -152,24 +178,30 @@ const ParentPortal = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            <tr className="hover:bg-gray-50/50 transition-colors">
-              <td className="py-4 px-6">
-                <p className="font-bold text-[#0A1128]">Yacine Benali</p>
-              </td>
-              <td className="py-4 px-6 text-xs text-gray-600 space-y-1">
-                <p className="flex items-center"><span className="mr-2">✉️</span> yacine.b@email.com</p>
-                <p className="flex items-center"><span className="mr-2">📱</span> +213 555 123 456</p>
-              </td>
-              <td className="py-4 px-6">
-                <p className="font-bold text-[#0A1128]">English (A1)</p>
-              </td>
-              <td className="py-4 px-6 text-gray-600">Group 1</td>
-              <td className="py-4 px-6"><span className="text-green-600 font-bold flex items-center"><span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-2"></span>Active</span></td>
-              <td className="py-4 px-6 text-center space-x-4">
-                <button className="text-gray-500 hover:text-blue-600 font-bold text-xs transition-colors">View</button>
-                <button onClick={() => { setMainView('chat'); setChatType('student'); }} className="text-gray-400 hover:text-blue-600 text-lg transition-colors cursor-pointer">💬</button>
-              </td>
-            </tr>
+            {studentsList.map((student) => (
+              <tr key={student.id} className="hover:bg-gray-50/50 transition-colors">
+                <td className="py-4 px-6 font-bold text-[#0A1128]">{student.first_name} {student.last_name}</td>
+                <td className="py-4 px-6 text-xs text-gray-600 space-y-1">
+                  <p className="flex items-center"><span className="mr-2">✉️</span> {student.email}</p>
+                  <p className="flex items-center"><span className="mr-2">📱</span> {student.phone}</p>
+                </td>
+                <td className="py-4 px-6 font-bold text-[#0A1128]">{student.language || 'N/A'} ({student.level || '-'})</td>
+                <td className="py-4 px-6 text-gray-600">{student.group_name || 'No Group'}</td>
+                <td className="py-4 px-6">
+                  <span className="text-green-600 font-bold flex items-center">
+                    <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-2"></span>Active
+                  </span>
+                </td>
+                <td className="py-4 px-6 text-center space-x-4">
+                  <button className="text-gray-500 hover:text-blue-600 font-bold text-xs transition-colors">View</button>
+                  <button onClick={() => {
+                    setMainView('chat');
+                    setChatType('student_individual');
+                    setSelectedRecipient({ id: student.id, name: `${student.first_name} ${student.last_name}`, role: 'Student' });
+                  }} className="text-gray-400 hover:text-blue-600 text-lg transition-colors cursor-pointer">💬</button>
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
@@ -419,8 +451,8 @@ const ParentPortal = () => {
 
     const handleSendMessage = async () => {
       if (!newMessage.trim()) return;
-      
-      let messageTypeToSave = chatType; 
+
+      let messageTypeToSave = chatType;
       if (chatType === 'smart') {
         if (selectedAudiences.all) messageTypeToSave = 'General';
         else if (selectedAudiences.students) messageTypeToSave = 'student';
@@ -437,8 +469,8 @@ const ParentPortal = () => {
       const { data, error } = await supabase
         .from('communications')
         .insert([{ content: newMessage, type: messageTypeToSave }])
-        .select(); 
-    
+        .select();
+
       if (error) {
         console.error("Error:", error.message);
       } else {
@@ -449,16 +481,16 @@ const ParentPortal = () => {
 
     const displayMessages = chatMessages.filter(msg => {
       if (chatType === 'smart') {
-         if (selectedAudiences.all && msg.type === 'General') return true; 
-         if (selectedAudiences.students && msg.type === 'student') return true;
-         if (selectedAudiences.parents && msg.type === 'parent') return true;
-         if (selectedAudiences.staff && msg.type === 'staff') return true;
-         return false;
+        if (selectedAudiences.all && msg.type === 'General') return true;
+        if (selectedAudiences.students && msg.type === 'student') return true;
+        if (selectedAudiences.parents && msg.type === 'parent') return true;
+        if (selectedAudiences.staff && msg.type === 'staff') return true;
+        return false;
       } else if (chatType === 'staff') {
-         if (selectedAudiences.all && msg.type === 'staff') return true;
-         if (selectedAudiences.teacher && msg.type === 'teacher') return true;
-         if (selectedAudiences.admin && msg.type === 'admin') return true;
-         return false;
+        if (selectedAudiences.all && msg.type === 'staff') return true;
+        if (selectedAudiences.teacher && msg.type === 'teacher') return true;
+        if (selectedAudiences.admin && msg.type === 'admin') return true;
+        return false;
       }
       return msg.type === chatType || msg.type === 'General';
     });
@@ -491,7 +523,7 @@ const ParentPortal = () => {
 
         <div className="flex flex-1 min-h-0 relative">
           <div className={`flex-1 flex flex-col bg-[#f8fafc] relative ${isBulkChat ? 'col-span-2' : ''}`}>
-            
+
             {(chatType === 'smart' || chatType === 'staff') && <FilterSection />}
 
             <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar flex flex-col">
@@ -501,7 +533,7 @@ const ParentPortal = () => {
                     <div className="bg-[#2563eb] text-white p-4 rounded-2xl rounded-br-sm max-w-md shadow-sm">
                       <p className="text-sm leading-relaxed">{msg.content}</p>
                       <span className="text-[10px] text-blue-200 mt-2 block text-right">
-                        {new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
                   </div>
@@ -547,12 +579,12 @@ const ParentPortal = () => {
             </div>
           </div>
 
-          {!isBulkChat && (
+          {selectedRecipient && !isBulkChat && (
             <div className="w-80 bg-white border-l border-gray-100 flex flex-col p-6 overflow-y-auto custom-scrollbar shrink-0">
               <div className="flex flex-col items-center justify-center mb-8 pt-4">
                 <img src="https://i.pravatar.cc/150?u=ahmed" alt="Ahmed" className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-lg mb-4" />
-                <h3 className="font-bold text-[#0A1128] text-lg">Ahmed Mansouri</h3>
-                <p className="text-sm text-gray-500">Parent / Guardian</p>
+                <h3 className="font-bold text-[#0A1128] text-lg">{selectedRecipient.name || 'Ahmed Mansouri'}</h3>
+                <p className="text-sm text-gray-500">{selectedRecipient.role || 'Parent / Guardian'}</p>
               </div>
               <div className="space-y-6">
                 <div>
@@ -560,28 +592,43 @@ const ParentPortal = () => {
                   <div className="space-y-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
                     <div>
                       <p className="text-[10px] font-bold text-gray-400 uppercase">Phone Number</p>
-                      <p className="text-sm font-bold text-[#0A1128]">+971 50 123 4567</p>
+                      <p className="text-sm font-bold text-[#0A1128]">{selectedRecipient.phone || '+971 50 123 4567'}</p>
                     </div>
                     <div>
                       <p className="text-[10px] font-bold text-gray-400 uppercase">Email Address</p>
-                      <p className="text-sm font-bold text-[#2563eb]">ahmed.mansouri@email.com</p>
+                      <p className="text-sm font-bold text-[#2563eb] break-all">{selectedRecipient.email || 'ahmed.mansouri@email.com'}</p>
                     </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-gray-400 uppercase">Current Address</p>
-                      <p className="text-sm font-bold text-[#0A1128] leading-snug">123 Main Street<br/>Dubai, UAE</p>
-                    </div>
+                    {selectedRecipient.dept && (
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase">Department</p>
+                        <p className="text-sm font-bold text-[#0A1128]">{selectedRecipient.dept}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
-                <div>
-                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center"><span className="mr-2">🎓</span> Student Information</h4>
-                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex items-center">
-                    <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold mr-3">A</div>
-                    <div>
-                      <p className="text-sm font-bold text-[#0A1128]">Alex Mansouri</p>
-                      <p className="text-[11px] text-gray-500">Level: Intermediate (B1)</p>
+                {selectedRecipient.level ? (
+                  <div>
+                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center"><span className="mr-2">🎓</span> Student Information</h4>
+                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex items-center">
+                      <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold mr-3">A</div>
+                      <div>
+                        <p className="text-sm font-bold text-[#0A1128]">{selectedRecipient.name}</p>
+                        <p className="text-[11px] text-gray-500">Level: {selectedRecipient.level}</p>
+                      </div>
                     </div>
                   </div>
-                </div>
+                ) : (
+                  <div>
+                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center"><span className="mr-2">🎓</span> Student Information</h4>
+                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex items-center">
+                      <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold mr-3">A</div>
+                      <div>
+                        <p className="text-sm font-bold text-[#0A1128]">Alex Mansouri</p>
+                        <p className="text-[11px] text-gray-500">Level: Intermediate (B1)</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -740,11 +787,11 @@ const ParentPortal = () => {
               <form className="space-y-6">
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Title</label>
-                  <input type="text" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 outline-none text-sm focus:border-blue-500" />
+                  <input type="text" onChange={(e) => setAnnouncementForm({ ...announcementForm, title: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 outline-none text-sm focus:border-blue-500" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Content</label>
-                  <textarea rows="4" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 outline-none text-sm focus:border-blue-500 resize-none"></textarea>
+                  <textarea rows="4" onChange={(e) => setAnnouncementForm({ ...announcementForm, content: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 outline-none text-sm focus:border-blue-500 resize-none"></textarea>
                 </div>
                 <div className="grid grid-cols-2 gap-6">
                   <div>
@@ -782,7 +829,7 @@ const ParentPortal = () => {
                   </div>
                 </div>
                 <div className="pt-4">
-                  <button type="button" onClick={() => setModalView(null)} className="w-full bg-[#2563eb] hover:bg-blue-700 text-white py-3.5 rounded-xl font-bold text-sm shadow-sm transition-colors">
+                  <button type="button" onClick={handlePublishAnnouncement} className="w-full bg-[#2563eb] hover:bg-blue-700 text-white py-3.5 rounded-xl font-bold text-sm shadow-sm transition-colors">
                     Publish Announcement
                   </button>
                 </div>

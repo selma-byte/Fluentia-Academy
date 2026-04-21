@@ -5,7 +5,6 @@ const ClassroomTasks = () => {
   // ==========================================
   // STATES
   // ==========================================
-  // 💡 هنا رديناهم 3 قفالي باش ندمجو الخدمة كامل
   const [activeTab, setActiveTab] = useState('Attendance'); 
   const [selectedClass, setSelectedClass] = useState('');
   const [timeSlot, setTimeSlot] = useState('08:00 - 10:00');
@@ -14,20 +13,23 @@ const ClassroomTasks = () => {
   const [loading, setLoading] = useState(false);
   const [attendanceData, setAttendanceData] = useState({}); 
   const [gradesDataInput, setGradesDataInput] = useState({}); 
-  const [examType, setExamType] = useState('Quiz 1');
+  
+  // States للامتحانات
+  const [currentTeacherId, setCurrentTeacherId] = useState(null);
   const [currentTeacher, setCurrentTeacher] = useState("Teacher Name"); 
+  const [assignedExams, setAssignedExams] = useState([]); 
+  const [selectedExamId, setSelectedExamId] = useState('');
 
-  // States تاع باجة العرض (View Grades)
-  const [grades, setGrades] = useState([]);
+  // States لباجة العرض (View Grades)
+  const [completedExams, setCompletedExams] = useState([]); 
+  const [selectedViewExamId, setSelectedViewExamId] = useState(''); 
+  const [viewExamGrades, setViewExamGrades] = useState([]); 
+  
   const [selectedStudent, setSelectedStudent] = useState(null);
-  const [examTab, setExamTab] = useState('Course'); 
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterLang, setFilterLang] = useState('All');
-  const [filterLevel, setFilterLevel] = useState('All');
-  const [filterGroup, setFilterGroup] = useState('All');
 
   // ==========================================
-  // 💡 جلب البيانات من Supabase (مفيلتريين صح)
+  // 💡 جلب البيانات من Supabase 
   // ==========================================
   useEffect(() => {
     const fetchTeacherData = async () => {
@@ -35,13 +37,16 @@ const ClassroomTasks = () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         let tName = "Teacher Name";
+        let tId = null;
         let classNamesList = [];
         
         if (user && user.email) {
           const { data: staffData } = await supabase.from('staff').select('*').eq('email', user.email).single();
           if (staffData) {
             tName = `${staffData.first_name || ''} ${staffData.last_name || ''}`.trim();
+            tId = staffData.id;
             setCurrentTeacher(tName);
+            setCurrentTeacherId(tId);
           }
         }
 
@@ -49,10 +54,10 @@ const ClassroomTasks = () => {
         const { data: clsData } = await supabase.from('classes').select('*').eq('teacher_name', tName);
         if (clsData && clsData.length > 0) {
           setClasses(clsData);
-          classNamesList = clsData.map(c => c.name || c.class_name); // نخبيو أسماء الأقسام باش نجبدو بيهم الطلبة
+          classNamesList = clsData.map(c => c.name || c.class_name); 
         }
 
-        // 2. جلب الطلبة اللي يقراو في هادوك الأقسام برك
+        // 2. جلب الطلبة
         let stdData = [];
         if (classNamesList.length > 0) {
           const { data } = await supabase.from('students').select('*').in('group_name', classNamesList);
@@ -60,42 +65,22 @@ const ClassroomTasks = () => {
           setStudents(stdData);
         }
 
-        // 3. جلب النقاط تاع العرض أو توليد داتا وهمية للديزاين
-        const { data: grData } = await supabase.from('grades').select('*, students(*)');
-        if (grData && grData.length > 0) {
-          const mappedGrades = grData.map(g => {
-            const s = g.students || {};
-            return {
-              id: g.id,
-              name: `${s.first_name || ''} ${s.last_name || ''}`.trim() || 'Unknown',
-              email: s.email || 'No email',
-              course: g.course || 'Communication Skills',
-              language: s.language || 'English',
-              type: g.exam_type?.includes('Placement') ? 'Placement Test' : 'Course Exam',
-              level: s.level || 'B2',
-              group: s.group_name || 'Group 1',
-              date: new Date(g.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
-              grade: g.grade || 0,
-              status: (g.grade || 0) >= 10 ? 'Passed' : 'Failed'
-            }
-          });
-          setGrades(mappedGrades);
-        } else if (stdData.length > 0) {
-          // داتا وهمية باش الديزاين يبقى معمر قدام لي جيري
-          const mockGrades = stdData.map((student) => ({
-            id: student.id,
-            name: `${student.first_name || ''} ${student.last_name || ''}`.trim() || 'New Student',
-            email: student.email || 'No email provided',
-            course: 'Communication Skills',
-            language: student.language || 'English', 
-            type: student.exam_type || 'Course Exam', 
-            level: student.level || 'B2', 
-            group: student.group_name || 'Group 1',
-            date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
-            grade: Math.floor(Math.random() * 10) + 10,
-            status: 'Passed'
-          }));
-          setGrades(mockGrades);
+        if (tId) {
+          // 3. جلب الامتحانات النشطة
+          const { data: activeExams } = await supabase
+            .from('exams')
+            .select('*')
+            .eq('teacher_id', tId)
+            .eq('status', 'Active');
+          if (activeExams) setAssignedExams(activeExams);
+
+          // 4. جلب الامتحانات المكتملة
+          const { data: compExams } = await supabase
+            .from('exams')
+            .select('*')
+            .eq('teacher_id', tId)
+            .eq('status', 'Completed');
+          if (compExams) setCompletedExams(compExams);
         }
       } catch (err) {
         console.error(err);
@@ -106,14 +91,83 @@ const ClassroomTasks = () => {
     fetchTeacherData();
   }, []);
 
-  // --- دالة حفظ الغياب ---
+  // جلب القسم المختار باش نأفيشيو الحصة الحالية
+  const activeClassObject = classes.find(c => (c.name || c.class_name) === selectedClass);
+
+  // كي الأستاذ يخير امتحان باش ينقطو
+  const handleExamChange = (e) => {
+    const exId = e.target.value;
+    setSelectedExamId(exId);
+    if (exId) {
+      const selectedEx = assignedExams.find(ex => ex.id.toString() === exId);
+      if (selectedEx) setSelectedClass(selectedEx.class_name);
+    } else {
+      setSelectedClass('');
+    }
+  };
+
+  // كي الأستاذ يخير امتحان مكتمل باش يشوف نقاطو
+  const handleViewExamChange = async (e) => {
+    const exId = e.target.value;
+    setSelectedViewExamId(exId);
+    
+    if (!exId) {
+      setViewExamGrades([]);
+      return;
+    }
+    
+    const selectedEx = completedExams.find(ex => ex.id.toString() === exId);
+    if (selectedEx) {
+      setLoading(true);
+      try {
+        const { data: grData, error } = await supabase
+          .from('grades')
+          .select('*, students!fk_grades_students(*)')
+          .eq('exam_title', selectedEx.title);
+          
+        if (error) {
+          console.error("🚨 Supabase Error:", error);
+          alert("تأكدي بلي درتي الربط (Relation) في Supabase بين grades و students!");
+          setLoading(false);
+          return;
+        }
+          
+        if (grData) {
+          const mapped = grData.map(g => {
+            const s = g.students || {};
+            return {
+              id: g.id,
+              name: g.student_name || `${s.first_name || ''} ${s.last_name || ''}`.trim() || 'Unknown',
+              email: s.email || '-',
+              course: g.course || '-',
+              language: s.language || '-',
+              type: g.exam_title || '-',
+              level: s.level || '-',
+              group: s.group_name || '-',
+              date: new Date(g.created_at).toLocaleDateString('en-GB'),
+              grade: g.score != null ? g.score : 0,
+              status: g.status || 'Failed'
+            };
+          });
+          setViewExamGrades(mapped);
+        }
+      } catch (err) {
+        console.error("Error formatting grades:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  // 💡 دالة تسجيل الغياب + زيادة الحصة أوتوماتيكياً
   const saveAttendance = async () => {
     if (!selectedClass) return alert("Select Class!");
     setLoading(true);
-    // 💡 الفيلتر هنا باش يبعث غير غياب طلبة القسم اللي خيرتيه
+    
     const records = students.filter(s => s.group_name === selectedClass).map(s => ({
       date: new Date().toISOString().split('T')[0],
       student_name: `${s.first_name} ${s.last_name}`,
+      student_id: s.id, 
       course: selectedClass,
       teacher_name: currentTeacher,
       status: attendanceData[s.id] || 'Present',
@@ -125,23 +179,57 @@ const ClassroomTasks = () => {
         return alert("No students found in this class!");
     }
 
-    const { error } = await supabase.from('attendance').insert(records);
-    setLoading(false);
-    if (error) alert(error.message); else alert("Attendance Shared! ✅");
+    try {
+      // 1. نسجلو الغياب
+      const { error } = await supabase.from('attendance').insert(records);
+      if (error) throw error;
+
+      // 💡 2. السحر: نزيدو الحصة للقسم في الداتا باز أوتوماتيكياً
+      if (activeClassObject) {
+        const newCompleted = (activeClassObject.completed_sessions || 0) + 1;
+        const total = activeClassObject.total_sessions || 24;
+
+        if (newCompleted <= total) {
+          const { error: classError } = await supabase
+            .from('classes')
+            .update({ completed_sessions: newCompleted })
+            .eq('id', activeClassObject.id);
+            
+          if (!classError) {
+            // نحدثو الـ State باش تبان الزيادة في الشاشة ديراكت
+            setClasses(classes.map(c => c.id === activeClassObject.id ? { ...c, completed_sessions: newCompleted } : c));
+          }
+        }
+      }
+
+      alert("Attendance Saved & Class Progress Updated! ✅📈");
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // --- دالة حفظ النقاط ---
   const saveGrades = async () => {
-    if (!selectedClass) return alert("Select Class!");
-    setLoading(true);
+    if (!selectedExamId) return alert("Please select an Exam first!");
+    const examObj = assignedExams.find(ex => ex.id.toString() === selectedExamId);
+    if (!examObj) return;
 
+    setLoading(true);
     const records = Object.entries(gradesDataInput).map(([sId, gradeValue]) => {
       const student = students.find(s => s.id.toString() === sId);
+      const scoreNum = parseFloat(gradeValue) || 0;
+      const gradeLetter = scoreNum >= 80 ? 'A' : scoreNum >= 60 ? 'B' : scoreNum >= 50 ? 'C' : 'F';
+      const passStatus = scoreNum >= 50 ? 'Passed' : 'Failed';
+
       return {
+        student_id: sId, 
         student_name: `${student.first_name} ${student.last_name}`,
-        course: selectedClass,
-        grade: parseFloat(gradeValue),
-        exam_type: examType,
+        course: examObj.subject,
+        exam_title: examObj.title, 
+        score: scoreNum, 
+        grade: gradeLetter,
+        status: passStatus,
         created_at: new Date().toISOString()
       };
     });
@@ -151,34 +239,37 @@ const ClassroomTasks = () => {
       return alert("عمر النقاط قبل ما تسجل!");
     }
 
-    const { error } = await supabase.from('grades').insert(records);
-    setLoading(false);
-    if (error) alert("Grades Error: " + error.message); else {
-      alert("Grades Submitted! 📊");
+    try {
+      const { error: gradesError } = await supabase.from('grades').insert(records);
+      if (gradesError) throw gradesError;
+
+      const { error: examError } = await supabase.from('exams').update({ status: 'Completed' }).eq('id', selectedExamId);
+      if (examError) throw examError;
+
+      alert("Grades Submitted Successfully! 🎉");
+      
+      const completedExam = { ...examObj, status: 'Completed' };
+      setAssignedExams(assignedExams.filter(ex => ex.id.toString() !== selectedExamId)); 
+      setCompletedExams([completedExam, ...completedExams]);
+      
       setGradesDataInput({});
+      setSelectedExamId('');
+    } catch (err) {
+      alert("Error: " + err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const filteredGrades = grades.filter(g => {
-    // 💡 صلحنا الفيلتر: دركا يقبل أي امتحان في الـ Course (quiz, mid-term, course...)
-    // ويخبي غير اللي فيهم كلمة "placement" يحطهم في التاب الدوزيام
-    const isPlacement = g.type?.toLowerCase().includes('placement');
-    const matchesTab = examTab === 'Course' ? !isPlacement : isPlacement;
-    
-    const matchesSearch = g.name.toLowerCase().includes(searchTerm.toLowerCase()) || g.course.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesLang = filterLang === 'All' ? true : g.language === filterLang;
-    const matchesLevel = filterLevel === 'All' ? true : g.level === filterLevel;
-    const matchesGroup = filterGroup === 'All' ? true : g.group === filterGroup;
-    
-    return matchesTab && matchesSearch && matchesLang && matchesLevel && matchesGroup;
-  });
+  const filteredGrades = viewExamGrades.filter(g => 
+    g.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    g.course.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div className="h-full w-full flex flex-col bg-[#F4F7FE] overflow-y-auto custom-scrollbar p-4 md:p-8 space-y-12 animate-fadeIn relative">
       
-      {/* =======================================
-          Modal (نافذة بروفايل التلميذ)
-          ======================================= */}
+      {/* Modal Profile ... */}
       {selectedStudent && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center animate-fadeIn">
           <div className="bg-white rounded-3xl p-8 w-[600px] shadow-2xl relative">
@@ -210,21 +301,19 @@ const ClassroomTasks = () => {
                 <p className="font-bold text-[#1B254B]">{selectedStudent.group}</p>
               </div>
               <div className="bg-gray-50 border border-gray-100 p-4 rounded-2xl">
-                <p className="text-xs text-gray-400 font-bold mb-1 uppercase tracking-wider">Exam Type</p>
+                <p className="text-xs text-gray-400 font-bold mb-1 uppercase tracking-wider">Exam Title</p>
                 <p className="font-bold text-[#1B254B]">{selectedStudent.type}</p>
               </div>
-              <div className="bg-[#e6fbf2] border border-[#00a65e]/20 p-4 rounded-2xl">
-                <p className="text-xs text-[#00a65e] font-bold mb-1 uppercase tracking-wider">Current Grade</p>
-                <p className="text-2xl font-black text-[#00a65e]">{selectedStudent.grade} <span className="text-sm text-gray-500">/ 20</span></p>
+              <div className={`border p-4 rounded-2xl ${selectedStudent.status === 'Passed' ? 'bg-[#e6fbf2] border-[#00a65e]/20' : 'bg-red-50 border-red-500/20'}`}>
+                <p className={`text-xs font-bold mb-1 uppercase tracking-wider ${selectedStudent.status === 'Passed' ? 'text-[#00a65e]' : 'text-red-500'}`}>Score</p>
+                <p className={`text-2xl font-black ${selectedStudent.status === 'Passed' ? 'text-[#00a65e]' : 'text-red-500'}`}>{selectedStudent.grade} <span className="text-sm opacity-50">/ 100</span></p>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* =======================================
-          PART 1: CLASSROOM TASKS (ENTRY)
-          ======================================= */}
+      {/* PART 1: CLASSROOM TASKS (ENTRY) */}
       <div className="flex flex-col shrink-0">
         <div className="flex justify-between items-center mb-6 shrink-0">
           <div>
@@ -241,28 +330,50 @@ const ClassroomTasks = () => {
         {(activeTab === 'Attendance' || activeTab === 'Enter Grades') && (
             <>
                 <div className="bg-white p-6 rounded-[24px] shadow-sm mb-6 flex flex-wrap gap-4 items-end shrink-0">
-                  <div className="flex-1 min-w-[200px]">
-                    <label className="text-[10px] font-black text-[#1B254B] mb-2 block uppercase">Your Class</label>
-                    <select value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)} className="w-full bg-[#F4F7FE] rounded-xl p-3 text-xs font-bold outline-none">
-                      <option value="">Select Class...</option>
-                      {classes.map(c => <option key={c.id} value={c.name || c.class_name}>{c.name || c.class_name}</option>)}
-                    </select>
-                  </div>
+                  
                   {activeTab === 'Attendance' ? (
-                    <div className="flex-1 min-w-[200px]">
-                      <label className="text-[10px] font-black text-[#1B254B] mb-2 block uppercase">Time Slot</label>
-                      <select value={timeSlot} onChange={(e) => setTimeSlot(e.target.value)} className="w-full bg-[#F4F7FE] rounded-xl p-3 text-xs font-bold outline-none">
-                        <option>08:00 - 10:00</option><option>10:00 - 12:00</option><option>13:00 - 15:00</option><option>15:00 - 17:00</option>
+                    <>
+                      <div className="flex-1 min-w-[200px]">
+                        <label className="text-[10px] font-black text-[#1B254B] mb-2 block uppercase">Your Class</label>
+                        <select value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)} className="w-full bg-[#F4F7FE] rounded-xl p-3 text-xs font-bold outline-none border border-transparent focus:border-[#4318FF]">
+                          <option value="">Select Class...</option>
+                          {classes.map(c => <option key={c.id} value={c.name || c.class_name}>{c.name || c.class_name}</option>)}
+                        </select>
+                        
+                        {/* 💡 هنا الأستاذ يشوف رقم الحصة الحالية */}
+                        {activeClassObject && (
+                          <div className="mt-3 flex items-center gap-3">
+                            <span className="bg-[#eef2ff] text-[#4318FF] px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border border-[#4318FF]/10 shadow-sm">
+                              Session: {(activeClassObject.completed_sessions || 0) + 1} / {activeClassObject.total_sessions || 24}
+                            </span>
+                            <div className="h-1.5 w-24 bg-gray-100 rounded-full overflow-hidden">
+                               <div className="h-full bg-[#4318FF] transition-all" style={{ width: `${Math.min((((activeClassObject.completed_sessions || 0) + 1) / (activeClassObject.total_sessions || 24)) * 100, 100)}%`}}></div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-[200px]">
+                        <label className="text-[10px] font-black text-[#1B254B] mb-2 block uppercase">Time Slot</label>
+                        <select value={timeSlot} onChange={(e) => setTimeSlot(e.target.value)} className="w-full bg-[#F4F7FE] rounded-xl p-3 text-xs font-bold outline-none border border-transparent focus:border-[#4318FF]">
+                          <option>08:00 - 10:00</option><option>10:00 - 12:00</option><option>13:00 - 15:00</option><option>15:00 - 17:00</option>
+                        </select>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex-1 min-w-[300px]">
+                      <label className="text-[10px] font-black text-[#1B254B] mb-2 block uppercase">Pending Exams</label>
+                      <select value={selectedExamId} onChange={handleExamChange} className="w-full bg-[#F4F7FE] rounded-xl p-3 text-xs font-bold outline-none border border-transparent focus:border-[#4318FF]">
+                        <option value="">-- Select an Exam to Grade --</option>
+                        {assignedExams.length === 0 && <option disabled>No active exams assigned to you.</option>}
+                        {assignedExams.map(ex => (
+                          <option key={ex.id} value={ex.id}>{ex.title} (Class: {ex.class_name})</option>
+                        ))}
                       </select>
                     </div>
-                  ) : (
-                    <div className="flex-1 min-w-[200px]">
-                      <label className="text-[10px] font-black text-[#1B254B] mb-2 block uppercase">Exam Type</label>
-                      <input type="text" value={examType} onChange={(e) => setExamType(e.target.value)} className="w-full bg-[#F4F7FE] rounded-xl p-3 text-xs font-bold outline-none" />
-                    </div>
                   )}
-                  <button onClick={activeTab === 'Attendance' ? saveAttendance : saveGrades} disabled={loading} className="bg-[#4318FF] text-white h-[48px] px-10 rounded-xl font-bold text-xs hover:bg-blue-700 shadow-lg active:scale-95">
-                    {loading ? 'Processing...' : `Save ${activeTab}`}
+
+                  <button onClick={activeTab === 'Attendance' ? saveAttendance : saveGrades} disabled={loading} className={`h-[48px] px-10 rounded-xl font-bold text-xs shadow-lg active:scale-95 transition-all ${activeTab === 'Attendance' && activeClassObject ? 'bg-[#01B574] hover:bg-green-700 text-white mt-8' : 'bg-[#4318FF] text-white hover:bg-blue-700'}`}>
+                    {loading ? 'Processing...' : `Submit ${activeTab}`}
                   </button>
                 </div>
 
@@ -272,12 +383,12 @@ const ClassroomTasks = () => {
                       <thead className="sticky top-0 bg-white z-10 shadow-sm border-b border-gray-100">
                         <tr>
                           <th className="p-5 pl-10 text-[#A3AED0] text-[10px] font-black uppercase">Student Name</th>
-                          <th className="p-5 text-[#A3AED0] text-[10px] font-black uppercase text-center">{activeTab === 'Attendance' ? 'Status' : 'Grade / 20'}</th>
+                          <th className="p-5 text-[#A3AED0] text-[10px] font-black uppercase text-center">{activeTab === 'Attendance' ? 'Status' : 'Score / 100'}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-50">
-                        {!selectedClass ? (
-                            <tr><td colSpan="2" className="py-10 text-center text-gray-400 font-bold">Please select a class from the top menu first.</td></tr>
+                        {(!selectedClass && activeTab === 'Attendance') || (!selectedExamId && activeTab === 'Enter Grades') ? (
+                            <tr><td colSpan="2" className="py-10 text-center text-gray-400 font-bold">Please select {activeTab === 'Attendance' ? 'a class' : 'an exam'} from the menu above.</td></tr>
                         ) : students.filter(s => s.group_name === selectedClass).length === 0 ? (
                             <tr><td colSpan="2" className="py-10 text-center text-gray-400 font-bold">No students found in this class.</td></tr>
                         ) : students.filter(s => s.group_name === selectedClass).map((s) => (
@@ -294,7 +405,7 @@ const ClassroomTasks = () => {
                               ) : (
                                 <div className="flex justify-center">
                                   <input type="number" placeholder="--" onChange={(e) => setGradesDataInput({...gradesDataInput, [s.id]: e.target.value})}
-                                         className="w-20 bg-[#F4F7FE] rounded-lg p-2 text-center font-bold text-[#1B254B] outline-none border-2 border-transparent focus:border-[#4318FF]" />
+                                         className="w-24 bg-[#F4F7FE] rounded-lg p-2 text-center font-bold text-[#1B254B] outline-none border-2 border-transparent focus:border-[#4318FF]" />
                                 </div>
                               )}
                             </td>
@@ -308,51 +419,37 @@ const ClassroomTasks = () => {
         )}
       </div>
 
-      {/* =======================================
-          PART 2: TEACHER GRADES (VIEW)
-          ======================================= */}
+      {/* PART 2: TEACHER GRADES (VIEW) */}
       {activeTab === 'View Grades' && (
         <div className="flex flex-col h-[800px] shrink-0 bg-white p-8 rounded-3xl shadow-sm animate-fadeIn">
             <div className="bg-[#f8fafc] rounded-2xl p-6 flex justify-between items-center mb-8 border border-gray-100 shadow-sm relative overflow-hidden">
             <div className="z-10">
-                <h2 className="text-2xl font-bold text-[#1B254B] mb-2">Grade Management</h2>
-                <p className="text-gray-500 text-sm">Click on any student to view their detailed profile and grades.</p>
+                <h2 className="text-2xl font-bold text-[#1B254B] mb-2">Completed Exams Results</h2>
+                <p className="text-gray-500 text-sm">Select a completed exam to view student scores and performance.</p>
             </div>
             <div className="hidden md:flex gap-4 items-center z-10 opacity-80">
-                <span className="text-6xl">📝👩‍🎓</span>
+                <span className="text-6xl">📊🎓</span>
             </div>
             </div>
 
-            <div className="flex gap-8 border-b border-gray-200 mb-6 shrink-0">
-            <button onClick={() => setExamTab('Course')} className={`text-lg font-bold pb-3 relative transition-colors ${examTab === 'Course' ? 'text-[#4318FF]' : 'text-gray-400 hover:text-gray-600'}`}>
-                📚 Course Grades
-                {examTab === 'Course' && <div className="absolute bottom-[-1px] left-0 w-full h-1 bg-[#4318FF] rounded-t-md"></div>}
-            </button>
-            <button onClick={() => setExamTab('Placement')} className={`text-lg font-bold pb-3 relative transition-colors ${examTab === 'Placement' ? 'text-[#4318FF]' : 'text-gray-400 hover:text-gray-600'}`}>
-                🎯 Placement Tests
-                {examTab === 'Placement' && <div className="absolute bottom-[-1px] left-0 w-full h-1 bg-[#4318FF] rounded-t-md"></div>}
-            </button>
-            </div>
-
-            <div className="bg-white border border-gray-100 p-4 rounded-xl shadow-sm mb-6 flex flex-wrap gap-3 items-center shrink-0">
-            <div className="relative flex-1 min-w-[200px]">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
-                <input type="text" placeholder="Search by student name..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#4318FF] w-full" />
-            </div>
-            
-            <select value={filterLang} onChange={(e) => setFilterLang(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 outline-none cursor-pointer">
-                <option value="All">🌐 All Languages</option><option value="English">English</option><option value="French">French</option><option value="German">German</option><option value="Spanish">Spanish</option>
-            </select>
-
-            <select value={filterLevel} onChange={(e) => setFilterLevel(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 outline-none cursor-pointer">
-                <option value="All">📊 All Levels</option><option value="A1">A1</option><option value="A2">A2</option><option value="B1">B1</option><option value="B2">B2</option><option value="C1">C1</option>
-            </select>
-
-            <select value={filterGroup} onChange={(e) => setFilterGroup(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 outline-none cursor-pointer">
-                <option value="All">👥 All Groups</option>
-                {classes.map(c => <option key={c.id} value={c.name || c.class_name}>{c.name || c.class_name}</option>)}
-            </select>
+            <div className="bg-white border border-gray-100 p-4 rounded-xl shadow-sm mb-6 flex gap-4 items-center shrink-0">
+                <div className="flex-1 min-w-[300px]">
+                    <label className="text-[10px] font-black text-[#1B254B] mb-2 block uppercase">Select Completed Exam</label>
+                    <select value={selectedViewExamId} onChange={handleViewExamChange} className="w-full bg-[#F4F7FE] rounded-xl p-3 text-xs font-bold outline-none border border-transparent focus:border-[#4318FF]">
+                        <option value="">-- Choose an Exam --</option>
+                        {completedExams.length === 0 && <option disabled>No completed exams yet.</option>}
+                        {completedExams.map(ex => (
+                            <option key={ex.id} value={ex.id}>{ex.title} (Class: {ex.class_name})</option>
+                        ))}
+                    </select>
+                </div>
+                
+                <div className="relative flex-1 min-w-[200px]">
+                    <label className="text-[10px] font-black text-[#1B254B] mb-2 block uppercase">Search Student</label>
+                    <span className="absolute left-3 top-[38px] text-gray-400">🔍</span>
+                    <input type="text" placeholder="Search by name..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+                           className="pl-9 pr-4 py-3 bg-[#F4F7FE] rounded-xl text-xs font-bold focus:outline-none focus:border-[#4318FF] w-full" />
+                </div>
             </div>
 
             <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm flex-1 flex flex-col min-h-[300px]">
@@ -366,7 +463,7 @@ const ClassroomTasks = () => {
                     <th className="py-4 px-6 font-semibold">Course Name</th>
                     <th className="py-4 px-6 font-semibold">Level</th>
                     <th className="py-4 px-6 font-semibold">Date</th>
-                    <th className="py-4 px-6 font-semibold">Grade</th>
+                    <th className="py-4 px-6 font-semibold">Score / 100</th>
                     <th className="py-4 px-6 font-semibold">Status</th>
                     </tr>
                 </thead>
@@ -388,7 +485,7 @@ const ClassroomTasks = () => {
                         <td className="py-3 px-6 text-sm text-gray-500">{g.date}</td>
                         
                         <td className="py-3 px-6">
-                        <span className="text-sm font-bold text-[#1B254B]">{g.grade}/20</span>
+                        <span className="text-sm font-bold text-[#1B254B]">{g.grade}</span>
                         </td>
 
                         <td className="py-3 px-6">
@@ -402,8 +499,8 @@ const ClassroomTasks = () => {
                     
                     {filteredGrades.length === 0 && (
                     <tr>
-                        <td colSpan="8" className="py-8 text-center text-gray-400">
-                        No students found matching your filters.
+                        <td colSpan="8" className="py-8 text-center text-gray-400 font-bold">
+                          {selectedViewExamId ? 'No students found matching your search.' : 'Please select an exam to view grades.'}
                         </td>
                     </tr>
                     )}

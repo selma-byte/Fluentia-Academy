@@ -1,282 +1,425 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabaseClient';
 
-const TeacherMessages = () => {
+const TeacherCommunications = () => {
+  // 💡 التحكم الرئيسي في الواجهة
+  const [activeTab, setActiveTab] = useState('Announcements'); // 'Announcements' | 'Messages'
+  const [showAddForm, setShowAddForm] = useState(false); // باش نبينو فورم إضافة الإعلان
+  const [loading, setLoading] = useState(true);
+
   // ==========================================
-  // STATES
+  // STATES: Global & User
   // ==========================================
   const [currentUser, setCurrentUser] = useState(null);
+  const [teacherName, setTeacherName] = useState("Teacher Name");
+  const [teacherClasses, setTeacherClasses] = useState([]);
+
+  // ==========================================
+  // STATES: Announcements
+  // ==========================================
+  const [announcements, setAnnouncements] = useState([]);
+  const [newAnnouncement, setNewAnnouncement] = useState({
+    title: '',
+    type: 'Event',
+    description: '',
+    targetGroup: 'All', 
+  });
+
+  // ==========================================
+  // STATES: Messages
+  // ==========================================
   const [contacts, setContacts] = useState([]);
   const [activeContact, setActiveContact] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [loading, setLoading] = useState(true);
 
   // ==========================================
-  // 1. Fetch Current User & Contacts (Staff)
+  // 1. Fetch Global Data
   // ==========================================
   useEffect(() => {
-    const fetchContacts = async () => {
-      setLoading(true);
+    const fetchGlobalData = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user && user.email) {
           setCurrentUser(user);
+          
+          const { data: staffData } = await supabase.from('staff').select('*').eq('email', user.email).single();
+          let tName = "Teacher Name";
+          if (staffData) {
+            tName = `${staffData.first_name || ''} ${staffData.last_name || ''}`.trim();
+            setTeacherName(tName);
+          }
 
-          // نجيبو قاع الستاف من الداتا باز ماعدا الأستاذ اللي راهو مكونيكتي
-          const { data: staffData } = await supabase
-            .from('staff')
-            .select('*')
-            .neq('email', user.email);
+          const { data: clsData } = await supabase.from('classes').select('*').eq('teacher_name', tName);
+          if (clsData) setTeacherClasses(clsData.map(c => c.name || c.class_name));
 
-          if (staffData && staffData.length > 0) {
-            const formattedContacts = staffData.map(s => ({
+          // نجيبو الإدارة للسكرتارية والـ Admin (بدون الأستاذ اللي راه مكونيكتي)
+          const { data: adminStaff } = await supabase.from('staff').select('*').neq('email', user.email);
+          
+          if (adminStaff && adminStaff.length > 0) {
+            const formattedContacts = adminStaff.map(s => ({
               id: s.id,
               email: s.email,
-              name: `${s.first_name || ''} ${s.last_name || ''}`.trim() || 'Staff',
+              name: `${s.first_name || ''} ${s.last_name || ''}`.trim() || 'Admin',
               role: s.department || s.role || 'Administration',
-              avatar: (s.first_name ? s.first_name.charAt(0) : 'U').toUpperCase(),
-              status: 'online', // نقدرو نبرمجوها من بعد باش تبان ديناميك
-              lastMsg: 'Click to view messages...',
-              time: '',
-              unread: 0
+              avatar: (s.first_name ? s.first_name.charAt(0) : 'A').toUpperCase(),
+              color: ['bg-[#F6AD55]', 'bg-[#4FD1C5]', 'bg-[#63B3ED]', 'bg-[#FC8181]', 'bg-[#B794F4]'][Math.floor(Math.random() * 5)]
             }));
             setContacts(formattedContacts);
-            setActiveContact(formattedContacts[0]); // نكليكيو أوتوماتيكيا على الأول
+            setActiveContact(formattedContacts[0]);
           } else {
-            setContacts([]);
+             // Fake Admin if DB is empty
+             const mockAdmins = [{ id: 'admin1', email: 'admin@utopia.com', name: 'Malak (Admin)', role: 'System Admin', avatar: 'M', color: 'bg-[#4FD1C5]' }];
+             setContacts(mockAdmins);
+             setActiveContact(mockAdmins[0]);
           }
         }
-      } catch (err) {
-        console.error("Error fetching contacts:", err);
-      } finally {
-        setLoading(false);
-      }
+      } catch (err) { console.error(err); }
     };
-
-    fetchContacts();
+    fetchGlobalData();
   }, []);
 
   // ==========================================
-  // 2. Fetch Messages when activeContact changes
+  // 2. Fetch Announcements (تحديث ليتوافق مع طابلو communications)
+  // ==========================================
+  const fetchAnnouncements = async () => {
+    try {
+      const { data } = await supabase
+        .from('communications')
+        .select('*')
+        .in('type', ['announcement', 'notification', 'emergency', 'Event', 'Reminder', 'General'])
+        .order('created_at', { ascending: false });
+
+      if (data && data.length > 0) {
+        setAnnouncements(data.map(a => ({
+          id: a.id,
+          title: a.subject || a.title || 'Announcement',
+          content: a.content || a.message, 
+          type: a.type || 'General',
+          author: a.recipient_name || 'Admin', 
+          date: new Date(a.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        })));
+      } else {
+        setAnnouncements([
+          { id: 1, title: 'Welcome to Utopia', content: 'We are happy to have you here.', type: 'General', author: 'Admin', date: 'Today' }
+        ]);
+      }
+    } catch (e) { console.error(e); } finally { setLoading(false); }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'Announcements' && !showAddForm) fetchAnnouncements();
+  }, [activeTab, showAddForm]);
+
+  // ==========================================
+  // 3. Fetch Messages (تصليح اللوجيك حسب الطابلو الجديد)
   // ==========================================
   useEffect(() => {
     const fetchMessages = async () => {
-      if (!currentUser || !activeContact) return;
-
+      if (!currentUser || !activeContact || activeTab !== 'Messages') return;
       try {
-        // نجيبو الميساجات اللي بعتهم أنا ليه، واللي بعثهم هو ليا
+        // 💡 زدنا علامات التنصيص ("") للـ ID باش نتفاداو الـ Bad Request
         const { data: msgData, error } = await supabase
           .from('communications')
           .select('*')
-          .or(`and(sender_email.eq.${currentUser.email},receiver_email.eq.${activeContact.email}),and(sender_email.eq.${activeContact.email},receiver_email.eq.${currentUser.email})`)
+          .or(`and(sender_id.eq."${currentUser.id}",recipient_id.eq."${activeContact.id}"),and(sender_id.eq."${activeContact.id}",recipient_id.eq."${currentUser.id}")`)
           .order('created_at', { ascending: true });
 
+        if (error) throw error;
+
         if (msgData && msgData.length > 0) {
-          const formattedMessages = msgData.map(m => ({
+          setMessages(msgData.map(m => ({
             id: m.id,
-            text: m.message, 
-            time: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            isMe: m.sender_email === currentUser.email
-          }));
-          setMessages(formattedMessages);
-        } else {
-          setMessages([]); // الشات فارغ
-        }
-      } catch (err) {
-        console.error("Error fetching messages:", err);
-      }
+            text: m.content, 
+            time: new Date(m.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+            isMe: m.sender_id === currentUser.id
+          })));
+        } else { setMessages([]); }
+      } catch (err) { console.error(err); }
     };
-
     fetchMessages();
-  }, [activeContact, currentUser]);
+  }, [activeContact, currentUser, activeTab]);
 
   // ==========================================
-  // 3. Send New Message
+  // Handlers
   // ==========================================
+  const handleAddAnnouncement = async (e) => {
+    e.preventDefault();
+    if (!newAnnouncement.title || !newAnnouncement.description) return alert("Fill all fields");
+    
+    try {
+      // 💡 زدنا بيانات المرسل باش السيستام يعرف شكون دار الإعلان
+      await supabase.from('communications').insert([{
+        subject: newAnnouncement.title, 
+        content: newAnnouncement.description,
+        type: newAnnouncement.type,
+        recipient_name: teacherName, 
+        recipient_id: 'all', // 💡 باش يخرج عند قاع الناس
+        sender_id: currentUser?.id, // 💡 تحديد هوية المرسل
+        sender_role: 'teacher',
+        created_at: new Date().toISOString()
+      }]);
+      alert("Announcement Added! ✅");
+      setShowAddForm(false);
+      setNewAnnouncement({ title: '', type: 'Event', description: '', targetGroup: 'All' });
+      fetchAnnouncements(); 
+    } catch (error) { alert("Error adding announcement."); }
+  };
+
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (newMessage.trim() === '' || !activeContact || !currentUser) return;
+    
+    const text = newMessage;
+    setNewMessage('');
+    setMessages(prev => [...prev, { id: Date.now(), text, time: 'Now', isMe: true }]);
 
-    const newMsgText = newMessage;
-    setNewMessage(''); // نفرغو الخانة ديراكت باش الديزاين يبان خفيف
-
-    // 1. نأفيشيوها ديراكت في الشاشة بلا ما نستناو الداتا باز (Optimistic UI)
-    const tempMsg = {
-      id: Date.now(),
-      text: newMsgText,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      isMe: true
-    };
-    setMessages(prev => [...prev, tempMsg]);
-
-    // 2. نبعتوها للـ Supabase في الخلفية
-    try {
-      const { error } = await supabase.from('communications').insert([{
-        sender_email: currentUser.email,
-        receiver_email: activeContact.email,
-        message: newMsgText,
-        created_at: new Date().toISOString()
-      }]);
-
-      if (error) {
-        console.error("Failed to send message to DB:", error);
-      }
-    } catch (err) {
-      console.error(err);
-    }
+    // 💡 الإرسال الجديد بالـ ID
+    await supabase.from('communications').insert([{
+      sender_id: currentUser.id,
+      recipient_id: activeContact.id,
+      recipient_name: activeContact.name,
+      content: text,
+      type: 'staff_individual',
+      sender_role: 'teacher',
+      created_at: new Date().toISOString()
+    }]);
   };
 
-  // فلترة قائمة الإتصال بالبحث
-  const filteredContacts = contacts.filter(c => 
-    c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    c.role.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // ==========================================
+  // RENDER SECTIONS
+  // ==========================================
 
-  return (
-    // 💡 زدنا padding والباكڨراوند باش يتطابق مع الـ Dashboard
-    <div className="h-full w-full flex flex-col bg-[#F4F7FE] overflow-hidden p-4 md:p-8 animate-fadeIn">
-      
-      <div className="mb-6 shrink-0">
-        <h1 className="text-3xl font-bold text-[#1B254B]">💬 Messages</h1>
-        <p className="text-gray-500 text-sm mt-1">Communicate directly with the administration and staff.</p>
+  // 1. Announcements List
+  const renderAnnouncements = () => (
+    <div className="flex flex-col gap-6 animate-fadeIn h-full relative">
+      <div className="bg-white rounded-[24px] p-8 flex justify-between items-center shadow-sm border border-gray-100 shrink-0">
+        <div>
+          <h2 className="text-2xl font-bold text-[#1B254B] mb-2">Announcements</h2>
+          <p className="text-[#A3AED0] text-sm">Add and stay updated with the latest news, events, and important notices.</p>
+        </div>
+        <div className="hidden md:block text-6xl opacity-90 drop-shadow-md">📢</div>
       </div>
 
-      {/* صندوق الرسائل */}
-      <div className="flex-1 flex bg-white border border-gray-100 rounded-[24px] shadow-sm overflow-hidden">
+      <div className="flex-1 overflow-y-auto custom-scrollbar pb-24 min-h-0">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          {announcements.map(a => {
+            let tagStyle = "bg-blue-50 text-[#4318FF]"; 
+            if (a.type === 'Event') tagStyle = "bg-[#e6fbf2] text-[#00a65e]"; 
+            if (a.type === 'Reminder' || a.type === 'notification') tagStyle = "bg-yellow-50 text-yellow-600";
+            if (a.type === 'Urgent' || a.type === 'emergency') tagStyle = "bg-red-50 text-red-500";
+
+            return (
+              <div key={a.id} className="bg-white p-6 rounded-[24px] shadow-sm border border-gray-100 flex flex-col h-[220px]">
+                <div className="flex justify-between items-center mb-4">
+                  <span className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider ${tagStyle}`}>
+                    {a.type}
+                  </span>
+                  <span className="text-gray-400 text-xs font-bold flex items-center gap-1">📅 {a.date}</span>
+                </div>
+                <h3 className="text-lg font-bold text-[#1B254B] mb-2">{a.title}</h3>
+                <p className="text-sm text-[#A3AED0] leading-relaxed flex-1 line-clamp-3">{a.content}</p>
+                <div className="flex items-center gap-2 border-t border-gray-50 pt-3 mt-auto">
+                  <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 text-[10px] font-bold">
+                    {a.author.charAt(0).toUpperCase()}
+                  </div>
+                  <span className="text-[11px] font-bold text-gray-400">{a.author}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="absolute bottom-6 right-6">
+        <button onClick={() => setShowAddForm(true)} className="bg-[#1B254B] text-white px-10 py-3.5 rounded-2xl text-sm font-bold shadow-md hover:bg-black transition-colors">
+          + Add New
+        </button>
+      </div>
+    </div>
+  );
+
+  // 2. Add Announcement Form
+  const renderAddForm = () => (
+    <div className="animate-fadeIn h-full flex flex-col">
+      <div className="mb-8 flex items-center gap-4 shrink-0">
+        <button onClick={() => setShowAddForm(false)} className="text-2xl font-bold text-[#1B254B] border-2 border-[#1B254B] rounded-full w-10 h-10 flex items-center justify-center hover:bg-gray-100 transition-colors">
+          ←
+        </button>
+        <h1 className="text-2xl font-bold text-[#1B254B]">Add Announcement</h1>
+      </div>
+
+      <div className="flex flex-1 gap-12 items-center min-h-0 overflow-y-auto custom-scrollbar">
+        <div className="w-1/2 flex justify-center">
+          <div className="w-full max-w-md aspect-[4/3] border-[3px] border-[#1B254B] rounded-[35px] flex items-center justify-center bg-white shadow-sm">
+            <h2 className="text-[32px] font-black text-[#1B254B] text-center leading-tight">Add Your<br/>Announcement</h2>
+          </div>
+        </div>
+
+        <div className="w-1/2 flex justify-start">
+          <form onSubmit={handleAddAnnouncement} className="space-y-6 w-full max-w-sm">
+            <div>
+              <label className="block text-lg font-bold text-[#1B254B] mb-2">Title:</label>
+              <input type="text" required value={newAnnouncement.title} onChange={e=>setNewAnnouncement({...newAnnouncement, title: e.target.value})} 
+                className="w-full border-[3px] border-[#1B254B] rounded-2xl px-4 py-3 text-[#1B254B] font-bold outline-none" placeholder="Next week trip" />
+            </div>
+            <div>
+              <label className="block text-lg font-bold text-[#1B254B] mb-2">Type:</label>
+              <select value={newAnnouncement.type} onChange={e=>setNewAnnouncement({...newAnnouncement, type: e.target.value})} 
+                className="w-full border-[3px] border-[#1B254B] rounded-2xl px-4 py-3 text-[#1B254B] font-bold outline-none cursor-pointer bg-white">
+                <option value="Event">Event</option>
+                <option value="Reminder">Reminder</option>
+                <option value="General">General</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-lg font-bold text-[#1B254B] mb-2">Description:</label>
+              <textarea required rows="4" value={newAnnouncement.description} onChange={e=>setNewAnnouncement({...newAnnouncement, description: e.target.value})} 
+                className="w-full border-[3px] border-[#1B254B] rounded-2xl px-4 py-3 text-[#1B254B] font-bold outline-none resize-none"></textarea>
+            </div>
+            <div className="flex justify-end pt-2">
+              <button type="submit" className="bg-[#1B254B] text-white px-10 py-3.5 rounded-2xl font-bold text-lg hover:bg-black transition-colors shadow-md">
+                Submit
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+
+  // 3. Messages Chat UI
+  const renderMessages = () => {
+    const filteredContacts = contacts.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()));
+
+    return (
+      <div className="flex-1 min-h-0 flex bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden animate-fadeIn">
         
-        {/* 🟢 الجهة اليسرى: قائمة الإدارة 🟢 */}
-        <div className="w-1/3 border-r border-gray-100 flex flex-col bg-[#f8fafc]">
-          <div className="p-4 border-b border-gray-100 bg-white">
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
-              <input 
-                type="text" 
-                placeholder="Search staff..." 
-                value={searchQuery}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 rounded-full py-2 pl-9 pr-4 text-sm outline-none focus:border-[#4318FF] transition-all"
-              />
+        {/* Left Sidebar (Contacts) */}
+        <div className="w-[320px] border-r border-gray-100 flex flex-col bg-white shrink-0 min-h-0">
+          <div className="p-4 border-b border-gray-50 shrink-0">
+            <div className="bg-[#f8fafc] rounded-full flex items-center px-4 py-2 border border-gray-100">
+              <span className="text-gray-400 text-sm mr-2">🔍</span>
+              <input type="text" placeholder="Start chat" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-transparent border-none outline-none text-sm w-full text-[#1B254B] placeholder-gray-400 font-medium" />
             </div>
           </div>
-
-          <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
-            {loading ? (
-               <p className="text-center text-gray-400 text-sm font-bold mt-10">Loading contacts...</p>
-            ) : filteredContacts.length === 0 ? (
-               <p className="text-center text-gray-400 text-sm font-bold mt-10">No contacts found.</p>
-            ) : filteredContacts.map((contact) => (
-              <div 
-                key={contact.id} 
-                onClick={() => setActiveContact(contact)}
-                className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors mb-1
-                  ${activeContact?.id === contact.id ? 'bg-blue-50 border border-blue-100' : 'hover:bg-white border border-transparent'}`}
-              >
-                <div className="relative shrink-0">
-                  <div className="w-10 h-10 rounded-full bg-[#1B254B] text-white flex items-center justify-center font-bold text-sm">
-                    {contact.avatar}
-                  </div>
-                  <span className={`absolute bottom-0 right-0 w-3 h-3 border-2 border-white rounded-full ${contact.status === 'online' ? 'bg-[#00a65e]' : 'bg-gray-400'}`}></span>
+          <div className="flex-1 overflow-y-auto custom-scrollbar">
+            {filteredContacts.map((contact) => (
+              <div key={contact.id} onClick={() => setActiveContact(contact)} className={`flex items-center gap-4 p-4 cursor-pointer transition-colors border-b border-gray-50 ${activeContact?.id === contact.id ? 'bg-[#f4f7fe]' : 'hover:bg-gray-50'}`}>
+                <div className={`w-11 h-11 rounded-full ${contact.color} text-white flex items-center justify-center font-bold text-lg shrink-0`}>
+                  {contact.avatar}
                 </div>
-                
                 <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-baseline mb-1">
-                    <h4 className="text-sm font-bold text-[#1B254B] truncate pr-2">{contact.name}</h4>
-                    <span className="text-[10px] text-gray-400 whitespace-nowrap">{contact.time}</span>
+                  <div className="flex justify-between items-baseline mb-0.5">
+                    <h4 className="text-[13px] font-bold text-[#1B254B] truncate">{contact.name}</h4>
+                    <span className="text-[10px] text-gray-400 whitespace-nowrap">15 min</span>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <p className={`text-xs truncate pr-2 ${contact.unread > 0 ? 'font-bold text-[#1B254B]' : 'text-gray-500'}`}>
-                      {contact.lastMsg}
-                    </p>
-                    {contact.unread > 0 && (
-                      <span className="bg-[#e02424] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
-                        {contact.unread}
-                      </span>
-                    )}
-                  </div>
+                  <p className="text-xs text-gray-500 truncate">Tap to message...</p>
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* 🟢 الجهة اليمنى: الشات 🟢 */}
-        <div className="w-2/3 flex flex-col bg-white">
-          
+        {/* Right Area (Chat) */}
+        <div className="flex-1 flex flex-col min-h-0 bg-white relative">
           {activeContact ? (
             <>
-              <div className="h-16 border-b border-gray-100 flex items-center justify-between px-6 shrink-0">
+              {/* Chat Header */}
+              <div className="h-[72px] bg-white border-b border-gray-100 flex items-center justify-between px-8 shrink-0 z-10">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-[#1B254B] text-white flex items-center justify-center font-bold">
-                    {activeContact.avatar}
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-[#1B254B]">{activeContact.name}</h3>
-                    <p className="text-xs text-gray-500">{activeContact.role}</p>
-                  </div>
-                </div>
-                <div className="flex gap-3 text-gray-400">
-                  <button className="hover:text-[#4318FF] transition-colors">📞</button>
-                  <button className="hover:text-[#4318FF] transition-colors">📹</button>
-                  <button className="hover:text-[#1B254B] transition-colors">⋮</button>
+                   <h3 className="font-bold text-[#1B254B] text-lg">{activeContact.name}</h3>
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-6 bg-[#f8fafc] custom-scrollbar flex flex-col gap-4">
+              {/* Chat History */}
+              <div className="flex-1 overflow-y-auto p-8 space-y-6 custom-scrollbar bg-[#f8fafc]">
+                <div className="text-center my-2">
+                  <span className="text-[10px] font-bold text-gray-400">Today</span>
+                </div>
+                
                 {messages.length === 0 ? (
-                  <div className="flex-1 flex flex-col items-center justify-center text-gray-400 opacity-60">
-                    <span className="text-5xl mb-3">💬</span>
-                    <p className="font-bold text-sm">No messages yet. Start the conversation!</p>
-                  </div>
+                  <p className="text-center text-gray-400 font-medium mt-10">Start the conversation 👋</p>
                 ) : (
                   messages.map((msg) => (
                     <div key={msg.id} className={`flex ${msg.isMe ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[70%] rounded-2xl px-4 py-3 shadow-sm ${msg.isMe ? 'bg-[#4318FF] text-white rounded-br-none' : 'bg-white border border-gray-100 text-[#1B254B] rounded-bl-none'}`}>
-                        <p className="text-sm leading-relaxed break-words">{msg.text}</p>
-                        <p className={`text-[10px] mt-1 text-right ${msg.isMe ? 'text-blue-200' : 'text-gray-400'}`}>
-                          {msg.time}
-                        </p>
+                      <div className="flex items-end gap-3 max-w-[65%]">
+                        {!msg.isMe && <div className={`w-8 h-8 rounded-full ${activeContact.color} text-white flex items-center justify-center text-xs font-bold mb-1 shrink-0`}>{activeContact.avatar}</div>}
+                        <div className={`px-5 py-3 shadow-sm text-[13px] leading-relaxed break-words ${msg.isMe ? 'bg-white border border-gray-100 text-[#1B254B] rounded-[20px] rounded-br-sm shadow-sm' : 'bg-gray-100/80 text-[#1B254B] rounded-[20px] rounded-bl-sm'}`}>
+                          {msg.text}
+                        </div>
                       </div>
                     </div>
                   ))
                 )}
               </div>
 
-              <div className="p-4 bg-white border-t border-gray-100 shrink-0">
-                <form onSubmit={handleSendMessage} className="flex items-center gap-3">
-                  <button type="button" className="text-gray-400 hover:text-[#4318FF] text-xl transition-colors">
-                    📎
-                  </button>
-                  <input 
-                    type="text" 
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder="Type your message to administration..." 
-                    className="flex-1 bg-gray-50 border border-gray-200 rounded-full py-2.5 px-4 text-sm outline-none focus:border-[#4318FF]"
-                  />
-                  <button 
-                    type="submit"
-                    disabled={!newMessage.trim()}
-                    className="w-10 h-10 bg-[#4318FF] rounded-full flex items-center justify-center text-white shadow-md hover:bg-blue-700 transition-colors transform hover:scale-105 disabled:opacity-50 disabled:scale-100"
-                  >
-                    ➤
-                  </button>
+              {/* Chat Input */}
+              <div className="p-6 bg-white shrink-0">
+                <form onSubmit={handleSendMessage} className="flex items-center gap-3 bg-white border border-gray-200 rounded-full px-5 py-3 focus-within:border-[#4318FF] transition-colors shadow-sm">
+                  <button type="button" className="text-gray-400 hover:text-[#1B254B] text-xl">☺</button>
+                  <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Text message to admin..." className="flex-1 bg-transparent border-none outline-none text-sm text-[#1B254B] placeholder-gray-400 mx-2" />
+                  <div className="flex items-center gap-4 text-gray-400 text-lg">
+                     <button type="button" className="hover:text-[#1B254B]">📎</button>
+                     <button type="button" className="hover:text-[#1B254B]">📷</button>
+                     <button type="submit" disabled={!newMessage.trim()} className="text-[#1B254B] disabled:opacity-50 ml-1">➤</button>
+                  </div>
                 </form>
               </div>
             </>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
-               <span className="text-5xl mb-3 opacity-50">📬</span>
-               <h3 className="text-lg font-bold text-[#1B254B] mb-1">Your Messages</h3>
-               <p className="text-xs">Select a contact from the left to start chatting.</p>
-            </div>
+            <div className="flex-1 flex items-center justify-center text-gray-400 bg-[#f8fafc]">Select a chat to start messaging</div>
           )}
         </div>
-
       </div>
+    );
+  };
+
+  // ==========================================
+  // MAIN RETURN (Header + Content)
+  // ==========================================
+  return (
+    <div className="h-full w-full p-4 md:p-8 bg-[#F4F7FE] flex flex-col overflow-hidden">
+      
+      {/* 🟢 الهيدر الثابت: يبان في كامل الصفحات (Announcements + Messages) 🟢 */}
+      <div className="flex justify-between items-center mb-8 shrink-0">
+        <h1 className="text-2xl font-bold text-[#1B254B] flex items-center gap-2">
+          👋 Communications Hub
+        </h1>
+        
+        {/* Toggle Button: [Announcements | Messages] */}
+        {!showAddForm && (
+          <div className="flex bg-white p-1 rounded-xl shadow-sm border border-gray-100">
+            <button
+              onClick={() => setActiveTab('Announcements')}
+              className={`px-8 py-2 rounded-lg font-bold text-xs transition-all ${
+                activeTab === 'Announcements' ? 'text-[#4318FF] shadow-sm bg-gray-50/50' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Announcements
+            </button>
+            <button
+              onClick={() => setActiveTab('Messages')}
+              className={`px-8 py-2 rounded-lg font-bold text-xs transition-all ${
+                activeTab === 'Messages' ? 'text-[#4318FF] shadow-sm bg-gray-50/50' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Messages
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* 🟢 المحتوى يتغير حسب القفلة المخيرينها 🟢 */}
+      <div className="flex-1 flex flex-col overflow-hidden min-h-0 relative">
+        {activeTab === 'Announcements' && !showAddForm && renderAnnouncements()}
+        {activeTab === 'Announcements' && showAddForm && renderAddForm()}
+        {activeTab === 'Messages' && renderMessages()}
+      </div>
+
     </div>
   );
 };
 
-export default TeacherMessages;
+export default TeacherCommunications;

@@ -1,31 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../../supabaseClient';
 
 const Appointments = () => {
   const [activeTab, setActiveTab] = useState('calendar');
   const [sideModalView, setSideModalView] = useState(null); // null, 'details', 'new', 'edit'
   const [filter, setFilter] = useState('All');
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   // =======================================
-  // 1. Dynamic State (Modified to use useState)
+  // 1. Dynamic State (Connected to Supabase)
   // =======================================
-  const [events, setEvents] = useState([
-    { id: 1, title: 'Layla M.', sub: 'Advanced English Class', day: 1, start: 10.5, duration: 90, type: 'Upcoming', phone: '+212 600-000-000', email: 'layla@email.com', staff: 'Prof. Nadia' },
-    { id: 2, title: 'Hassan R.', sub: 'Private Spanish Lesson', day: 2, start: 9, duration: 60, type: 'Completed', phone: '+212 600-111-222', email: 'hassan@email.com', staff: 'Prof. Hassan' },
-    { id: 3, title: 'Nadia L.', sub: 'Placement Test: Student', day: 2, start: 11, duration: 60, type: 'Upcoming', phone: '+212 600-333-444', email: 'nadia@email.com', staff: 'Prof. Nadia' },
-    { id: 4, title: 'Karim S.', sub: 'TOEFL Preparation', day: 3, start: 11, duration: 90, type: 'Upcoming', phone: '+212 600-555-666', email: 'karim@email.com', staff: 'Prof. Hassan' },
-    { id: 5, title: 'Amina B.', sub: 'Placement Test: Student', day: 4, start: 9, duration: 60, type: 'Upcoming', phone: '+212 600-777-888', email: 'amina@email.com', staff: 'Prof. Nadia' },
-    { id: 6, title: "Sara's Mom", sub: 'Parent Meeting: with Director', day: 4, start: 10, duration: 30, type: 'Upcoming', phone: '+212 600-999-000', email: 'sara@email.com', staff: 'Director' },
-    { id: 7, title: "Yassine's Dad", sub: 'Parent Meeting: with Prof. Ali', day: 4, start: 10.5, duration: 30, type: 'Upcoming', phone: '+212 600-222-333', email: 'yassine@email.com', staff: 'Prof. Ali' },
-    { id: 8, title: 'Youssef M.', sub: 'Private English Lesson', day: 4, start: 11, duration: 60, type: 'Completed', phone: '+212 600-444-555', email: 'youssef@email.com', staff: 'Prof. Nadia' },
-    { id: 9, title: 'Rachid B.', sub: 'Placement Test: Student', day: 5, start: 9.5, duration: 60, type: 'Upcoming', phone: '+212 600-666-777', email: 'rachid@email.com', staff: 'Prof. Hassan' },
-    { id: 10, title: "Lina's Mom", sub: 'Parent Meeting: with Prof. Nadia', day: 5, start: 11, duration: 30, type: 'Pending', phone: '+212 600-888-999', email: 'lina@email.com', staff: 'Prof. Nadia' },
-  ]);
-
-  const [pendingRequests, setPendingRequests] = useState([
-    { id: 101, title: "Omar K.'s Dad", sub: 'Parent Meeting: with Prof. Nadia', day: 1, start: 14, duration: 30, phone: '+212 663-456-789', staff: 'Prof. Nadia', email: 'omar@email.com' },
-    { id: 102, title: "Fatima Z.", sub: 'Progress Evaluation', day: 3, start: 14, duration: 60, phone: '+212 669-012-345', staff: 'Prof. Hassan', email: 'fatima@email.com' },
-  ]);
+  const [events, setEvents] = useState([]);
+  
+  // Pending requests computed from events
+  const pendingRequests = events.filter(e => e.type === 'Pending');
 
   // Form State
   const [formData, setFormData] = useState({ name: '', phone: '', email: '', sub: 'Placement Test', day: 1, time: '09:00', duration: 60, staff: 'Prof. Nadia', notes: '' });
@@ -34,22 +23,88 @@ const Appointments = () => {
   // 2. LOGIC FUNCTIONS (The "Work")
   // =======================================
 
+  const fetchEvents = async () => {
+    let mergedEvents = [];
+
+    const parseDay = (d) => {
+      if (!d) return 1;
+      if (!isNaN(d)) return Number(d); 
+      const map = { 'mon': 1, 'tue': 2, 'wed': 3, 'thu': 4, 'fri': 5, 'sat': 6, 'sun': 7 };
+      return map[String(d).toLowerCase().substring(0,3)] || 1;
+    };
+    
+    const parseTime = (t) => {
+      if (!t) return 10;
+      if (!isNaN(t)) return Number(t); 
+      const [h, m] = String(t).split(':');
+      return parseInt(h) + (parseInt(m || 0) / 60);
+    };
+
+    const { data: appData, error: appError } = await supabase.from('appointments').select('*');
+    if (!appError && appData) {
+      const formattedApps = appData.map(ev => ({
+        id: ev.id,
+        title: ev.title,
+        sub: ev.sub_title,
+        day: parseDay(ev.appointment_day),
+        start: parseTime(ev.start_time_float),
+        duration: Number(ev.duration_minutes) || 60,
+        type: ev.status,
+        phone: ev.phone,
+        email: ev.email,
+        staff: ev.teacher_name,
+        notes: ev.notes,
+      }));
+      mergedEvents = [...mergedEvents, ...formattedApps];
+    }
+
+    const { data: classData } = await supabase.from('classes').select('*').not('schedule', 'eq', 'TBD');
+    if (classData) {
+      const dayMap = { 'Mon': 1, 'Tue': 2, 'Wed': 3, 'Thu': 4, 'Fri': 5, 'Sat': 6, 'Sun': 7 };
+      const formattedClasses = classData.map(c => {
+        const dayMatch = c.schedule.match(/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)/);
+        const timeMatch = c.schedule.match(/\d{2}:\d{2}/);
+        let startFloat = 10; 
+        if (timeMatch) {
+          const [h, m] = timeMatch[0].split(':');
+          startFloat = parseInt(h) + (parseInt(m) / 60);
+        }
+        return {
+          id: `class_${c.id}`,
+          title: c.name,
+          sub: `Language Course: ${c.language}`,
+          day: dayMap[dayMatch ? dayMatch[0] : 'Mon'] || 1,
+          start: startFloat,
+          duration: 120, 
+          type: 'Class', 
+          staff: c.teacher_name,
+        };
+      });
+      mergedEvents = [...mergedEvents, ...formattedClasses];
+    }
+
+    setEvents(mergedEvents);
+  };
+
+  useEffect(() => { fetchEvents(); }, []);
+
+  const updateStatus = async (id, newStatus) => {
+    setLoading(true);
+    try {
+      const { error } = await supabase.from('appointments').update({ status: newStatus }).eq('id', id);
+      if (error) throw error;
+      fetchEvents();
+      setSideModalView(null);
+    } catch (err) { alert(err.message); }
+    finally { setLoading(false); }
+  };
+
   // APPROVE / REJECT
-  const handleApprove = (req) => {
-    const newEvent = { ...req, type: 'Upcoming' };
-    setEvents([...events, newEvent]);
-    setPendingRequests(pendingRequests.filter(p => p.id !== req.id));
-  };
+  const handleApprove = (req) => updateStatus(req.id, 'Upcoming');
+  const handleReject = (id) => updateStatus(id, 'Missed');
 
-  const handleReject = (id) => {
-    setPendingRequests(pendingRequests.filter(p => p.id !== id));
-  };
-
-  // DELETE
-  const handleDelete = (id) => {
-    setEvents(events.filter(e => e.id !== id));
-    setSideModalView(null);
-  };
+  // DELETE (we mark as missed/canceled to be consistent with Secretary logic, or delete if not in DB yet)
+  const handleDelete = (id) => updateStatus(id, 'Missed');
 
   // MODIFY / EDIT
   const handleEditClick = (ev) => {
@@ -65,24 +120,42 @@ const Appointments = () => {
     setSideModalView('edit');
   };
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
+    setLoading(true);
     const [h, m] = formData.time.split(':').map(Number);
     const decimalTime = h + (m / 60);
 
-    const updatedEvent = {
-      id: sideModalView === 'edit' ? selectedEvent.id : Date.now(),
-      title: formData.name, sub: formData.sub, day: parseInt(formData.day),
-      start: decimalTime, duration: parseInt(formData.duration), type: 'Upcoming',
-      phone: formData.phone, email: formData.email, staff: formData.staff, notes: formData.notes
-    };
+    try {
+      const eventData = {
+        title: formData.name,
+        sub_title: formData.sub,
+        appointment_day: parseInt(formData.day),
+        start_time_float: decimalTime,
+        duration_minutes: parseInt(formData.duration),
+        teacher_name: formData.staff,
+        phone: formData.phone,
+        email: formData.email,
+        notes: formData.notes,
+        status: 'Upcoming'
+      };
 
-    if (sideModalView === 'edit') {
-      setEvents(events.map(ev => ev.id === selectedEvent.id ? updatedEvent : ev));
-    } else {
-      setEvents([...events, updatedEvent]);
+      if (sideModalView === 'edit') {
+        const { error } = await supabase.from('appointments').update(eventData).eq('id', selectedEvent.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('appointments').insert([eventData]);
+        if (error) throw error;
+      }
+
+      fetchEvents();
+      setSideModalView(null);
+      setFormData({ name: '', phone: '', email: '', sub: 'Placement Test', day: 1, time: '09:00', duration: 60, staff: 'Prof. Nadia', notes: '' });
+    } catch (err) {
+      alert("Error: " + err.message);
+    } finally {
+      setLoading(false);
     }
-    setSideModalView(null);
   };
 
   // UI Helpers

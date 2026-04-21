@@ -5,8 +5,12 @@ import { supabase } from '../../supabaseClient';
 // 1. الرواق الأول: طلبات التسجيل (Registration Requests)
 // ==========================================
 const RegistrationRequestsTab = () => {
+  const [activeFilter, setActiveFilter] = useState('All'); // 💡 يقدر يكون 'All', 'Student', أو 'Parent'
   const [requests, setRequests] = useState([]);
-  const [classesData, setClassesData] = useState([]); // 💡 إضافة لجلب الأقسام
+  const [classesData, setClassesData] = useState([]);
+  const [staffData, setStaffData] = useState([]); // 💡 جلب الأساتذة
+  const [roomsData, setRoomsData] = useState([]); // 💡 جلب القاعات
+  const [schedTeacher, setSchedTeacher] = useState(''); // 💡 الأستاذ المختار // 💡 إضافة لجلب الأقسام
 
   const fetchRequests = async () => {
     const { data, error } = await supabase
@@ -34,8 +38,17 @@ const RegistrationRequestsTab = () => {
     const { data } = await supabase.from('classes').select('*');
     if (data) setClassesData(data);
   };
+  const fetchStaffAndRooms = async () => {
+    // جلب الأساتذة
+    const { data: staff } = await supabase.from('staff').select('*');
+    if (staff) setStaffData(staff);
+    
+    // جلب القاعات
+    const { data: rooms } = await supabase.from('rooms').select('*');
+    if (rooms) setRoomsData(rooms);
+  };
 
-  useEffect(() => { fetchRequests(); fetchClasses(); }, []);
+  useEffect(() => { fetchRequests(); fetchClasses();fetchStaffAndRooms(); }, []);
 
   const [isEnrollMode, setIsEnrollMode] = useState(false);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
@@ -53,7 +66,11 @@ const RegistrationRequestsTab = () => {
   // 💡 State for Final Enrollment Decision
   const [enrollClassId, setEnrollClassId] = useState('');
   const [enrollGrade, setEnrollGrade] = useState('');
-
+  // 💡 هادي تفيلتري الداتا على حساب البوطون اللي كليكيتي عليه
+  const filteredRequests = requests.filter(req => {
+    if (activeFilter === 'All') return true;
+    return req.type === activeFilter;
+  });
   // دوال مساعدة للتوقيت
   const getDayNumber = (dayStr) => {
       const days = { 'Mon': 1, 'Tue': 2, 'Wed': 3, 'Thu': 4, 'Fri': 5, 'Sat': 6, 'Sun': 0 };
@@ -71,24 +88,41 @@ const RegistrationRequestsTab = () => {
     setLoading(true);
 
     try {
-      if (!schedRoom) {
-        alert("⚠️ من فضلك أكتبي رقم القاعة (Room) باش نتأكدو إذا راهي فارغة!");
+      if (!schedRoom || !schedTeacher) {
+        alert("⚠️ من فضلك خيري الأستاذ والقاعة!");
         setLoading(false);
         return;
       }
 
-      // 💡 الفيريفيكاسيون الحقيقية: نجبدو الكلاسات اللي في نفس النهار، الوقت، والقاعة!
+      // 💡 1. التحقق: هل كاين Placement Test في نفس الوقت؟
+      const { data: existingTests } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('appointment_day', getDayNumber(schedDay))
+        .eq('start_time_float', parseTimeToFloat(schedTime))
+        .ilike('sub_title', '%Placement Test%');
+
+      if (existingTests && existingTests.length > 0) {
+        // يخرجلك ميساج فيه وي ولا للا
+        const confirmJoin = window.confirm(`⚠️ كاين ديجا ${existingTests.length} تلاميذ راهم مبرمجين لـ Placement Test في هاد الوقت! \n\nتحبي تزيدي هاد التلميذ معاهم في نفس الفوج؟`);
+        
+        if (!confirmJoin) {
+          setLoading(false);
+          return; // إذا قلتي للا، يحبس وميسجلش
+        }
+      }
+
+      // 💡 2. التحقق من القاعات (نفس الكود ديالك)
       const { data: conflicts } = await supabase
         .from('classes')
         .select('*')
         .ilike('schedule', `%${schedDay}%`)
         .ilike('schedule', `%${schedTime}%`)
-        .ilike('schedule', `%${schedRoom}%`) // نفترضو بلي القاعة مكتوبة لداخل schedule
-        .limit(1); // هادي تحل مشكل البلوكاج إذا كاين بزاف كلاسات في نفس الوقت
+        .ilike('schedule', `%${schedRoom}%`)
+        .limit(1);
 
       if (conflicts && conflicts.length > 0) {
-        const conflict = conflicts[0];
-        alert(`⚠️ القاعة [${schedRoom}] محجوزة! راهم يقراو فيها فوج: ${conflict.name} في هاد الوقت.`);
+        alert(`⚠️ القاعة [${schedRoom}] محجوزة! راهم يقراو فيها فوج: ${conflicts[0].name} في هاد الوقت.`);
         setLoading(false);
         return; 
       }
@@ -106,7 +140,7 @@ const RegistrationRequestsTab = () => {
         .from('appointments')
         .insert([{
           title: selectedStudent.name,
-          sub_title: `Placement Test: ${selectedStudent.language}`,
+          sub_title: `Placement Test: ${selectedStudent.language} (Prof: ${schedTeacher}, Room: ${schedRoom})`, // 💡 زدنا اسم الأستاذ والقاعة هنا باش يبانو
           appointment_day: getDayNumber(schedDay), 
           start_time_float: parseTimeToFloat(schedTime),
           status: 'Upcoming',
@@ -115,7 +149,7 @@ const RegistrationRequestsTab = () => {
 
       if (appError) throw appError;
 
-      alert("✅ تم برمجة التاست بنجاح والقاعة فارغة!");
+      alert("✅ تم برمجة التاست بنجاح!");
       setIsScheduleModalOpen(false);
       fetchRequests(); 
 
@@ -230,12 +264,28 @@ const RegistrationRequestsTab = () => {
     <div className="p-8 bg-[#F8F9FA] h-full font-sans text-left text-[#0A1128] overflow-y-auto custom-scrollbar">
       <div className="mb-8 flex justify-between items-center">
         <h1 className="text-2xl font-bold uppercase tracking-tight text-[#0A1128]">Registration Requests</h1>
+        {/* 💡 أزرار الفلترة الديناميكية */}
         <div className="flex bg-[#0A1128] text-white rounded-2xl p-1 text-[11px] font-bold">
-          <span className="px-6 py-2 bg-white/20 rounded-xl cursor-pointer">All</span>
-          <span className="px-6 py-2 opacity-40 cursor-pointer">Students</span>
-          <span className="px-6 py-2 opacity-40 cursor-pointer">Parents</span>
+          <span 
+            onClick={() => setActiveFilter('All')} 
+            className={`px-6 py-2 rounded-xl cursor-pointer transition-all ${activeFilter === 'All' ? 'bg-white/20' : 'opacity-40 hover:opacity-80'}`}
+          >
+            All
+          </span>
+          <span 
+            onClick={() => setActiveFilter('Student')} 
+            className={`px-6 py-2 rounded-xl cursor-pointer transition-all ${activeFilter === 'Student' ? 'bg-white/20' : 'opacity-40 hover:opacity-80'}`}
+          >
+            Students
+          </span>
+          <span 
+            onClick={() => setActiveFilter('Parent')} 
+            className={`px-6 py-2 rounded-xl cursor-pointer transition-all ${activeFilter === 'Parent' ? 'bg-white/20' : 'opacity-40 hover:opacity-80'}`}
+          >
+            Parents
+          </span>
         </div>
-      </div>
+        </div>
 
       <div className="bg-white rounded-[2rem] shadow-xl border border-gray-100 overflow-hidden">
         <table className="w-full text-left border-collapse">
@@ -249,7 +299,7 @@ const RegistrationRequestsTab = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {requests.map((req) => (
+          {filteredRequests.map((req) => (
               <tr key={req.id} className="hover:bg-blue-50/5 transition-colors">
                 <td className="p-6">
                   <div className="font-bold text-[#0A1128] text-lg">{req.name}</div>
@@ -336,17 +386,39 @@ const RegistrationRequestsTab = () => {
               </div>
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Teacher / Interviewer</label>
-                <input type="text" placeholder="Teacher Name" className="w-full bg-transparent border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold text-gray-700 outline-none" />
+                <div className="relative">
+                  <select 
+                    value={schedTeacher} 
+                    onChange={(e) => setSchedTeacher(e.target.value)} 
+                    className="w-full bg-transparent border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold text-gray-700 outline-none appearance-none cursor-pointer"
+                  >
+                    <option value="">-- Select Teacher --</option>
+                    {staffData.map(staff => (
+                      <option key={staff.id} value={`${staff.first_name} ${staff.last_name}`}>
+                        {staff.first_name} {staff.last_name}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="absolute right-4 top-3 text-gray-500 text-[10px]">▼</span>
+                </div>
               </div>
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Room / Lab</label>
-                <input 
-                 type="text" 
-                 value={schedRoom} 
-                 onChange={(e) => setSchedRoom(e.target.value)} 
-                 placeholder="e.g. Room 12" 
-                 className="w-f ull bg-transparent border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold text-gray-700 outline-none" 
-               />
+                <div className="relative">
+                  <select 
+                    value={schedRoom} 
+                    onChange={(e) => setSchedRoom(e.target.value)} 
+                    className="w-full bg-transparent border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold text-gray-700 outline-none appearance-none cursor-pointer"
+                  >
+                    <option value="">-- Select Room --</option>
+                    {roomsData.map(room => (
+                      <option key={room.id} value={room.name || room.room_name || room.id}>
+                        {room.name || room.room_name || `Room ${room.id}`}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="absolute right-4 top-3 text-gray-500 text-[10px]">▼</span>
+                </div>
               </div>
               <div className="col-span-2 space-y-1.5 mt-2">
                 <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Date (For Calendar)</label>

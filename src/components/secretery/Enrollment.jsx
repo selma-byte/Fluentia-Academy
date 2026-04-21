@@ -13,7 +13,7 @@ const Enrollment = () => {
 
   useEffect(() => { fetchClasses(); }, []);
 
-  // 💡 1. فورميلار موحد 
+  // 💡 1. فورميلار موحد (زدنا فيه الحصص)
   const [formData, setFormData] = useState({
     language: 'English',
     level: 'A1',
@@ -22,7 +22,9 @@ const Enrollment = () => {
     day: 'Mon',
     startTime: '10:00',
     endTime: '12:00',
-    capacity: 20 // 💡 زدنا الليميت هنا (20 تلميذ بار ديفو)
+    capacity: 20,
+    total_sessions: 24, // 💡 عدد الحصص الإجمالي
+    sessions_per_week: 2  // 💡 عدد الحصص في الأسبوع
   });
 
   // 💡 States لنافذة التلاميذ
@@ -30,7 +32,7 @@ const Enrollment = () => {
   const [groupStudents, setGroupStudents] = useState([]);
   const [loadingStudents, setLoadingStudents] = useState(false);
 
-  // 💡 دالة السحر اللي تجيب تلاميذ كلاس معين
+  // دالة السحر اللي تجيب تلاميذ كلاس معين
   const handleViewStudents = async (group) => {
     setSelectedGroup(group);
     setLoadingStudents(true);
@@ -52,7 +54,28 @@ const Enrollment = () => {
     }
   };
 
-  // 💡 2. دالة السحر: تكريه اسم الجروب
+  // 💡 دالة جديدة: تزيد حصة للڨروب (Mark Session Done)
+  const handleAddSession = async (classId, currentCompleted, totalSessions) => {
+    const completed = currentCompleted || 0;
+    if (completed >= (totalSessions || 24)) {
+      alert("🎉 هذا الفوج أكمل جميع الحصص المبرمجة!");
+      return;
+    }
+    
+    try {
+      const { error } = await supabase
+        .from('classes')
+        .update({ completed_sessions: completed + 1 })
+        .eq('id', classId);
+        
+      if (error) throw error;
+      fetchClasses(); // نريفرشيو الجدول باش يبان التغيير
+    } catch (err) {
+      alert("Error: " + err.message);
+    }
+  };
+
+  // دالة السحر: تكريه اسم الجروب
   const generateGroupName = () => {
     const count = classesData.filter(c => c.language === formData.language && c.level.includes(formData.level)).length + 1;
     return `${formData.language} ${formData.level} - Group ${count}`;
@@ -71,7 +94,7 @@ const Enrollment = () => {
     const fullSchedule = `${formData.day} (${formData.startTime}-${formData.endTime}) - ${formData.room}`;
 
     try {
-      // 💡 3. التحقق من تداخل الوقت
+      // التحقق من تداخل الوقت
       const { data: conflicts } = await supabase.from('classes').select('schedule');
       const hasConflict = conflicts?.some(c => c.schedule.includes(formData.day) && c.schedule.includes(formData.room) && 
         (formData.startTime < c.schedule.match(/\d{2}:\d{2}/g)?.[1] && formData.endTime > c.schedule.match(/\d{2}:\d{2}/g)?.[0]));
@@ -81,15 +104,18 @@ const Enrollment = () => {
         setLoading(false); return;
       }
 
-      // 💡 4. تسجيل الكلاس مع الليميت والعداد (0)
+      // تسجيل الكلاس مع الليميت وإعدادات الحصص
       const { error } = await supabase.from('classes').insert([{
         name: groupName,
         language: formData.language,
         level: formData.level,
         teacher_name: formData.teacher,
         schedule: fullSchedule,
-        capacity: formData.capacity, // 💡 الحد الأقصى
-        enrolled_count: 0 // 💡 يبدا بـ 0 تلاميذ
+        capacity: formData.capacity,
+        enrolled_count: 0,
+        total_sessions: formData.total_sessions, // 💡 حفظ الحصص الكلية
+        sessions_per_week: formData.sessions_per_week, // 💡 حفظ حصص الأسبوع
+        completed_sessions: 0 // 💡 يبدا بـ 0 حصة
       }]);
 
       if (error) throw error;
@@ -102,7 +128,7 @@ const Enrollment = () => {
     } catch (err) { alert(err.message); } finally { setLoading(false); }
   };
   
-  // 💡 State الأساتذة
+  // State الأساتذة
   const [teachersList, setTeachersList] = useState([]);
 
   useEffect(() => {
@@ -123,26 +149,31 @@ const Enrollment = () => {
         <button onClick={() => setModalView('unifiedForm')} className="bg-[#2563eb] text-white px-6 py-3 rounded-xl font-bold shadow-md cursor-pointer">+ New Group & Schedule</button>
       </div>
 
-      {/* 💡 الجدول مع عمود Capacity الجديد */}
+      {/* الجدول */}
       <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm overflow-hidden flex-1 flex flex-col">
         <div className="overflow-x-auto custom-scrollbar rounded-xl border border-gray-100">
           <table className="w-full text-left text-sm">
-            <thead className="bg-gray-50 text-[#0A1128] font-bold sticky top-0">
+            <thead className="bg-gray-50 text-[#0A1128] font-bold sticky top-0 z-10">
               <tr>
                 <th className="py-4 px-6">Group Name</th>
                 <th className="py-4 px-6">Language</th>
                 <th className="py-4 px-6">Schedule / Room</th>
                 <th className="py-4 px-6">Teacher</th>
-                <th className="py-4 px-6 text-center">Capacity</th> {/* 💡 العمود الجديد */}
+                <th className="py-4 px-6 text-center">Capacity</th>
+                <th className="py-4 px-6 text-center">Progress 📊</th> {/* 💡 العمود الجديد */}
                 <th className="py-4 px-6 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {classesData.map((row) => {
-                // 💡 حساب هل الفوج ممتلئ
                 const currentCount = row.enrolled_count || 0;
                 const maxCapacity = row.capacity || 20;
                 const isFull = currentCount >= maxCapacity;
+                
+                // حساب التقدم
+                const completed = row.completed_sessions || 0;
+                const total = row.total_sessions || 24;
+                const progressPercent = Math.min((completed / total) * 100, 100);
 
                 return (
                   <tr key={row.id} className="hover:bg-blue-50/30 transition-colors">
@@ -151,7 +182,6 @@ const Enrollment = () => {
                     <td className="py-4 px-6 text-gray-600 font-bold text-xs">{row.schedule}</td>
                     <td className="py-4 px-6 font-medium text-[#0A1128]">{row.teacher_name}</td>
                     
-                    {/* 💡 عرض العداد بطريقة شابة */}
                     <td className="py-4 px-6 text-center">
                       <div className="flex flex-col items-center">
                         <span className={`text-[11px] font-black px-3 py-1 rounded-lg border ${
@@ -161,14 +191,24 @@ const Enrollment = () => {
                         }`}>
                           {currentCount} / {maxCapacity}
                         </span>
-                        {isFull && <span className="text-[9px] text-red-500 font-bold mt-1 uppercase tracking-widest">Full</span>}
                       </div>
                     </td>
 
-                    <td className="py-4 px-6 text-center text-gray-400 space-x-3">
-                      <button onClick={() => handleViewStudents(row)} className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg cursor-pointer" title="View Students">👥</button>
-                      <button className="hover:bg-gray-50 p-2 rounded-lg">✏️</button>
-                      <button className="hover:bg-red-50 p-2 rounded-lg text-red-500">🗑</button>
+                    {/* 💡 عرض الـ Progress Bar */}
+                    <td className="py-4 px-6 text-center">
+                      <div className="flex flex-col items-center w-24 mx-auto">
+                        <span className="text-[10px] font-black text-[#1B254B] uppercase tracking-widest">{completed} / {total}</span>
+                        <div className="w-full bg-gray-100 rounded-full h-1.5 mt-1.5 overflow-hidden">
+                          <div className={`h-full rounded-full transition-all duration-500 ${progressPercent >= 100 ? 'bg-[#01B574]' : 'bg-[#4318FF]'}`} style={{ width: `${progressPercent}%` }}></div>
+                        </div>
+                      </div>
+                    </td>
+
+                    <td className="py-4 px-6 text-center text-gray-400 space-x-2">
+                      {/* 💡 قفلة زيادة حصة */}
+                      <button onClick={() => handleAddSession(row.id, row.completed_sessions, row.total_sessions)} className="text-green-600 hover:bg-green-50 px-2.5 py-1.5 rounded-lg cursor-pointer font-black text-xs border border-green-100" title="Mark Session Done">+1</button>
+                      <button onClick={() => handleViewStudents(row)} className="text-blue-600 hover:bg-blue-50 p-1.5 rounded-lg cursor-pointer" title="View Students">👥</button>
+                      <button className="hover:bg-red-50 p-1.5 rounded-lg text-red-500">🗑</button>
                     </td>
                   </tr>
                 );
@@ -190,7 +230,7 @@ const Enrollment = () => {
               <button onClick={() => setModalView(null)} className="text-gray-400 hover:text-black text-2xl cursor-pointer">✕</button>
             </div>
             
-            <form onSubmit={handleSaveAll} className="p-8 space-y-8">
+            <form onSubmit={handleSaveAll} className="p-8 space-y-6">
               <div className="grid grid-cols-2 gap-6">
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase mb-2 block">Language</label>
@@ -214,19 +254,31 @@ const Enrollment = () => {
                      Prof. {t.first_name} {t.last_name}
                     </option>
                    ))}
-                  </select>
-                  </div>
+                 </select>
+                 </div>
               </div>
 
-              <div className="bg-blue-50/50 p-6 rounded-2xl border border-blue-100 grid grid-cols-2 gap-6">
-                <div className="col-span-2 text-blue-600 font-bold text-xs uppercase tracking-widest mb-2 flex justify-between">
+              <div className="bg-blue-50/50 p-6 rounded-2xl border border-blue-100 grid grid-cols-2 gap-4">
+                <div className="col-span-2 text-blue-600 font-bold text-xs uppercase tracking-widest mb-1 flex justify-between">
                   <span>🗓 Schedule & Room</span>
-                  {/* 💡 زدنا إمكانية تغيير الليميت */}
                   <span className="flex items-center gap-2">
-                    Capacity Limit: 
+                    Capacity: 
                     <input type="number" value={formData.capacity} onChange={(e)=>setFormData({...formData, capacity: e.target.value})} className="w-16 p-1 text-center border border-blue-200 rounded-lg text-black bg-white" min="5" max="50"/>
                   </span>
                 </div>
+                
+                {/* 💡 إعدادات الحصص (الجديدة) */}
+                <div className="col-span-2 flex gap-4 bg-white p-3 rounded-xl border border-blue-100">
+                  <div className="flex-1">
+                    <label className="text-[9px] font-bold text-gray-400 uppercase block mb-1">Total Sessions</label>
+                    <input type="number" value={formData.total_sessions} onChange={(e)=>setFormData({...formData, total_sessions: e.target.value})} className="w-full border border-blue-200 rounded-lg p-2 text-xs font-bold" min="1" required/>
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-[9px] font-bold text-gray-400 uppercase block mb-1">Sessions / Week</label>
+                    <input type="number" value={formData.sessions_per_week} onChange={(e)=>setFormData({...formData, sessions_per_week: e.target.value})} className="w-full border border-blue-200 rounded-lg p-2 text-xs font-bold" min="1" required/>
+                  </div>
+                </div>
+
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase block mb-2">Classroom</label>
                   <select value={formData.room} onChange={(e)=>setFormData({...formData, room: e.target.value})} className="w-full bg-white border border-blue-200 rounded-xl p-3 text-sm font-bold">
@@ -245,7 +297,7 @@ const Enrollment = () => {
                 </div>
               </div>
 
-              <button type="submit" disabled={loading} className="w-full bg-[#0A1128] hover:bg-blue-900 text-white py-4 rounded-2xl font-bold shadow-lg transition-all active:scale-95">{loading ? 'Processing...' : 'Create & Schedule Everything'}</button>
+              <button type="submit" disabled={loading} className="w-full bg-[#0A1128] hover:bg-blue-900 text-white py-4 rounded-2xl font-bold shadow-lg transition-all active:scale-95 mt-4">{loading ? 'Processing...' : 'Create & Schedule Everything'}</button>
             </form>
           </div>
         </div>
@@ -259,7 +311,11 @@ const Enrollment = () => {
             <div className="bg-gray-50/80 p-6 border-b border-gray-100 flex justify-between items-center shrink-0">
               <div>
                 <h2 className="text-2xl font-bold text-[#0A1128]">Students in {selectedGroup.name}</h2>
-                <p className="text-xs text-gray-500 font-bold mt-1">Teacher: <span className="text-blue-600">{selectedGroup.teacher_name}</span> • Total: {groupStudents.length} / {selectedGroup.capacity || 20}</p>
+                <p className="text-xs text-gray-500 font-bold mt-1">
+                  Teacher: <span className="text-blue-600">{selectedGroup.teacher_name}</span> • 
+                  Total: {groupStudents.length} / {selectedGroup.capacity || 20} • 
+                  <span className="text-[#4318FF] ml-1">Progress: {selectedGroup.completed_sessions || 0} / {selectedGroup.total_sessions || 24} Sessions</span>
+                </p>
               </div>
               <button onClick={() => setModalView(null)} className="text-gray-400 hover:text-black text-2xl cursor-pointer w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-200">✕</button>
             </div>
