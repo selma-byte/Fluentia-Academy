@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../../supabaseClient';
 
 const Icons = {
   Search: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>,
@@ -9,14 +10,71 @@ const Icons = {
 
 const ExamBoard = () => {
   const [selectedExam, setSelectedExam] = useState(null);
+  const [examsData, setExamsData] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const exams = [
-    { id: "01", name: "English Proficiency – B2", course: "Grammar & Communication", time: "10:00 AM", date: "20 May 2026", location: "Grand Hall A", status: "Upcoming", statusColor: "text-orange-500 bg-orange-50" },
-    { id: "02", name: "German Listening Test", course: "A1 Intensive", time: "09:45 AM", date: "15 May 2026", location: "Lab 04", status: "Upcoming", statusColor: "text-orange-500 bg-orange-50" },
-    { id: "03", name: "French Writing Cycle", course: "B1 Intermediate", time: "02:00 PM", date: "05 May 2026", location: "Room 12", status: "Completed", statusColor: "text-green-500 bg-green-50" },
-    { id: "04", name: "Spanish Oral Exam", course: "A2 Basics", time: "01:00 PM", date: "28 Apr 2026", location: "Virtual Hub 01", status: "Completed", statusColor: "text-green-500 bg-green-50" },
-    { id: "05", name: "Vocabulary Assessment", course: "Italian B1", time: "11:15 AM", date: "20 Apr 2026", location: "Room 03", status: "Completed", statusColor: "text-green-500 bg-green-50" },
-  ];
+  // ==========================================
+  // 💡 Fetch Exams from Supabase
+  // ==========================================
+  useEffect(() => {
+    const fetchExams = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        // 1. نجيبو معلومات الطالب (اللغة والمستوى)
+        const { data: student } = await supabase
+          .from('students')
+          .select('language, level')
+          .eq('email', user.email)
+          .single();
+
+        if (student && student.language && student.level) {
+          // 2. نجيبو الامتحانات الخاصة بمستواه ولغته
+          const { data: exams, error } = await supabase
+            .from('exams')
+            .select('*')
+            .ilike('language', `%${student.language}%`)
+            .eq('level', student.level)
+            .order('date', { ascending: true }); // ترتيب حسب التاريخ
+
+          if (exams) {
+            const today = new Date();
+            
+            const formattedExams = exams.map((ex, idx) => {
+              const examDate = new Date(ex.date);
+              
+              // تحديد الحالة بناءً على التاريخ (إذا فات التاريخ يولي Completed)
+              let status = ex.status || (examDate < today ? "Completed" : "Upcoming");
+              let statusColor = status === 'Completed' ? "text-green-500 bg-green-50" : "text-orange-500 bg-orange-50";
+
+              return {
+                id: ex.id || `0${idx + 1}`,
+                name: ex.exam_title || ex.name || "Scheduled Exam",
+                course: ex.course || `${student.language} ${student.level}`,
+                time: ex.time || "10:00 AM", // إذا عندك وقت في الداتا باز
+                date: ex.date ? new Date(ex.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : "TBA",
+                location: ex.room || ex.location || "Main Hall", // القاعة
+                status: status,
+                statusColor: statusColor
+              };
+            });
+
+            setExamsData(formattedExams);
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching exams:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchExams();
+  }, []);
+
+  // حساب عدد الامتحانات القادمة (Pending)
+  const pendingCount = examsData.filter(e => e.status === 'Upcoming').length;
 
   return (
     <div className="flex-1 flex flex-col xl:flex-row gap-10 animate-fadeIn pr-2 pb-12">
@@ -36,8 +94,10 @@ const ExamBoard = () => {
                     Testing Protocols
                 </button>
                 <div className="bg-white/60 px-5 py-3 rounded-2xl border border-white flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full bg-[#4318FF] animate-ping"></div>
-                    <span className="text-[10px] font-black text-[#1B254B] uppercase tracking-widest">2 Pending Evaluations</span>
+                    {pendingCount > 0 && <div className="w-2 h-2 rounded-full bg-[#4318FF] animate-ping"></div>}
+                    <span className="text-[10px] font-black text-[#1B254B] uppercase tracking-widest">
+                      {pendingCount} Pending Evaluations
+                    </span>
                 </div>
             </div>
           </div>
@@ -58,53 +118,61 @@ const ExamBoard = () => {
             </div>
           </div>
 
-          <div className="overflow-x-auto custom-scrollbar">
-            <table className="w-full text-left border-collapse min-w-[800px]">
-              <thead>
-                <tr className="text-[#A3AED0] text-[10px] font-black uppercase tracking-[0.3em] border-b border-gray-100">
-                  <th className="pb-6 pl-4">Examination</th>
-                  <th className="pb-6">Course Path</th>
-                  <th className="pb-6 text-center">Schedule</th>
-                  <th className="pb-6 text-center">Hall / Link</th>
-                  <th className="pb-6 text-center">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {exams.map((exam) => (
-                  <tr key={exam.id} onClick={() => setSelectedExam(exam)} className="hover:bg-gray-50/50 transition-all group cursor-pointer">
-                    <td className="py-8 pl-4">
-                      <p className="text-[15px] font-black text-[#1B254B] uppercase tracking-tight leading-none group-hover:text-[#4318FF] transition-colors">{exam.name}</p>
-                    </td>
-                    <td className="py-8">
-                      <span className="text-xs font-black text-[#707EAE] uppercase tracking-widest">{exam.course}</span>
-                    </td>
-                    <td className="py-8 text-center">
-                      <div className="flex flex-col items-center">
-                         <span className="text-[12px] font-black text-[#1B254B] uppercase">{exam.date}</span>
-                         <span className="text-[9px] font-bold text-[#A3AED0] uppercase mt-1 tracking-widest">{exam.time}</span>
-                      </div>
-                    </td>
-                    <td className="py-8 text-center">
-                      <span className="text-[10px] font-black text-[#707EAE] uppercase tracking-widest italic opacity-60 group-hover:opacity-100 transition-opacity">
-                        {exam.location}
-                      </span>
-                    </td>
-                    <td className="py-8 text-center">
-                      <span className={`px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] shadow-sm border border-transparent ${exam.statusColor}`}>
-                        {exam.status}
-                      </span>
-                    </td>
+          {loading ? (
+             <div className="py-20 text-center font-black text-[#A3AED0] animate-pulse uppercase tracking-widest">Syncing Schedule...</div>
+          ) : examsData.length > 0 ? (
+            <div className="overflow-x-auto custom-scrollbar">
+              <table className="w-full text-left border-collapse min-w-[800px]">
+                <thead>
+                  <tr className="text-[#A3AED0] text-[10px] font-black uppercase tracking-[0.3em] border-b border-gray-100">
+                    <th className="pb-6 pl-4">Examination</th>
+                    <th className="pb-6">Course Path</th>
+                    <th className="pb-6 text-center">Schedule</th>
+                    <th className="pb-6 text-center">Hall / Link</th>
+                    <th className="pb-6 text-center">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {examsData.map((exam) => (
+                    <tr key={exam.id} onClick={() => setSelectedExam(exam)} className="hover:bg-gray-50/50 transition-all group cursor-pointer">
+                      <td className="py-8 pl-4">
+                        <p className="text-[15px] font-black text-[#1B254B] uppercase tracking-tight leading-none group-hover:text-[#4318FF] transition-colors">{exam.name}</p>
+                      </td>
+                      <td className="py-8">
+                        <span className="text-xs font-black text-[#707EAE] uppercase tracking-widest">{exam.course}</span>
+                      </td>
+                      <td className="py-8 text-center">
+                        <div className="flex flex-col items-center">
+                           <span className="text-[12px] font-black text-[#1B254B] uppercase">{exam.date}</span>
+                           <span className="text-[9px] font-bold text-[#A3AED0] uppercase mt-1 tracking-widest">{exam.time}</span>
+                        </div>
+                      </td>
+                      <td className="py-8 text-center">
+                        <span className="text-[10px] font-black text-[#707EAE] uppercase tracking-widest italic opacity-60 group-hover:opacity-100 transition-opacity">
+                          {exam.location}
+                        </span>
+                      </td>
+                      <td className="py-8 text-center">
+                        <span className={`px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] shadow-sm border border-transparent ${exam.statusColor}`}>
+                          {exam.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+             <div className="py-10 text-center text-gray-400 font-bold uppercase tracking-widest">No exams scheduled for your level yet.</div>
+          )}
         </div>
       </div>
 
       {/* RIGHT SIDEBAR */}
       <div className="w-full xl:w-[350px] shrink-0 flex flex-col space-y-10">
-        <div className="text-right text-[10px] font-black text-[#A3AED0] uppercase tracking-[0.3em]">Tuesday, 14 Apr 2026</div>
+        <div className="text-right text-[10px] font-black text-[#A3AED0] uppercase tracking-[0.3em]">
+           {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })}
+        </div>
 
         {/* READINESS STATUS */}
         <div className="bg-white p-10 rounded-[45px] shadow-sm border border-gray-50">
@@ -139,7 +207,7 @@ const ExamBoard = () => {
         <div className="bg-[#111C44] p-10 rounded-[45px] shadow-2xl text-white relative overflow-hidden group cursor-pointer transition-all hover:bg-black">
            <div className="relative z-10">
                 <h4 className="text-2xl font-black mb-2 uppercase tracking-tighter">Registrar</h4>
-                <p className="text-white/40 text-[10px] font-black mb-10 uppercase tracking-widest leading-relaxed">Questions regarding examHall entry or scheduling conflicts?</p>
+                <p className="text-white/40 text-[10px] font-black mb-10 uppercase tracking-widest leading-relaxed">Questions regarding exam entry or scheduling conflicts?</p>
                 <button className="w-full py-5 bg-white/10 hover:bg-white/20 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border border-white/5">Contact Support</button>
            </div>
            <div className="absolute -right-8 -bottom-8 opacity-5 font-black text-[180px] group-hover:scale-110 transition-transform duration-1000">?</div>

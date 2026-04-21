@@ -21,12 +21,14 @@ const Payment = () => {
   const [currentView, setCurrentView] = useState('student');
   const [showAddPaymentModal, setShowAddPaymentModal] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
   const [loading, setLoading] = useState(true);
-  const [toast, setToast] = useState(null);
 
-  // --- Student Data States ---
+  // الداتا الحقيقية
   const [members, setMembers] = useState([]);
   const [paymentHistory, setPaymentHistory] = useState([]);
+
+  // حالات الفورم والفاتورة
   const [selectedMember, setSelectedMember] = useState('');
   const [payAmount, setPayAmount] = useState('3000');
   const [payDate, setPayDate] = useState(new Date().toISOString().split('T')[0]);
@@ -108,10 +110,9 @@ const Payment = () => {
       setReceiptData({ name, amount, method, date });
       setShowAddPaymentModal(false);
       setShowReceiptModal(true);
-      showToast(`Successful Transaction for ${name} ✅`);
-      fetchData(); 
+      fetchData();
     } catch (err) {
-      showToast("Error saving payment: " + err.message);
+      showToast("Error saving payment: " + err.message, "error");
     }
   };
 
@@ -163,6 +164,19 @@ const Payment = () => {
            <button onClick={() => setCurrentView('student')} className={`px-8 py-2.5 rounded-xl text-[11px] font-black italic transition-all cursor-pointer ${currentView === 'student' ? 'bg-[#0A1128] text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}>STUDENTS</button>
            <button onClick={() => setCurrentView('staff')} className={`px-8 py-2.5 rounded-xl text-[11px] font-black italic transition-all cursor-pointer ${currentView === 'staff' ? 'bg-[#0A1128] text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}>STAFF PAYROLL</button>
         </div>
+      )}
+
+      {/* =========================================
+          1. محتوى صفحة الدفع الرئيسية
+          ========================================= */}
+
+      <div className="mb-8 flex justify-end">
+        <button
+          onClick={() => setShowAddPaymentModal(true)}
+          className="flex items-center rounded-lg bg-[#0A1128] px-6 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-slate-800 active:scale-95 cursor-pointer"
+        >
+          <span className="mr-2 text-lg">$</span> Add Payment
+        </button>
       </div>
 
       {currentView === 'student' ? (
@@ -232,9 +246,7 @@ const Payment = () => {
                     <button onClick={() => processPayment(member.name, member.balance, 'Cash', 'Quick Pay', new Date().toISOString().split('T')[0])} className="flex-1 bg-[#4CAF50] text-white py-3.5 rounded-2xl text-[10px] font-black italic shadow-lg active:scale-95 transition-all cursor-pointer">✓ MARK PAID</button>
                     <button onClick={() => showToast(`Reminder sent to ${member.name} 📲`)} className="bg-[#0A1128] text-white px-5 rounded-2xl shadow-lg hover:bg-slate-800 transition-all cursor-pointer flex items-center justify-center">🔔</button>
                   </div>
-                ) : (
-                  <button onClick={() => { setReceiptData({ name: member.name, amount: "3000", method: "Direct", date: "Archived" }); setShowReceiptModal(true); }} className="w-full bg-green-50 text-green-600 py-4 rounded-2xl text-[10px] font-black italic border border-green-100 hover:bg-green-100 transition-all uppercase tracking-widest cursor-pointer">View Receipt ✓</button>
-                )}
+                </div>
               </div>
             ))}
           </div>
@@ -349,11 +361,26 @@ const Payment = () => {
                  <label className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Notes / Reference</label>
                  <input type="text" placeholder="Optional notes..." value={payNotes} onChange={e=>setPayNotes(e.target.value)} className="w-full bg-gray-50 border-none rounded-2xl p-5 font-bold text-sm outline-none" />
               </div>
-              <div className="flex justify-end gap-6 pt-8 items-center">
-                <button type="button" onClick={() => setShowAddPaymentModal(false)} className="text-xs font-black text-gray-400 uppercase italic tracking-widest cursor-pointer">Discard</button>
-                <button type="submit" className="px-14 py-5 bg-[#0A1128] text-white rounded-2xl text-[10px] font-black italic shadow-xl active:scale-95 transition-all uppercase tracking-widest">Confirm Transaction</button>
+
+              <div className="bg-gray-100 rounded-xl p-4 border border-gray-200">
+                <h4 className="text-sm font-bold text-[#0A1128] mb-3">Payment Summary</h4>
+                <div className="space-y-2 text-xs">
+                  <div className="flex justify-between"><span className="text-gray-500 font-medium">Payment Amount:</span><span className="font-bold text-gray-700">{payAmount} دج</span></div>
+                  <div className="flex justify-between border-t border-gray-200 pt-2 mt-2"><span className="text-gray-800 font-bold">New Balance:</span><span className="font-bold text-green-600">0 دج</span></div>
+                </div>
               </div>
-            </form>
+
+            </div>
+
+            <div className="p-5 border-t border-gray-100 flex justify-end gap-3 bg-white rounded-b-2xl">
+              <button onClick={() => setShowAddPaymentModal(false)} className="px-5 py-2.5 rounded-lg text-sm font-bold text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer">Cancel</button>
+              <button
+                onClick={handleSavePayment}
+                className="px-5 py-2.5 rounded-lg text-sm font-bold bg-[#0A1128] text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                Record Payment
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -373,9 +400,11 @@ const Payment = () => {
             <button onClick={() => { showToast("Exporting PDF Receipt..."); setShowReceiptModal(false); }} className="w-full bg-[#0A1128] text-white py-5 rounded-[1.5rem] font-black italic text-[11px] shadow-xl tracking-widest flex items-center justify-center gap-3">
                📥 GENERATE PDF DOSSIER
             </button>
+
           </div>
         </div>
       )}
+
     </div>
   );
 };

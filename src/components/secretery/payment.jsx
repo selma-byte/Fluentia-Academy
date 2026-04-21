@@ -10,14 +10,14 @@ const Payment = () => {
   const [members, setMembers] = useState([]);
   const [paymentHistory, setPaymentHistory] = useState([]);
 
-  // حالات الفورم والفاتورة
-  const [selectedMember, setSelectedMember] = useState('');
+  // 💡 التعديل 1: ولينا نستعملو ID تاع التلميذ في بلاصة اسمو
+  const [selectedMemberId, setSelectedMemberId] = useState('');
   const [payAmount, setPayAmount] = useState('3000');
   const [payMethod, setPayMethod] = useState('Cash');
   const [payNotes, setPayNotes] = useState('');
   const [receiptData, setReceiptData] = useState(null);
 
-  // 💡 حالات البحث والفلترة (زدنا اللغة والفوج)
+  // حالات البحث والفلترة (زدنا اللغة والفوج)
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [langFilter, setLangFilter] = useState('All');
@@ -30,12 +30,10 @@ const Payment = () => {
     setLoading(true);
     
     // أ. جلب التلاميذ الحقيقيين مع اللغة والفوج
-    // أ. جلب التلاميذ الحقيقيين مع اللغة والفوج
     const { data: studentsData } = await supabase.from('students').select('*');
     if (studentsData) {
       const formattedStudents = studentsData.map(s => ({
         id: s.id,
-        // 💡 هاهو السر: دمجنا first_name مع last_name
         name: `${s.first_name || ''} ${s.last_name || ''}`.trim() || 'Unknown Student', 
         language: s.language || 'English', 
         group: s.level || s.group || 'Standard', 
@@ -45,23 +43,37 @@ const Payment = () => {
         overdueText: s.status === 'Overdue' ? "Needs attention" : ""
       }));
       setMembers(formattedStudents.length > 0 ? formattedStudents : getFallbackMembers());
-      if (formattedStudents.length > 0) setSelectedMember(formattedStudents[0].name);
+      
+      // 💡 التعديل 2: نحطو الـ ID تاع أول تلميذ كقيمة افتراضية
+      if (formattedStudents.length > 0) setSelectedMemberId(formattedStudents[0].id);
     } else {
       setMembers(getFallbackMembers());
     }
 
-    // ب. جلب تاريخ الدفعات
-    const { data: paymentsData } = await supabase.from('payments').select('*').order('payment_date', { ascending: false });
+    // ب. جلب تاريخ الدفعات 
+    // 💡 التعديل 3: استعملنا الربط (Join) باش نجيبو الاسم من طابلو students
+    const { data: paymentsData } = await supabase
+      .from('payments')
+      .select('*, students(first_name, last_name)')
+      .order('payment_date', { ascending: false });
+
     if (paymentsData) {
-      const formattedPayments = paymentsData.map(p => ({
-        id: p.id,
-        date: new Date(p.payment_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
-        member: p.member_name,
-        amount: `${p.amount} دج`,
-        status: p.status,
-        method: p.payment_method || 'Cash',
-        notes: p.notes
-      }));
+      const formattedPayments = paymentsData.map(p => {
+        // إذا كاين داتا من الربط، نستعملوها، وإلا نستعملو member_name القديم
+        const studentName = p.students 
+          ? `${p.students.first_name || ''} ${p.students.last_name || ''}`.trim() 
+          : p.member_name;
+
+        return {
+          id: p.id,
+          date: new Date(p.payment_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+          member: studentName || 'Unknown Student',
+          amount: `${p.amount} دج`,
+          status: p.status,
+          method: p.payment_method || 'Cash',
+          notes: p.notes
+        };
+      });
       setPaymentHistory(formattedPayments);
     }
     
@@ -81,21 +93,42 @@ const Payment = () => {
   // =======================================
   // 2. دوال الدفع والإشعارات
   // =======================================
-  const processPayment = async (name, amount, method, notes) => {
+  // 💡 التعديل 4: الدالة ولات تستقبل الـ ID تاع التلميذ
+  // =======================================
+  // 2. دوال الدفع والإشعارات
+  // =======================================
+  const processPayment = async (studentId, amount, method, notes) => {
     try {
+      // نحوسو على التلميذ باش نجيبو اسمو
+      const student = members.find(m => m.id.toString() === studentId.toString());
+      const studentName = student ? student.name : 'Unknown';
+
+      // 💡 الضربة الأولى: نسجلو الدفعة في طابلو payments
       const { error: payError } = await supabase.from('payments').insert([{
-        member_name: name,
+        student_id: studentId, 
+        member_name: studentName, 
         amount: parseFloat(amount),
         status: 'Paid',
         payment_method: method,
         notes: notes
       }]);
+      
       if (payError) throw payError;
 
-      setReceiptData({ name, amount, method, date: new Date().toLocaleString() });
+      // 💡 الضربة الدوزيام (السر هنا!): نحدثو حالة التلميذ في طابلو students
+      const { error: updateError } = await supabase
+        .from('students')
+        .update({ status: 'Paid' }) // نرجعو الستاتي ديالو Paid
+        .eq('id', studentId); // نحددو شكون هو التلميذ بالـ ID ديالو
+
+      if (updateError) throw updateError;
+
+      // نبينو الفاتورة ونعاودو نتيليشارجيو الداتا الجديدة
+      setReceiptData({ name: studentName, amount, method, date: new Date().toLocaleString() });
       setShowAddPaymentModal(false);
       setShowReceiptModal(true);
-      fetchData(); 
+      fetchData(); // هادي دركا راح تجيبو بلي راهو Paid والديزاين يتبدل!
+      
     } catch (err) {
       alert("Error saving payment: " + err.message);
     }
@@ -103,11 +136,11 @@ const Payment = () => {
 
   const handleSavePayment = (e) => {
     e.preventDefault();
-    processPayment(selectedMember, payAmount, payMethod, payNotes);
+    processPayment(selectedMemberId, payAmount, payMethod, payNotes);
   };
 
   const markAsPaid = (id, name, amount) => {
-    processPayment(name, amount, 'Cash', 'Quick verified by Admin');
+    processPayment(id, amount, 'Cash', 'Quick verified by Admin');
   };
 
   const notifyStudent = (name) => {
@@ -124,7 +157,7 @@ const Payment = () => {
   const unpaidBalance = members.reduce((sum, m) => sum + m.balance, 0);
   const totalIncome = paymentHistory.reduce((sum, p) => sum + parseInt(p.amount.replace(/\D/g,'')), 0);
 
-  // 💡 تطبيق الفلترة الشاملة (الاسم، الحالة، اللغة، الفوج)
+  // تطبيق الفلترة الشاملة (الاسم، الحالة، اللغة، الفوج)
   const filteredMembers = members.filter(m => {
     const safeName = m.name || '';
     const safeSearchTerm = searchTerm || '';
@@ -138,6 +171,12 @@ const Payment = () => {
   // استخراج اللغات والأفواج المتوفرة باش نحطوهم في الـ Dropdown
   const uniqueLanguages = [...new Set(members.map(m => m.language).filter(Boolean))];
   const uniqueGroups = [...new Set(members.map(m => m.group).filter(Boolean))];
+
+  // دالة مساعدة باش نجيبو اسم الطالب المختار في المودال (نافذة الدفع)
+  const getSelectedStudentName = () => {
+    const student = members.find(m => m.id.toString() === selectedMemberId.toString());
+    return student ? student.name : "Select a student";
+  };
 
   return (
     <div className="flex-1 overflow-y-auto bg-white p-8 custom-scrollbar relative">
@@ -191,7 +230,7 @@ const Payment = () => {
         </div>
       )}
 
-      {/* 💡 شريط البحث والفلترة الشامل */}
+      {/* شريط البحث والفلترة الشامل */}
       <div className="mb-6 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4">
         <h3 className="text-base font-bold text-[#0A1128] shrink-0">Member Payment Status</h3>
         
@@ -239,7 +278,6 @@ const Payment = () => {
               {member.status === 'Due Soon' && <div className="absolute left-0 top-0 h-full w-1 bg-orange-400"></div>}
               
               <div className={`relative p-6 ${member.status !== 'Paid' ? 'pl-7' : ''}`}>
-                {/* 💡 أضفنا معلومات اللغة والفوج تحت الاسم مباشرة */}
                 <h4 className="mb-1 text-sm font-bold text-[#0A1128] truncate pr-16">{member.name}</h4>
                 <p className="mb-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">{member.language} • {member.group}</p>
                 
@@ -354,8 +392,9 @@ const Payment = () => {
             <form onSubmit={handleSavePayment} className="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-6">
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">Select Member / Student</label>
-                <select value={selectedMember} onChange={e=>setSelectedMember(e.target.value)} className="w-full bg-gray-50 border border-gray-200 text-[#0A1128] rounded-lg p-3 outline-none focus:border-indigo-400 cursor-pointer text-sm font-bold">
-                  {members.map(m => <option key={m.id} value={m.name}>{m.name} ({m.language} - {m.group})</option>)}
+                {/* 💡 التعديل 5: Dropdown ولا يخدم بالـ ID */}
+                <select value={selectedMemberId} onChange={e=>setSelectedMemberId(e.target.value)} className="w-full bg-gray-50 border border-gray-200 text-[#0A1128] rounded-lg p-3 outline-none focus:border-indigo-400 cursor-pointer text-sm font-bold">
+                  {members.map(m => <option key={m.id} value={m.id}>{m.name} ({m.language} - {m.group})</option>)}
                 </select>
               </div>
 
@@ -363,7 +402,8 @@ const Payment = () => {
                 <div className="flex items-center">
                    <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-gray-500 mr-3">👤</div>
                    <div>
-                     <div className="font-bold text-[#0A1128] text-sm">{selectedMember || "Select a student"}</div>
+                     {/* 💡 يافيشي اسم الطالب باستعمال الدالة */}
+                     <div className="font-bold text-[#0A1128] text-sm">{getSelectedStudentName()}</div>
                      <div className="text-[10px] text-gray-500">Due: End of Month</div>
                    </div>
                 </div>

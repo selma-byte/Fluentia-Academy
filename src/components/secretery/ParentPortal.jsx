@@ -1,80 +1,170 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../supabaseClient'; // تأكدي من مسار الملف
-  
+import { supabase } from '../../supabaseClient'; 
+
 const ParentPortal = () => {
   const [chatMessages, setChatMessages] = useState([]);
+  const [recentComms, setRecentComms] = useState([]); 
+  const [announcements, setAnnouncements] = useState([]); 
   const [mainView, setMainView] = useState('portal'); 
   const [activeTab, setActiveTab] = useState('parents'); 
   const [modalView, setModalView] = useState(null); 
   const [chatType, setChatType] = useState(null);
   const [newMessage, setNewMessage] = useState(''); 
-  const [selectedRecipient, setSelectedRecipient] = useState(null); // { id, name, role }
-  const [studentsList, setStudentsList] = useState([]); // 💡 زدنا قائمة التلاميذ
+  const [selectedRecipient, setSelectedRecipient] = useState(null); 
+  const [studentsList, setStudentsList] = useState([]); 
   const [staffList, setStaffList] = useState([]); 
-  
-  // 💡 State زدناه باش نرفدو واش تكتبي في الإعلان
-  const [announcementForm, setAnnouncementForm] = useState({ title: '', content: '' });
+  const [loading, setLoading] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null); 
 
-  // --- حالات الفلترة لصناديق الاختيار (تمت إضافة teacher و admin) ---
+  const [announcementForm, setAnnouncementForm] = useState({ title: '', content: '', priority: 'Medium' });
+  const [notificationForm, setNotificationForm] = useState({ title: '', content: '' });
+
   const [selectedAudiences, setSelectedAudiences] = useState({
-    all: true,
-    students: false,
-    parents: false,
-    staff: false,
-    teacher: false,
-    admin: false
+    all: true, students: false, parents: false, staff: false, teacher: false, admin: false
   });
 
- useEffect(() => {
+  // ==========================================
+  // 💡 FETCH DATA (Unified ID Logic)
+  // ==========================================
   const fetchData = async () => {
-    // 1. جلب قاع الـ Staff (أساتذة وأدمن)
-    const { data: staffData } = await supabase.from('staff').select('*');
-    if (staffData) setStaffList(staffData);
+    setLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user && user.email) {
+        const { data: staffData } = await supabase.from('staff').select('*').eq('email', user.email).single();
+        if (staffData) {
+          setCurrentUser(staffData);
+        } else {
+          setCurrentUser(user);
+        }
+      }
 
-    // 2. جلب قاع التلاميذ (Students)
-    const { data: studentData } = await supabase.from('students').select('*');
-    if (studentData) setStudentsList(studentData);
+      const { data: sData } = await supabase.from('staff').select('*');
+      if (sData) setStaffList(sData);
+
+      const { data: stData } = await supabase.from('students').select('*');
+      if (stData) setStudentsList(stData);
+
+      const { data: annData } = await supabase.from('communications').select('*').eq('type', 'announcement').order('created_at', { ascending: false });
+      if (annData) setAnnouncements(annData);
+
+      const { data: commData } = await supabase.from('communications').select('*').neq('type', 'announcement').order('created_at', { ascending: false }).limit(6);
+      if (commData) setRecentComms(commData);
+
+      const { data: msgData } = await supabase.from('communications').select('*').order('created_at', { ascending: true });
+      if (msgData) setChatMessages(msgData);
+    } catch (err) {
+      console.error("Fetch Error:", err);
+    } finally {
+      setLoading(false);
+    }
   };
-  
-  fetchData();
- }, []);
 
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  // ==========================================
+  // HANDLERS
+  // ==========================================
   const handleAudienceChange = (audience) => {
     if (audience === 'all') {
-      setSelectedAudiences({
-        all: true,
-        students: false,
-        parents: false,
-        staff: false,
-        teacher: false,
-        admin: false
-      });
+      setSelectedAudiences({ all: true, students: false, parents: false, staff: false, teacher: false, admin: false });
     } else {
       setSelectedAudiences(prev => {
         const newState = { ...prev, [audience]: !prev[audience], all: false };
-        if (!newState.students && !newState.parents && !newState.staff && !newState.teacher && !newState.admin) {
-          newState.all = true;
-        }
+        if (!Object.values(newState).some(v => v)) newState.all = true;
         return newState;
       });
     }
   };
 
-  // 💡 الدالة اللي تنشر الإعلان في قاعدة البيانات
   const handlePublishAnnouncement = async () => {
     if (!announcementForm.title || !announcementForm.content) return alert("Please fill title and content");
+
+    // 💡 1. نقراو الـ Checkboxes باش نعرفو شكون المستهدف
+    const selectedGroups = [];
+    if (selectedAudiences.students) selectedGroups.push('students');
+    if (selectedAudiences.teacher) selectedGroups.push('teachers');
+    if (selectedAudiences.parents) selectedGroups.push('parents');
+    if (selectedAudiences.staff) selectedGroups.push('staff');
+    
+    // إذا ما خيرت والو ولا خيرت الكل، نبعثوها للكل
+    const targetAudience = selectedGroups.length > 0 ? selectedGroups.join(', ') : 'All Community';
+
     const { error } = await supabase.from('communications').insert([{
-      content: `📢 ${announcementForm.title}\n\n${announcementForm.content}`,
-      type: 'announcement',
-      recipient_name: 'All',
-      recipient_id: 'all',
+      subject: announcementForm.title,
+      content: announcementForm.content,
+      type: 'announcement', // يبقى إعلان
+      recipient_name: targetAudience, // 💡 هنا نسجلو الفئات المستهدفة
+      recipient_id: 'all', // نخلوها 'all' باش كامل يقدرو يجبدوها، ومبعد يفيلتريو
+      sender_id: currentUser?.id,
       sender_role: 'admin'
     }]);
+
     if (!error) {
       alert("✅ Announcement Published!");
       setModalView(null);
+      setAnnouncementForm({ title: '', content: '', priority: 'Medium' }); // تفريغ الفورم
+      fetchData(); 
+    } else {
+      alert("Error publishing announcement!");
+      console.error(error);
     }
   };
+  const handleSendNotification = async () => {
+    if (!notificationForm.title || !notificationForm.content) return alert("Please fill title and content");
+
+    // 💡 نقراو الـ Checkboxes تاع الإشعار
+    const selectedGroups = [];
+    if (selectedAudiences.students) selectedGroups.push('students');
+    if (selectedAudiences.teacher) selectedGroups.push('teachers');
+    if (selectedAudiences.parents) selectedGroups.push('parents');
+    if (selectedAudiences.staff) selectedGroups.push('staff');
+
+    const targetAudience = selectedGroups.length > 0 ? selectedGroups.join(', ') : 'All Community';
+
+    const { error } = await supabase.from('communications').insert([{
+      subject: notificationForm.title,
+      content: notificationForm.content,
+      type: 'notification', // إشعار عاجل أو خاص
+      recipient_name: targetAudience, // 💡 نسجلو شكون المعني
+      recipient_id: 'all', 
+      sender_id: currentUser?.id,
+      sender_role: 'admin'
+    }]);
+
+    if (!error) {
+      alert("🔔 Notification Sent Successfully!");
+      setModalView(null);
+      setNotificationForm({ title: '', content: '' }); 
+      fetchData(); 
+    } else {
+      alert("Error sending notification!");
+      console.error(error);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !currentUser) return;
+    const messageData = {
+      content: newMessage,
+      type: chatType,
+      recipient_name: selectedRecipient?.name || 'Group Message',
+      recipient_id: selectedRecipient?.id?.toString() || 'all',
+      sender_id: currentUser.id,
+      sender_role: 'admin'
+    };
+    const { error } = await supabase.from('communications').insert([messageData]);
+    if (!error) {
+      setNewMessage('');
+      fetchData(); 
+    }
+  };
+
+  // ==========================================
+  // RENDER SECTIONS
+  // ==========================================
 
   const renderParentsTab = () => (
     <div className="flex flex-col flex-1 min-h-0 animate-fade-in">
@@ -83,10 +173,7 @@ const ParentPortal = () => {
           <h3 className="font-bold text-[#0A1128] text-lg">Parent Directory</h3>
           <p className="text-xs text-gray-500 mt-1">Manage parent and guardian information for school network</p>
         </div>
-        <button 
-          onClick={() => setModalView('addParent')}
-          className="bg-[#2563eb] hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center"
-        >
+        <button onClick={() => setModalView('addParent')} className="bg-[#2563eb] hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center">
           <span className="mr-2 text-lg">+</span> Add Parent
         </button>
       </div>
@@ -130,7 +217,7 @@ const ParentPortal = () => {
               <td className="py-4 px-6"><span className="text-green-600 font-bold flex items-center"><span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-2"></span>Active</span></td>
               <td className="py-4 px-6 text-center space-x-4">
                 <button className="text-gray-500 hover:text-blue-600 font-bold text-xs transition-colors">View</button>
-                <button onClick={() => { setMainView('chat'); setChatType('parent'); setModalView(null); }} className="text-gray-400 hover:text-blue-600 text-lg transition-colors cursor-pointer">💬</button>
+                <button onClick={() => { setMainView('chat'); setChatType('parent'); setModalView(null); setSelectedRecipient({ id: 'parent_1', name: 'Ahmed Al-Mansouri', role: 'Parent', email: 'ahmed.mansouri@email.com', phone: '+971 50 123 4567' }); }} className="text-gray-400 hover:text-blue-600 text-lg transition-colors cursor-pointer">💬</button>
               </td>
             </tr>
           </tbody>
@@ -166,32 +253,31 @@ const ParentPortal = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-  {studentsList.map((student) => (
-    <tr key={student.id} className="hover:bg-gray-50/50 transition-colors">
-      <td className="py-4 px-6 font-bold text-[#0A1128]">{student.first_name} {student.last_name}</td>
-      <td className="py-4 px-6 text-xs text-gray-600 space-y-1">
-        <p>✉️ {student.email}</p>
-        <p>📱 {student.phone}</p>
-      </td>
-      <td className="py-4 px-6 font-bold text-[#0A1128]">{student.language || 'N/A'} ({student.level || '-'})</td>
-      <td className="py-4 px-6 text-gray-600">{student.group_name || 'No Group'}</td>
-      <td className="py-4 px-6">
-        <span className="text-green-600 font-bold flex items-center">
-          <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-2"></span>Active
-        </span>
-      </td>
-      <td className="py-4 px-6 text-center space-x-4">
-        <button className="text-gray-500 hover:text-blue-600 font-bold text-xs">View</button>
-        {/* 💡 قفلة الشات مع التلميذ الحقيقي */}
-        <button onClick={() => { 
-            setMainView('chat'); 
-            setChatType('student_individual'); 
-            setSelectedRecipient({ id: student.id, name: `${student.first_name} ${student.last_name}`, role: 'Student' }); 
-        }} className="text-gray-400 hover:text-blue-600 text-lg transition-colors cursor-pointer">💬</button>
-      </td>
-    </tr>
-  ))}
-</tbody>
+            {studentsList.map((student) => (
+              <tr key={student.id} className="hover:bg-gray-50/50 transition-colors">
+                <td className="py-4 px-6 font-bold text-[#0A1128]">{student.first_name} {student.last_name}</td>
+                <td className="py-4 px-6 text-xs text-gray-600 space-y-1">
+                  <p>✉️ {student.email}</p>
+                  <p>📱 {student.phone}</p>
+                </td>
+                <td className="py-4 px-6 font-bold text-[#0A1128]">{student.language || 'N/A'} ({student.level || '-'})</td>
+                <td className="py-4 px-6 text-gray-600">{student.group_name || 'No Group'}</td>
+                <td className="py-4 px-6">
+                  <span className="text-green-600 font-bold flex items-center">
+                    <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-2"></span>Active
+                  </span>
+                </td>
+                <td className="py-4 px-6 text-center space-x-4">
+                  <button className="text-gray-500 hover:text-blue-600 font-bold text-xs">View</button>
+                  <button onClick={() => { 
+                      setMainView('chat'); 
+                      setChatType('student_individual'); 
+                      setSelectedRecipient({ id: student.id, name: `${student.first_name} ${student.last_name}`, role: 'Student', email: student.email, phone: student.phone, level: student.level }); 
+                  }} className="text-gray-400 hover:text-blue-600 text-lg transition-colors cursor-pointer">💬</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
         </table>
       </div>
     </div>
@@ -227,31 +313,34 @@ const ParentPortal = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            <tr className="hover:bg-gray-50/50 transition-colors">
-              <td className="py-4 px-6">
-                <p className="font-bold text-[#0A1128]">Sarah Jamel</p>
-                <p className="text-xs text-gray-500">Senior Teacher</p>
-              </td>
-              <td className="py-4 px-6 text-xs text-gray-600 space-y-1">
-                <p className="flex items-center"><span className="mr-2">✉️</span> sarah.j@email.com</p>
-                <p className="flex items-center"><span className="mr-2">📞</span> +213 555 987 654</p>
-              </td>
-              <td className="py-4 px-6 text-gray-600">Teacher</td>
-              <td className="py-4 px-6 text-gray-600">Languages</td>
-              <td className="py-4 px-6"><span className="text-green-600 font-bold flex items-center"><span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-2"></span>Active</span></td>
-              <td className="py-4 px-6 text-center space-x-4">
-                <button className="text-gray-500 hover:text-blue-600 font-bold text-xs transition-colors">View</button>
-                <button 
-                  onClick={() => {  setMainView('chat'); 
-                  setChatType('staff_individual'); // نوع جديد للمراسلة الفردية
-                  setSelectedRecipient({ id: 'staff_1', name: 'Sarah Jamel', role: 'Teacher' }); 
-                 }} 
-                 className="text-gray-400 hover:text-blue-600 text-lg transition-colors cursor-pointer"
-                >
-                 💬
-                </button>
-              </td>
-            </tr>
+            {staffList.map((staff) => (
+              <tr key={staff.id} className="hover:bg-gray-50/50 transition-colors">
+                <td className="py-4 px-6">
+                  <p className="font-bold text-[#0A1128]">{staff.first_name} {staff.last_name}</p>
+                  <p className="text-xs text-gray-500">{staff.role || 'Staff Member'}</p>
+                </td>
+                <td className="py-4 px-6 text-xs text-gray-600 space-y-1">
+                  <p className="flex items-center"><span className="mr-2">✉️</span> {staff.email}</p>
+                  <p className="flex items-center"><span className="mr-2">📞</span> {staff.phone || 'N/A'}</p>
+                </td>
+                <td className="py-4 px-6 text-gray-600">{staff.role}</td>
+                <td className="py-4 px-6 text-gray-600">{staff.department || 'General'}</td>
+                <td className="py-4 px-6"><span className="text-green-600 font-bold flex items-center"><span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-2"></span>Active</span></td>
+                <td className="py-4 px-6 text-center space-x-4">
+                  <button className="text-gray-500 hover:text-blue-600 font-bold text-xs transition-colors">View</button>
+                  <button 
+                    onClick={() => {  
+                      setMainView('chat'); 
+                      setChatType('staff_individual'); 
+                      setSelectedRecipient({ id: staff.id, name: `${staff.first_name} ${staff.last_name}`, role: staff.role, email: staff.email, phone: staff.phone, dept: staff.department }); 
+                    }} 
+                    className="text-gray-400 hover:text-blue-600 text-lg transition-colors cursor-pointer"
+                  >
+                    💬
+                  </button>
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
@@ -271,30 +360,31 @@ const ParentPortal = () => {
       </div>
 
       <div className="space-y-6 overflow-y-auto custom-scrollbar pr-2 flex-1">
-        <div className="bg-[#fff7ed] border border-[#ffedd5] rounded-2xl p-6 flex shadow-sm relative overflow-hidden">
-          <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-orange-400"></div>
-          <div className="flex-1 pl-2">
-            <div className="flex items-center mb-2">
-              <span className="text-orange-500 mr-2">📌</span>
-              <h4 className="font-bold text-orange-900 text-base">Language Proficiency Test (Placement)</h4>
-              <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[10px] font-bold ml-4">High</span>
+        {announcements.map((ann) => (
+          <div key={ann.id} className="bg-[#fff7ed] border border-[#ffedd5] rounded-2xl p-6 flex shadow-sm relative overflow-hidden animate-fade-in">
+            <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-orange-400"></div>
+            <div className="flex-1 pl-2">
+              <div className="flex items-center mb-2">
+                <span className="text-orange-500 mr-2">📌</span>
+                <h4 className="font-bold text-orange-900 text-base">{ann.subject || "No Title"}</h4>
+                <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[10px] font-bold ml-4">Announcement</span>
+              </div>
+              <p className="text-sm text-orange-800/80 mb-4 leading-relaxed">{ann.content}</p>
+              <p className="text-xs text-orange-600/70">By Admin • {new Date(ann.created_at).toLocaleDateString()}</p>
             </div>
-            <p className="text-sm text-orange-800/80 mb-4 leading-relaxed">
-              New students can take the placement test from July 20 to August 15. The detailed schedule and levels (CEFR A1 to C2) are available in the portal.
-            </p>
-            <p className="text-xs text-orange-600/70">By Academic Department • 2024-07-20</p>
+            <div className="flex flex-col justify-between items-end">
+              <div className="flex space-x-2 text-orange-400">
+                <button className="hover:text-orange-600">✏️</button>
+                <button onClick={async () => {
+                  if(window.confirm("Delete this announcement?")) {
+                    await supabase.from('communications').delete().eq('id', ann.id);
+                    fetchData();
+                  }
+                }} className="hover:text-red-600">🗑</button>
+              </div>
+            </div>
           </div>
-          <div className="flex flex-col justify-between items-end">
-            <div className="flex space-x-2 text-orange-400">
-              <button className="hover:text-orange-600">✏️</button>
-              <button className="hover:text-orange-600">🗑</button>
-            </div>
-            <div className="flex space-x-2">
-              <span className="bg-white/50 text-orange-800 border border-orange-200 px-3 py-1 rounded-lg text-xs font-bold">Students</span>
-              <span className="bg-white/50 text-orange-800 border border-orange-200 px-3 py-1 rounded-lg text-xs font-bold">Parents</span>
-            </div>
-          </div>
-        </div>
+        ))}
       </div>
     </div>
   );
@@ -322,8 +412,8 @@ const ParentPortal = () => {
             <button onClick={() => { setMainView('chat'); setChatType('staff'); setSelectedRecipient(null); }} className="w-full bg-gray-50 hover:bg-gray-100 text-[#0A1128] border border-gray-200 font-bold text-sm py-3.5 rounded-xl transition-colors flex items-center justify-center">
               <span className="mr-2 text-gray-500">👨‍🏫</span> Send to Staff
             </button>
-            <button onClick={() => { setMainView('chat'); setChatType('emergency'); setSelectedRecipient(null); }} className="w-full bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold text-sm py-3.5 rounded-xl transition-colors flex items-center justify-center">
-              <span className="mr-2">🚨</span> Emergency Notification
+            <button onClick={() => setModalView('newNotification')} className="w-full bg-purple-50 hover:bg-purple-100 text-purple-600 border border-purple-200 font-bold text-sm py-3.5 rounded-xl transition-colors flex items-center justify-center">
+              <span className="mr-2 text-lg">🔔</span> Send Notification
             </button>
           </div>
         </div>
@@ -334,20 +424,17 @@ const ParentPortal = () => {
         <div className="overflow-y-auto custom-scrollbar flex-1">
           <table className="w-full text-left text-sm">
             <tbody className="divide-y divide-gray-100">
-              <tr className="hover:bg-gray-50 transition-colors">
-                <td className="py-4 px-2">
-                  <p className="font-bold text-[#0A1128]">Mid-term exam schedule (B1)</p>
-                  <p className="text-xs text-gray-500">Sent to Level B1 parents</p>
-                </td>
-                <td className="py-4 px-2 text-right text-xs text-gray-400 font-medium">2 hours ago</td>
-              </tr>
-              <tr className="hover:bg-gray-50 transition-colors">
-                <td className="py-4 px-2">
-                  <p className="font-bold text-[#0A1128]">Alex Mansouri - Attendance concern</p>
-                  <p className="text-xs text-gray-500">Individual message to Ahmed Al-Mansouri</p>
-                </td>
-                <td className="py-4 px-2 text-right text-xs text-gray-400 font-medium">1 day ago</td>
-              </tr>
+              {recentComms.map((comm) => (
+                <tr key={comm.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="py-4 px-2">
+                    <p className="font-bold text-[#0A1128] truncate max-w-xs">{comm.content}</p>
+                    <p className="text-[10px] text-gray-500">To: {comm.recipient_name} • Type: {comm.type}</p>
+                  </td>
+                  <td className="py-4 px-2 text-right text-xs text-gray-400 font-medium">
+                    {new Date(comm.created_at).toLocaleString()}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -366,7 +453,6 @@ const ParentPortal = () => {
               <span className="ml-2 text-sm font-bold text-[#0A1128]">All</span>
             </label>
 
-            {/* إظهار هذه الخيارات فقط إذا كنا في قسم Smart */}
             {chatType === 'smart' && (
               <>
                 <label className="flex items-center cursor-pointer">
@@ -384,7 +470,6 @@ const ParentPortal = () => {
               </>
             )}
 
-            {/* إظهار هذه الخيارات فقط إذا كنا في قسم Staff */}
             {chatType === 'staff' && (
               <>
                 <label className="flex items-center cursor-pointer">
@@ -397,7 +482,6 @@ const ParentPortal = () => {
                 </label>
               </>
             )}
-
           </div>
         </div>
         <div>
@@ -430,7 +514,6 @@ const ParentPortal = () => {
   const renderChatView = () => {
     let chatTitle = 'Chat View';
     let isBulkChat = false;
-    let emergencyIcon = null;
 
     if (chatType === 'parent' || chatType === 'student' || chatType === 'staff_individual' || chatType === 'student_individual') {
       chatTitle = selectedRecipient?.name || 'Ahmed Al-Mansouri';
@@ -440,39 +523,20 @@ const ParentPortal = () => {
     } else if (chatType === 'staff') {
       chatTitle = 'Sending to All School Staff';
       isBulkChat = true;
-    } else if (chatType === 'emergency') {
-      chatTitle = 'CRITICAL: Urgent Emergency Notification';
-      emergencyIcon = <span className="text-red-600 mr-3 text-2xl">⚠️</span>;
-      isBulkChat = true;
     }
 
-    const handleSendMessage = async () => {
-      if (!newMessage.trim()) return;
-      
-      // 💡 هنا سقمنا الكود باش يبعث Emergency كي تكوني في قسم الطوارئ
-      const messageData = {
-        content: chatType === 'emergency' ? `🚨 EMERGENCY: ${newMessage}` : newMessage,
-        type: chatType, // staff_individual, parent, smart...
-        recipient_name: selectedRecipient?.name || 'Bulk Message',
-        recipient_id: selectedRecipient?.id || 'all'
-      };
-    
-      const { data, error } = await supabase
-        .from('communications')
-        .insert([messageData])
-        .select(); 
-    
-      if (!error) {
-        setNewMessage('');
-        if (data) setChatMessages([...chatMessages, data[0]]);
-      } else {
-        console.error("Error sending message:", error.message);
-      }
-    };
-
+    // 💡 الفيلتر الذكي
     const displayMessages = chatMessages.filter(msg => {
-      if (selectedRecipient) {
-        return msg.recipient_id === selectedRecipient.id;
+      if (selectedRecipient && currentUser) {
+        const myId = currentUser.id;
+        const theirId = selectedRecipient.id.toString();
+        
+        if (myId === theirId) {
+            return msg.sender_id === myId || msg.recipient_id === myId;
+        }
+
+        return (msg.sender_id === myId && msg.recipient_id === theirId) || 
+               (msg.sender_id === theirId && msg.recipient_id === myId);
       }
       return msg.type === chatType;
     });
@@ -486,16 +550,15 @@ const ParentPortal = () => {
             </button>
             {!isBulkChat && (
               <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mr-3 relative">
-                <img src="https://i.pravatar.cc/150?u=ahmed" alt="Ahmed" className="w-full h-full rounded-full object-cover" />
+                <span className="text-xl">👤</span>
                 <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white rounded-full"></span>
               </div>
             )}
-            {emergencyIcon}
             <div>
-             <h3 className={`font-bold ${chatType === 'emergency' ? 'text-red-600' : 'text-[#0A1128]'} text-base`}>
+             <h3 className={`font-bold text-[#0A1128] text-base`}>
               {chatTitle}
              </h3>
-              <p className="text-xs text-green-600 font-medium">System Ready</p>
+              <p className="text-xs text-green-600 font-medium">Online</p>
             </div>
           </div>
           <div className="flex space-x-3 text-gray-500">
@@ -513,10 +576,10 @@ const ParentPortal = () => {
             <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar flex flex-col">
               {displayMessages.length > 0 ? (
                 displayMessages.map((msg) => (
-                  <div key={msg.id} className="flex items-end justify-end space-x-2">
-                    <div className="bg-[#2563eb] text-white p-4 rounded-2xl rounded-br-sm max-w-md shadow-sm">
+                  <div key={msg.id} className={`flex ${msg.sender_id === currentUser?.id ? 'items-end justify-end' : 'items-start justify-start'} space-x-2`}>
+                    <div className={`${msg.sender_id === currentUser?.id ? 'bg-[#2563eb] text-white rounded-br-sm' : 'bg-white border text-[#0A1128] rounded-bl-sm'} p-4 rounded-2xl max-w-md shadow-sm`}>
                       <p className="text-sm leading-relaxed">{msg.content}</p>
-                      <span className="text-[10px] text-blue-200 mt-2 block text-right">
+                      <span className={`text-[10px] ${msg.sender_id === currentUser?.id ? 'text-blue-200' : 'text-gray-400'} mt-2 block text-right`}>
                         {new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                       </span>
                     </div>
@@ -537,33 +600,21 @@ const ParentPortal = () => {
                     </>
                   )}
                   {(chatType !== 'smart' && chatType !== 'staff' && chatType !== 'emergency') && (
-                    <p className="text-sm italic">No messages yet.</p>
+                    <p className="text-sm italic">No messages yet. Start the conversation!</p>
                   )}
                 </div>
               )}
             </div>
 
-            {chatType === 'emergency' && (
-              <div className="flex items-end justify-end space-x-2 p-6">
-                <div className="bg-[#fee2e2] text-red-900 border border-red-200 p-4 rounded-2xl rounded-br-sm max-w-md shadow-sm relative">
-                  <span className="absolute -left-2 -top-2 bg-red-600 text-white w-6 h-6 flex items-center justify-center rounded-full font-bold">!</span>
-                  <p className="text-sm font-bold leading-relaxed mb-1">EMERGENCY NOTICE: FACILITY CLOSURE</p>
-                  <p className="text-sm leading-relaxed">To All: Due to extreme weather, the facility is closed today. All classes (all levels) are moved online.</p>
-                  <span className="text-[10px] text-red-700 mt-2 block text-right">5:12 PM ✓✓</span>
-                </div>
-              </div>
-            )}
-
             <div className="p-4 bg-white border-t border-gray-200 shrink-0 m-4 rounded-2xl shadow-sm flex items-center relative z-20">
               <button className="text-gray-400 hover:text-gray-600 p-2 text-xl">+</button>
-              <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder={`Type your message here...`} className="flex-1 bg-transparent px-4 outline-none text-sm" />
-              <button onClick={handleSendMessage} className={`${chatType === 'emergency' ? 'bg-red-600 hover:bg-red-700' : 'bg-[#2563eb] hover:bg-blue-700'} text-white w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-colors`}>
+              <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} onKeyPress={(e)=> e.key === 'Enter' && handleSendMessage()} placeholder={`Type your message here...`} className="flex-1 bg-transparent px-4 outline-none text-sm" />
+              <button onClick={handleSendMessage} className={`bg-[#2563eb] hover:bg-blue-700 text-white w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-colors`}>
                 ➤
               </button>
             </div>
           </div>
 
-          {/* 💡 السايدبار اللي رجعنالوا الشرط الصحيح */}
           {selectedRecipient && (
             <div className="w-80 bg-white border-l border-gray-100 flex flex-col p-6 overflow-y-auto custom-scrollbar shrink-0">
               <div className="flex flex-col items-center justify-center mb-8 pt-4">
@@ -615,41 +666,37 @@ const ParentPortal = () => {
         <div className="w-full h-full flex flex-col">
           <div className="mb-6 shrink-0 border-b border-gray-200 pb-4">
             <h2 className="text-3xl font-bold text-[#0A1128] mb-1">Communication Portal</h2>
-            <p className="text-sm text-gray-500">Manage directories and student progress communication</p>
+            <p className="text-sm text-gray-500">Manage directories and school updates</p>
           </div>
 
           <div className="grid grid-cols-4 gap-6 mb-8 shrink-0">
             <div className="bg-white border border-gray-200/60 rounded-2xl p-5 shadow-sm flex justify-between items-start">
               <div>
-                <p className="text-gray-500 text-xs font-bold mb-1">Total Parents</p>
-                <p className="text-3xl font-bold text-[#0A1128] mb-1">345</p>
-                <p className="text-[10px] text-gray-400">Registered parents</p>
+                <p className="text-gray-500 text-xs font-bold mb-1 uppercase tracking-widest">Total Students</p>
+                <p className="text-3xl font-bold text-[#0A1128] mb-1">{studentsList.length}</p>
               </div>
               <span className="text-blue-500 text-lg">👥</span>
             </div>
             <div className="bg-white border border-gray-200/60 rounded-2xl p-5 shadow-sm flex justify-between items-start">
               <div>
-                <p className="text-gray-500 text-xs font-bold mb-1">Emergency Contacts</p>
-                <p className="text-3xl font-bold text-[#0A1128] mb-1">340</p>
-                <p className="text-[10px] text-gray-400">Available contacts</p>
+                <p className="text-gray-500 text-xs font-bold mb-1 uppercase tracking-widest">Staff Members</p>
+                <p className="text-3xl font-bold text-[#0A1128] mb-1">{staffList.length}</p>
               </div>
-              <span className="text-green-500 text-lg">📞</span>
+              <span className="text-green-500 text-lg">👨‍🏫</span>
             </div>
             <div className="bg-white border border-gray-200/60 rounded-2xl p-5 shadow-sm flex justify-between items-start">
               <div>
-                <p className="text-gray-500 text-xs font-bold mb-1">Bulk Messages</p>
-                <p className="text-3xl font-bold text-[#0A1128] mb-1">1,240</p>
-                <p className="text-[10px] text-gray-400">This month</p>
+                <p className="text-gray-500 text-xs font-bold mb-1 uppercase tracking-widest">Broadcasts</p>
+                <p className="text-3xl font-bold text-blue-600 mb-1">{announcements.length}</p>
               </div>
-              <span className="text-purple-500 text-lg">💬</span>
+              <span className="text-orange-500 text-lg">📢</span>
             </div>
             <div className="bg-white border border-gray-200/60 rounded-2xl p-5 shadow-sm flex justify-between items-start">
               <div>
-                <p className="text-gray-500 text-xs font-bold mb-1">Portal Active</p>
-                <p className="text-3xl font-bold text-[#0A1128] mb-1">89%</p>
-                <p className="text-[10px] text-gray-400">Parent engagement</p>
+                <p className="text-gray-500 text-xs font-bold mb-1 uppercase tracking-widest">Portal Status</p>
+                <p className="text-3xl font-bold text-green-600 mb-1">Active</p>
               </div>
-              <span className="text-orange-500 text-lg">📱</span>
+              <span className="text-green-400 text-lg">●</span>
             </div>
           </div>
 
@@ -757,7 +804,6 @@ const ParentPortal = () => {
             </div>
             <div className="p-8 overflow-y-auto custom-scrollbar">
               <form className="space-y-6">
-                {/* 💡 هنا ربطنا الانبوتس مع الـ State */}
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Title</label>
                   <input type="text" onChange={(e) => setAnnouncementForm({...announcementForm, title: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 outline-none text-sm focus:border-blue-500" />
@@ -802,9 +848,61 @@ const ParentPortal = () => {
                   </div>
                 </div>
                 <div className="pt-4">
-                  {/* 💡 هنا ربطنا قفلة النشر مع الدالة الحقيقية */}
                   <button type="button" onClick={handlePublishAnnouncement} className="w-full bg-[#2563eb] hover:bg-blue-700 text-white py-3.5 rounded-xl font-bold text-sm shadow-sm transition-colors">
                     Publish Announcement
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalView === 'newNotification' && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl animate-fade-in-up flex flex-col overflow-hidden border border-gray-100">
+            <div className="flex justify-between items-center p-6 border-b border-gray-100 bg-purple-50">
+              <div>
+                <h2 className="text-xl font-bold text-purple-900 mb-1">Send Notification 🔔</h2>
+                <p className="text-xs text-purple-600/70">Send an instant alert to specific groups or everyone</p>
+              </div>
+              <button onClick={() => setModalView(null)} className="text-gray-400 hover:text-black text-xl">✕</button>
+            </div>
+            <div className="p-8 overflow-y-auto custom-scrollbar">
+              <form className="space-y-6">
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Notification Title</label>
+                  <input type="text" onChange={(e) => setNotificationForm({...notificationForm, title: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 outline-none text-sm focus:border-purple-500" placeholder="e.g. Urgent: Class Rescheduled" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Message Content</label>
+                  <textarea rows="4" onChange={(e) => setNotificationForm({...notificationForm, content: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 outline-none text-sm focus:border-purple-500 resize-none" placeholder="Type your notification here..."></textarea>
+                </div>
+                
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Send To (Target Audience)</label>
+                  <div className="flex space-x-6 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                    <label className="flex items-center cursor-pointer">
+                      <input type="checkbox" className="w-4 h-4 text-purple-600 rounded" />
+                      <span className="ml-2 text-sm font-bold text-[#0A1128]">Students</span>
+                    </label>
+                    <label className="flex items-center cursor-pointer">
+                      <input type="checkbox" className="w-4 h-4 text-purple-600 rounded" />
+                      <span className="ml-2 text-sm font-bold text-[#0A1128]">Teachers</span>
+                    </label>
+                    <label className="flex items-center cursor-pointer">
+                      <input type="checkbox" className="w-4 h-4 text-purple-600 rounded" />
+                      <span className="ml-2 text-sm font-bold text-[#0A1128]">Parents</span>
+                    </label>
+                    <label className="flex items-center cursor-pointer">
+                      <input type="checkbox" className="w-4 h-4 text-purple-600 rounded" />
+                      <span className="ml-2 text-sm font-bold text-[#0A1128]">Staff</span>
+                    </label>
+                  </div>
+                </div>
+                <div className="pt-4">
+                  <button type="button" onClick={handleSendNotification} className="w-full bg-[#9333ea] hover:bg-purple-700 text-white py-3.5 rounded-xl font-bold text-sm shadow-sm transition-colors">
+                    Send Notification Now
                   </button>
                 </div>
               </form>

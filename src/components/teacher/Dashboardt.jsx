@@ -17,6 +17,11 @@ const Dashboardt = () => {
   const [studentsProgress, setStudentsProgress] = useState([]);
   const [dailyTasks, setDailyTasks] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // 💡 States تاع الإشعارات
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showNotifications, setShowNotifications] = useState(false); 
+  const [notificationsList, setNotificationsList] = useState([]); 
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -24,21 +29,16 @@ const Dashboardt = () => {
   };
 
   // ==========================================
-  // 💡 Fetch dynamic data from Supabase (Real Auth 100%)
-  // ==========================================
-  // ==========================================
-  // 💡 Fetch dynamic data from Supabase (Real Auth + Real Students)
+  // 💡 Fetch dynamic data from Supabase 
   // ==========================================
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       
       try {
-        // 1. نجيبو اليوزر اللي راهو مكونيكتي
         const { data: { user } } = await supabase.auth.getUser();
 
         if (user && user.email) {
-          // 2. نجيبو معلومات الأستاذ من طابلو 'staff' 
           const { data: teacherData } = await supabase
             .from('staff')
             .select('*')
@@ -48,19 +48,17 @@ const Dashboardt = () => {
           if (teacherData) {
             setTeacherInfo(teacherData);
             
-            // نركبو الاسم باش نحوسو بيه في طابلو classes
             const currentTeacherName = `${teacherData.first_name} ${teacherData.last_name}`.trim();
 
-            // 3. نجيبو الأقسام تاع هاد الأستاذ
             const { data: classesData } = await supabase
               .from('classes')
               .select('*')
               .eq('teacher_name', currentTeacherName); 
 
-            let classNamesList = []; // 💡 نخبيو أسماء الأقسام هنا باش نجبدو بيهم الطلبة مبعد
+            let classNamesList = []; 
 
             if (classesData && classesData.length > 0) {
-              classNamesList = classesData.map(c => c.name); // مثلا: ['grp3', 'English A1 - Group 3']
+              classNamesList = classesData.map(c => c.name); 
 
               const colors = ['bg-[#C5B8D8] text-[#35254A]', 'bg-[#E5D2A6] text-[#4A3A17]', 'bg-[#A4C2D1] text-[#1F3340]', 'bg-[#A9C4A3] text-[#23331E]'];
               
@@ -76,12 +74,9 @@ const Dashboardt = () => {
               setMyClasses([]); 
             }
 
-            // ==========================================
-            // 💡 4. نجيبو الطلبة (Students) تاع هاد الأستاذ بالذات
-            // ==========================================
+            // Fetch Students
             if (classNamesList.length > 0) {
-              // نجيبو غير الطلبة اللي الـ group_name ديالهم يطابق أقسام الأستاذ
-              const { data: studentsData, error: studentsError } = await supabase
+              const { data: studentsData } = await supabase
                 .from('students')
                 .select('*')
                 .in('group_name', classNamesList); 
@@ -91,7 +86,7 @@ const Dashboardt = () => {
                   name: `${s.first_name || ''} ${s.last_name || ''}`.trim(),
                   course: s.language || s.group_name || "Course",
                   level: s.level || "N/A",
-                  grade: "-", // 💡 النقاط مازال مادخلتيهمش في الداتا باز، نديرو مطة مؤقتاً
+                  grade: "-", 
                   status: s.status === 'Active' ? "ACTIVE" : (s.status || "PENDING").toUpperCase(),
                   color: s.status === 'Active' ? "text-[#38A169]" : "text-[#DD6B20]"
                 }));
@@ -100,14 +95,31 @@ const Dashboardt = () => {
                 setStudentsProgress(getFallbackProgress());
               }
             } else {
-              setStudentsProgress(getFallbackProgress()); // إذا الأستاذ ما عندوش أقسام
+              setStudentsProgress(getFallbackProgress()); 
             }
+
+            // 💡 نجيبو الإشعارات باش نعمرو القائمة
+            const { data: notifData } = await supabase
+              .from('communications')
+              .select('*')
+              .in('type', ['announcement', 'notification'])
+              .order('created_at', { ascending: false });
+
+            if (notifData) {
+              const myNotifs = notifData.filter(a => {
+                const target = a.recipient_name?.toLowerCase() || '';
+                const isForMe = target.includes('all community') || target.includes('teachers') || target.includes('staff') || target.includes('all');
+                return isForMe && a.sender_id !== teacherData.id;
+              });
+              setUnreadCount(myNotifs.length); 
+              setNotificationsList(myNotifs);
+            }
+
           }
         } else {
           console.warn("No authenticated user found. Please login.");
         }
 
-        // --- Fetch Daily Tasks ---
         const { data: tasksData } = await supabase.from('tasks').select('*').limit(2);
         if (tasksData && tasksData.length > 0) {
           setDailyTasks(tasksData);
@@ -138,14 +150,9 @@ const Dashboardt = () => {
     { id: 2, title: "Submit Attendance", subTitle: "Morning Session", date: "Completed: 09:30 AM", status: "Completed", borderColor: "border-[#48BB78]", tagBg: "bg-[#C6F6D5]", tagText: "text-[#48BB78]" }
   ];
 
-  // 💡 عرض الاسم الصحيح الفوق 
   const teacherName = teacherInfo ? `Prof. ${teacherInfo.first_name} ${teacherInfo.last_name}` : "Teacher Name";
 
-  // ==========================================
-  // هاد الدالة ترسم المحتوى حسب واش خيرتي في Sidebar
-  // ==========================================
   const renderMainContent = () => {
-    
     if (activeTab === 'My Classes') {
       return (
         <div className="flex-1 min-w-[650px] flex flex-col space-y-6 animate-fade-in">
@@ -153,7 +160,6 @@ const Dashboardt = () => {
         </div>
       );
     }
-    
     if (activeTab === 'Messages') {
       return (
        <div className="flex-1 flex flex-col animate-fade-in h-full">
@@ -161,12 +167,10 @@ const Dashboardt = () => {
        </div>
       );
     }
-    
     if (activeTab === 'Classroom Tasks') {
       return <ClassroomTasks />;
     }
 
-    // الديزاين الأصلي (Dashboard)
     return (
       <div className="flex-1 min-w-[650px] flex flex-col space-y-6 animate-fade-in">
         <div className="flex justify-between items-end">
@@ -258,7 +262,7 @@ const Dashboardt = () => {
   };
 
   return (
-    <div className="flex h-screen bg-[#F4F7FE] font-sans text-[#1B254B] overflow-hidden">
+    <div className="flex h-screen bg-[#F4F7FE] font-sans text-[#1B254B] overflow-hidden relative">
       
       <aside className="w-[250px] bg-[#111C44] text-[#A3AED0] flex flex-col justify-between shrink-0 overflow-y-auto custom-scrollbar shadow-2xl z-20">
         <div>
@@ -295,9 +299,9 @@ const Dashboardt = () => {
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col overflow-hidden">
+      <main className="flex-1 flex flex-col overflow-hidden relative">
         
-        <header className="h-20 px-8 flex justify-between items-center bg-white/50 backdrop-blur-md border-b border-gray-100 shrink-0 z-10 sticky top-0">
+        <header className="h-20 px-8 flex justify-between items-center bg-white/50 backdrop-blur-md border-b border-gray-100 shrink-0 z-10 sticky top-0 relative">
           <div className="relative w-96">
             <span className="absolute left-4 top-2.5 text-gray-400">🔍</span>
             <input 
@@ -308,11 +312,82 @@ const Dashboardt = () => {
           </div>
           
           <div className="flex items-center space-x-6">
-            <div className="relative cursor-pointer group">
-              <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center border border-gray-200 shadow-sm text-gray-500 group-hover:text-[#4318FF] transition-colors">
-                🔔
+            
+            {/* 💡 Bell Icon & Dropdown Container */}
+            <div className="relative">
+              {/* 💡 الـ Overlay الخفي باش كي نكليكيو برا تتغلق القائمة */}
+              {showNotifications && (
+                <div 
+                  className="fixed inset-0 z-40" 
+                  onClick={() => setShowNotifications(false)}
+                ></div>
+              )}
+
+              <div 
+                className="relative cursor-pointer group z-50"
+                onClick={() => {
+                  setShowNotifications(!showNotifications); // يفتح ويغلق القائمة
+                  setUnreadCount(0); // 💡 هادي هي اللي تنحي الرقم الأحمر غير تكليكي
+                }} 
+              >
+                <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center border border-gray-200 shadow-sm text-xl text-gray-500 group-hover:text-[#4318FF] group-hover:shadow-md transition-all">
+                  🔔
+                </div>
+                
+                {/* 💡 تبان الدويرة الحمرا غير إلا كان كاين إشعارات */}
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[20px] h-[20px] px-1 bg-red-500 rounded-full border-2 border-white flex items-center justify-center text-[10px] text-white font-bold shadow-sm animate-pulse">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
               </div>
-              <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
+
+              {/* 💡 القائمة المنسدلة تاع الإشعارات (Dropdown Panel) */}
+              {showNotifications && (
+                <div className="absolute right-0 top-[130%] w-[350px] bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden origin-top-right transition-all">
+                  {/* Header تاع الإشعارات */}
+                  <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                    <button 
+                      onClick={() => { setUnreadCount(0); setShowNotifications(false); }} 
+                      className="text-[10px] font-bold text-[#4318FF] hover:underline tracking-wider"
+                    >
+                      MARK ALL READ
+                    </button>
+                    <h3 className="text-sm font-bold text-[#1B254B]">Notifications / الإشعارات</h3>
+                  </div>
+
+                  {/* المحتوى (لائحة الإشعارات) */}
+                  <div className="max-h-[320px] overflow-y-auto custom-scrollbar flex flex-col text-right">
+                    {notificationsList.length > 0 ? (
+                      notificationsList.map((notif, idx) => {
+                        // 💡 تغيير الأيقونة حسب نوع الإشعار
+                        let icon = '🔔';
+                        let iconBg = 'bg-blue-50 text-blue-500';
+                        if (notif.type === 'notification' || notif.type === 'emergency') { icon = '⚠️'; iconBg = 'bg-red-50 text-red-500'; }
+                        if (notif.type === 'announcement') { icon = '📢'; iconBg = 'bg-orange-50 text-orange-500'; }
+
+                        return (
+                          <div key={idx} onClick={() => { setActiveTab('Messages'); setShowNotifications(false); }} className="p-4 border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer flex flex-row-reverse gap-4 items-start">
+                            <div className={`w-10 h-10 rounded-full ${iconBg} flex items-center justify-center text-lg shrink-0 shadow-sm`}>
+                              {icon}
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-[13px] font-bold text-[#1B254B] mb-1">{notif.subject || 'New Update'}</p>
+                              <p className="text-[11px] text-gray-500 line-clamp-2 leading-relaxed">{notif.content}</p>
+                              <p className="text-[9px] text-gray-400 mt-2 font-medium">{new Date(notif.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} • {new Date(notif.created_at).toLocaleDateString()}</p>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="p-8 text-center text-gray-400">
+                        <span className="text-3xl mb-2 block">📭</span>
+                        <p className="text-sm font-medium">No new notifications</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center pl-6 border-l border-gray-200">

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../../supabaseClient';
 
 const Icons = {
   TrendingUp: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>,
@@ -7,13 +8,106 @@ const Icons = {
 };
 
 const StudentGradeReport = () => {
-  const grades = [
-    { id: "01", course: "English Grammar", level: "B2", date: "20 May 2026", grade: "18/20", status: "Excellent", statusColor: "text-green-500 bg-green-50" },
-    { id: "02", course: "French Intermediate", level: "B1", date: "15 May 2026", grade: "14/20", status: "Good", statusColor: "text-blue-500 bg-blue-50" },
-    { id: "03", course: "Spanish Basics", level: "A2", date: "10 May 2026", grade: "12/20", status: "Almost Good", statusColor: "text-purple-500 bg-purple-50" },
-    { id: "04", course: "German Beginner", level: "A1", date: "02 May 2026", grade: "08/20", status: "Needs Work", statusColor: "text-orange-500 bg-orange-50" },
-    { id: "05", course: "Italian Conversation", level: "B1", date: "28 Apr 2026", grade: "19/20", status: "Excellent", statusColor: "text-green-500 bg-green-50" },
-  ];
+  const [gradesData, setGradesData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [average, setAverage] = useState(0);
+
+  // ==========================================
+  // 💡 Fetch Grades from Supabase
+  // ==========================================
+  useEffect(() => {
+    const fetchGrades = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        // 1. نجيبو اسم الطالب
+        const { data: student } = await supabase
+          .from('students')
+          .select('first_name, last_name, level')
+          .eq('email', user.email)
+          .single();
+
+        if (student) {
+          const fullName = `${student.first_name || ''} ${student.last_name || ''}`.trim();
+
+          // 2. نجيبو النقاط تاع الطالب
+          const { data: grades, error } = await supabase
+            .from('grades')
+            .select('*')
+            .eq('student_name', fullName)
+            .order('created_at', { ascending: false });
+
+          if (grades && grades.length > 0) {
+            let totalMarksOn20 = 0;
+            let validGradesCount = 0;
+
+            const formattedGrades = grades.map((g, idx) => {
+              // 💡 اللوجيك الذكي لحساب النقطة
+              let mark = 0;
+              
+              // نشوفو إذا النقطة كاينة في score (أولوية)
+              if (g.score !== null && g.score !== undefined && g.score !== '') {
+                mark = parseFloat(g.score);
+              } 
+              // وإذا ماكانتش، نشوفو في grade ونفيتيو الحروف كيما 'F' ولا 'P'
+              else if (g.grade !== null && g.grade !== undefined) {
+                const parsed = parseFloat(g.grade);
+                if (!isNaN(parsed)) mark = parsed;
+              }
+
+              // نجيبو النقطة القصوى max_grade، وإذا مكانش نعتبروها 20
+              let max = parseFloat(g.max_grade) || 20;
+
+              // نحولو النقطة لتولي على 20 باش يجي الحساب مريڨل
+              let markOn20 = (mark / max) * 20;
+
+              totalMarksOn20 += markOn20;
+              validGradesCount++;
+
+              // تقييم الحالة واللون أوتوماتيكياً
+              let status = "Needs Work";
+              let statusColor = "text-orange-500 bg-orange-50";
+              
+              if (markOn20 >= 16) { status = "Excellent"; statusColor = "text-green-500 bg-green-50"; }
+              else if (markOn20 >= 14) { status = "Good"; statusColor = "text-blue-500 bg-blue-50"; }
+              else if (markOn20 >= 10) { status = "Average"; statusColor = "text-purple-500 bg-purple-50"; }
+
+              // تريڨال الفاصلة (إذا عدد صحيح ما نكتبوش .00)
+              const displayGrade = Number.isInteger(markOn20) ? markOn20 : markOn20.toFixed(2);
+
+              return {
+                id: idx < 9 ? `0${idx + 1}` : `${idx + 1}`,
+                course: g.course || g.exam_title || 'Language Course',
+                level: student.level || 'N/A',
+                date: new Date(g.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+                grade: `${displayGrade}/20`,
+                status,
+                statusColor
+              };
+            });
+
+            setGradesData(formattedGrades);
+            
+            // حساب المعدل العام
+            if (validGradesCount > 0) {
+              const avg = (totalMarksOn20 / validGradesCount).toFixed(2);
+              setAverage(avg);
+            }
+          } else {
+            setGradesData([]);
+            setAverage(0);
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching grades:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchGrades();
+  }, []);
 
   return (
     <div className="flex-1 flex flex-col xl:flex-row gap-10 animate-fadeIn pr-2 pb-12">
@@ -26,7 +120,7 @@ const StudentGradeReport = () => {
           <div className="z-10 w-full md:w-3/5">
             <h2 className="text-3xl font-black text-[#1B254B] mb-4 uppercase tracking-tighter leading-none">Academic Transcript</h2>
             <p className="text-[#1B254B]/60 text-sm mb-10 leading-relaxed font-bold max-w-lg uppercase tracking-widest opacity-70">
-              Validated performance metrics for the current term. You have maintained an elite standing in your proficiency tracks.
+              Validated performance metrics for the current term. Monitor your proficiency tracks and overall standing.
             </p>
             <button className="bg-[#111C44] text-white px-10 py-4 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] shadow-2xl hover:bg-black transition-all">
               Request Official Copy
@@ -40,7 +134,7 @@ const StudentGradeReport = () => {
            <div className="bg-white p-8 rounded-[40px] shadow-sm border border-gray-50 flex items-center justify-between group hover:shadow-lg transition-all">
              <div>
                 <p className="text-[10px] uppercase font-black text-[#A3AED0] tracking-[0.2em] mb-2">Aggregate average</p>
-                <p className="text-3xl font-black text-[#4318FF] italic">16.5 / 20</p>
+                <p className="text-3xl font-black text-[#4318FF] italic">{average} / 20</p>
              </div>
              <div className="w-14 h-14 bg-[#F4F7FE] rounded-2xl flex items-center justify-center text-[#4318FF] shadow-inner group-hover:scale-110 transition-transform">
                 <Icons.TrendingUp />
@@ -50,7 +144,7 @@ const StudentGradeReport = () => {
            <div className="bg-white p-8 rounded-[40px] shadow-sm border border-gray-50 flex items-center justify-between group hover:shadow-lg transition-all">
              <div>
                 <p className="text-[10px] uppercase font-black text-[#A3AED0] tracking-[0.2em] mb-2">Class Standing</p>
-                <p className="text-3xl font-black text-[#1B254B] tracking-tighter uppercase italic">04th Place</p>
+                <p className="text-3xl font-black text-[#1B254B] tracking-tighter uppercase italic">{average >= 14 ? 'Top 10%' : 'Average'}</p>
              </div>
              <div className="w-14 h-14 bg-[#F4F7FE] rounded-2xl flex items-center justify-center text-[#FFB547] shadow-inner group-hover:scale-110 transition-transform">
                 <Icons.Award />
@@ -70,53 +164,63 @@ const StudentGradeReport = () => {
             </div>
           </div>
 
-          <div className="overflow-x-auto custom-scrollbar">
-            <table className="w-full text-left border-collapse min-w-[700px]">
-              <thead>
-                <tr className="text-[#A3AED0] text-[10px] font-black uppercase tracking-[0.3em] border-b border-gray-100">
-                  <th className="pb-6 pl-4">#</th>
-                  <th className="pb-6">Course Path</th>
-                  <th className="pb-6 text-center">Level</th>
-                  <th className="pb-6 text-center">Mark</th>
-                  <th className="pb-6 text-center">Evaluation</th>
-                  <th className="pb-6 pr-4 text-right">View</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {grades.map((item) => (
-                  <tr key={item.id} className="hover:bg-gray-50/50 transition-all group">
-                    <td className="py-7 pl-4 text-xs font-black text-[#A3AED0]">{item.id}</td>
-                    <td className="py-7">
-                      <span className="text-[15px] font-black text-[#1B254B] uppercase tracking-tight">{item.course}</span>
-                      <p className="text-[9px] font-bold text-[#A3AED0] uppercase tracking-widest mt-1">Verified Record</p>
-                    </td>
-                    <td className="py-7 text-center">
-                      <span className="text-xs font-black text-[#707EAE] uppercase tracking-widest">{item.level}</span>
-                    </td>
-                    <td className="py-7 text-center">
-                      <span className="text-xl font-black text-[#1B254B] italic tracking-tighter leading-none">{item.grade}</span>
-                    </td>
-                    <td className="py-7 text-center">
-                      <span className={`px-5 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-sm ${item.statusColor}`}>
-                        {item.status}
-                      </span>
-                    </td>
-                    <td className="py-7 pr-4 text-right">
-                        <button className="w-10 h-10 inline-flex items-center justify-center bg-[#F4F7FE] rounded-xl text-[#4318FF] hover:bg-[#4318FF] hover:text-white transition-all shadow-sm">
-                            <Icons.ExternalLink />
-                        </button>
-                    </td>
+          {loading ? (
+            <div className="py-20 text-center font-black text-[#A3AED0] animate-pulse uppercase tracking-widest">Loading Grades...</div>
+          ) : gradesData.length > 0 ? (
+            <div className="overflow-x-auto custom-scrollbar">
+              <table className="w-full text-left border-collapse min-w-[700px]">
+                <thead>
+                  <tr className="text-[#A3AED0] text-[10px] font-black uppercase tracking-[0.3em] border-b border-gray-100">
+                    <th className="pb-6 pl-4">#</th>
+                    <th className="pb-6">Course Path</th>
+                    <th className="pb-6 text-center">Level</th>
+                    <th className="pb-6 text-center">Mark</th>
+                    <th className="pb-6 text-center">Evaluation</th>
+                    <th className="pb-6 pr-4 text-right">View</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {gradesData.map((item) => (
+                    <tr key={item.id} className="hover:bg-gray-50/50 transition-all group">
+                      <td className="py-7 pl-4 text-xs font-black text-[#A3AED0]">{item.id}</td>
+                      <td className="py-7">
+                        <span className="text-[15px] font-black text-[#1B254B] uppercase tracking-tight">{item.course}</span>
+                        <p className="text-[9px] font-bold text-[#A3AED0] uppercase tracking-widest mt-1">Verified Record</p>
+                      </td>
+                      <td className="py-7 text-center">
+                        <span className="text-xs font-black text-[#707EAE] uppercase tracking-widest">{item.level}</span>
+                      </td>
+                      <td className="py-7 text-center">
+                        <span className="text-xl font-black text-[#1B254B] italic tracking-tighter leading-none">{item.grade}</span>
+                      </td>
+                      <td className="py-7 text-center">
+                        <span className={`px-5 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-sm ${item.statusColor}`}>
+                          {item.status}
+                        </span>
+                      </td>
+                      <td className="py-7 pr-4 text-right">
+                          <button className="w-10 h-10 inline-flex items-center justify-center bg-[#F4F7FE] rounded-xl text-[#4318FF] hover:bg-[#4318FF] hover:text-white transition-all shadow-sm">
+                              <Icons.ExternalLink />
+                          </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="py-10 text-center text-gray-400 font-bold uppercase tracking-widest">
+               No grades published for you yet.
+            </div>
+          )}
         </div>
       </div>
 
       {/* RIGHT SIDEBAR */}
       <div className="w-full xl:w-[350px] shrink-0 flex flex-col space-y-10">
-        <div className="text-right text-[10px] font-black text-[#A3AED0] uppercase tracking-[0.3em]">Tuesday, 14 Apr 2026</div>
+        <div className="text-right text-[10px] font-black text-[#A3AED0] uppercase tracking-[0.3em]">
+           {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+        </div>
 
         {/* PROGRESS CARD */}
         <div className="bg-white p-10 rounded-[45px] shadow-sm border border-gray-50">
@@ -137,12 +241,15 @@ const StudentGradeReport = () => {
           <h4 className="text-[11px] font-black text-[#1B254B] uppercase mb-10 tracking-[0.2em] text-center border-b pb-4">Academic Status</h4>
           <div className="space-y-8">
             <div className="flex items-center gap-5">
-              <div className="w-3 h-3 rounded-full bg-[#01B574] shadow-[0_0_10px_rgba(1,181,116,0.4)]"></div>
-              <span className="text-xs font-black text-[#1B254B] uppercase tracking-widest">Dean's List Eligible</span>
+              <div className={`w-3 h-3 rounded-full ${average >= 14 ? 'bg-[#01B574] shadow-[0_0_10px_rgba(1,181,116,0.4)]' : 'bg-orange-400 shadow-[0_0_10px_rgba(251,146,60,0.4)]'}`}></div>
+              <span className="text-xs font-black text-[#1B254B] uppercase tracking-widest">
+                 {average >= 14 ? "Dean's List Eligible" : "Regular Standing"}
+              </span>
             </div>
             <div className="p-8 bg-[#F4F7FE] rounded-[35px] border border-[#4318FF]/5">
               <p className="text-[11px] font-bold text-[#A3AED0] leading-relaxed uppercase tracking-tight text-center">
-                Your GPA of <span className="text-[#4318FF] font-black tracking-normal">16.5</span> currently qualifies you for the academic excellence citation.
+                Your GPA of <span className="text-[#4318FF] font-black tracking-normal">{average}</span> 
+                {average >= 14 ? " currently qualifies you for the academic excellence citation." : " requires improvement for academic excellence citation."}
               </p>
             </div>
           </div>

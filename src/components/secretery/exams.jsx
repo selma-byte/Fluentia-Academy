@@ -10,20 +10,26 @@ const Exams = ({ examView, setExamView }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All Status');
 
+  // 💡 States للاقسام والأساتذة من الداتا باز
+  const [classesData, setClassesData] = useState([]);
+  const [teachersData, setTeachersData] = useState([]);
+
   // State لمعلومات الامتحان اللي رانا نكرييو فيه
   const [newExam, setNewExam] = useState({
     title: '',
-    subject: 'Mathematics',
-    class_name: '9 Niaz',
+    subject: 'English',
+    class_name: '',
+    teacher_id: '', 
     duration: 60,
     instructions: ''
   });
 
-  // 💡 State جديدة لنتائج الامتحانات (من عند الأستاذ)
   const [resultsData, setResultsData] = useState([]);
+  const [selectedResultExam, setSelectedResultExam] = useState('');
+  const [resultStats, setResultStats] = useState({ total: 0, completed: 0, avg: 0, passRate: 0 });
 
   // =======================================
-  // 1. جلب الامتحانات من قاعدة البيانات
+  // 1. جلب البيانات من قاعدة البيانات
   // =======================================
   const fetchExams = async () => {
     setLoading(true);
@@ -38,36 +44,85 @@ const Exams = ({ examView, setExamView }) => {
     setLoading(false);
   };
 
-  // 💡 جلب النتائج من قاعدة البيانات (طابلو grades)
+  const fetchClassesAndTeachers = async () => {
+    const { data: cData } = await supabase.from('classes').select('*');
+    if (cData) {
+      setClassesData(cData);
+      if (cData.length > 0) setNewExam(prev => ({ ...prev, class_name: cData[0].name }));
+    }
+
+    const { data: tData } = await supabase.from('staff').select('*');
+    if (tData) {
+      setTeachersData(tData);
+      if (tData.length > 0) setNewExam(prev => ({ ...prev, teacher_id: tData[0].id }));
+    }
+  };
+
   const fetchExamResults = async (examTitle) => {
+    if (!examTitle) return;
     try {
-      // نفترضو بلي ملاك والأستاذ يعمرو طابلو فيه score و student_id
+      // 💡 جلب النتائج بطريقة مباشرة تضمن عرض الأسماء حتى لو فشل الربط المعقد
       const { data, error } = await supabase
         .from('grades')
-        .select('*, students(name, student_id)')
+        .select('*')
         .eq('exam_title', examTitle);
         
+      if (error) {
+        console.error("🚨 Supabase Error:", error);
+        return;
+      }
+
       if (data && data.length > 0) {
         setResultsData(data);
+        const total = data.length;
+        const completed = data.filter(d => d.score != null).length;
+        let sumScores = 0;
+        let passedCount = 0;
+        
+        data.forEach(d => {
+          const scoreNum = parseFloat(d.score) || 0;
+          sumScores += scoreNum;
+          if (scoreNum >= 50 || d.status === 'Passed') passedCount++;
+        });
+
+        setResultStats({
+          total,
+          completed,
+          avg: total ? (sumScores / total).toFixed(1) : 0,
+          passRate: total ? ((passedCount / total) * 100).toFixed(1) : 0
+        });
+      } else {
+        setResultsData([]);
+        setResultStats({ total: 0, completed: 0, avg: 0, passRate: 0 });
       }
     } catch (err) {
-      console.log("No grades found yet or table missing", err);
+      console.log("Error fetching grades", err);
     }
   };
 
   useEffect(() => {
     fetchExams();
+    fetchClassesAndTeachers();
+  }, []);
+
+  useEffect(() => {
     if (examView === 'results') {
-      fetchExamResults('Mathematics Mid-Term Exam'); // مثال افتراضي
+      const completedExams = examsData.filter(e => e.status?.toLowerCase() === 'completed');
+      if (completedExams.length > 0 && !selectedResultExam) {
+        setSelectedResultExam(completedExams[0].title);
+        fetchExamResults(completedExams[0].title);
+      } else if (selectedResultExam) {
+        fetchExamResults(selectedResultExam);
+      }
     }
-  }, [examView]);
+  }, [examView, selectedResultExam, examsData]);
 
   // =======================================
-  // 💡 2. دالة حفظ الامتحان + التحقق من الجدول (Conflict Check)
+  // 2. دالة حفظ الامتحان + التحقق
   // =======================================
   const handleSaveExam = async () => {
-    if (!newExam.title) {
-      alert("Please enter the Exam Title!");
+    if (!newExam.title || !newExam.class_name || !newExam.teacher_id) {
+      alert("Please fill all required fields (Title, Class, Teacher)!");
       return;
     }
     
@@ -75,36 +130,35 @@ const Exams = ({ examView, setExamView }) => {
     try {
       const todayDate = new Date().toISOString().split('T')[0];
 
-      // 🚨 اللوجيك تاع Schedule: نفيريفيو إذا القسم محكوم!
       const { data: existingExams, error: checkError } = await supabase
         .from('exams')
         .select('*')
         .eq('class_name', newExam.class_name)
-        .eq('exam_date', todayDate); // نقدرو نزيدو حقل Date في الـ Form مستقبلاً
+        .eq('exam_date', todayDate);
 
       if (checkError) throw checkError;
 
-      // إذا لقينا امتحان لنفس القسم في نفس النهار، نحبسو الخدمة!
       if (existingExams && existingExams.length > 0) {
-        alert(`❌ Conflict! The class "${newExam.class_name}" already has an exam scheduled on this date. Please choose another class or date.`);
+        alert(`❌ Conflict! The class "${newExam.class_name}" already has an exam scheduled on this date.`);
         setLoading(false);
-        return; // ما يكملش الكود لتحت
+        return;
       }
 
-      // إذا القسم فارغ، نسجلو الامتحان في الداتا باز
       const { error } = await supabase.from('exams').insert([{
         title: newExam.title,
         subject: newExam.subject,
         class_name: newExam.class_name,
+        teacher_id: newExam.teacher_id,
         duration_minutes: parseInt(newExam.duration),
         status: 'Active', 
-        exam_date: todayDate 
+        exam_date: todayDate,
+        instructions: newExam.instructions
       }]);
 
       if (error) throw error;
       
       alert("✅ Exam Created Successfully!");
-      setNewExam({ title: '', subject: 'Mathematics', class_name: '9 Niaz', duration: 60, instructions: '' });
+      setNewExam({ title: '', subject: 'English', class_name: classesData[0]?.name || '', teacher_id: teachersData[0]?.id || '', duration: 60, instructions: '' });
       setCreateStep(1);
       setExamView('manage'); 
       fetchExams(); 
@@ -115,7 +169,17 @@ const Exams = ({ examView, setExamView }) => {
     }
   };
 
-  // دالة الحذف (Delete) 
+  const handleMarkAsCompleted = async (id) => {
+    if(window.confirm("Mark this exam as Completed? It will now appear in the Results section.")) {
+      const { error } = await supabase.from('exams').update({ status: 'Completed' }).eq('id', id);
+      if(!error) {
+        setExamsData(examsData.map(exam => exam.id === id ? { ...exam, status: 'Completed' } : exam));
+      } else {
+        alert("Error updating exam: " + error.message);
+      }
+    }
+  };
+
   const handleDeleteExam = async (id) => {
     if(window.confirm("Are you sure you want to delete this exam?")) {
       const { error } = await supabase.from('exams').delete().eq('id', id);
@@ -132,7 +196,6 @@ const Exams = ({ examView, setExamView }) => {
   const scheduledExams = examsData.filter(e => e.status?.toLowerCase() === 'scheduled').length;
   const completedExams = examsData.filter(e => e.status?.toLowerCase() === 'completed').length;
 
-  // فلترة الامتحانات في باجة الـ Manage
   const filteredExams = examsData.filter(exam => {
     const matchesSearch = (exam.title?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || 
                           (exam.subject?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || 
@@ -142,7 +205,7 @@ const Exams = ({ examView, setExamView }) => {
   });
 
   // =======================================
-  // 3. الصفحة الرئيسية للامتحانات (Dashboard)
+  // 3. الصفحة الرئيسية (Dashboard)
   // =======================================
   const renderHome = () => (
     <div className="animate-fade-in pb-10">
@@ -234,7 +297,7 @@ const Exams = ({ examView, setExamView }) => {
   );
 
   // =======================================
-  // 4. صفحة إدارة الامتحانات (Table View)
+  // 4. صفحة إدارة الامتحانات (Manage View)
   // =======================================
   const renderManageExams = () => (
     <div className="animate-fade-in pb-10 max-w-7xl mx-auto">
@@ -310,7 +373,7 @@ const Exams = ({ examView, setExamView }) => {
             {filteredExams.length === 0 ? ( 
               <tr><td colSpan="7" className="text-center py-10 text-gray-400 font-bold">No exams found.</td></tr>
             ) : (
-              filteredExams.map((row, i) => (
+              filteredExams.map((row) => (
                 <tr key={row.id} className="hover:bg-gray-50/50 transition-colors cursor-pointer">
                   <td className="py-4 px-4">
                     <p className="font-bold text-[#0A1128] text-[13px]">{row.title}</p>
@@ -329,8 +392,11 @@ const Exams = ({ examView, setExamView }) => {
                      <p className="text-xs text-gray-600 font-bold">{row.exam_date || 'TBD'}</p>
                   </td>
                   <td className="py-4 px-4 text-gray-400 space-x-3 text-sm text-center">
-                     <span className="hover:text-blue-600">✏️</span>
-                     <span className="hover:text-red-500" onClick={(e) => { e.stopPropagation(); handleDeleteExam(row.id); }}>🗑</span>
+                     {row.status?.toLowerCase() === 'active' && (
+                       <span className="hover:text-green-500 cursor-pointer mr-2" title="Mark as Completed" onClick={(e) => { e.stopPropagation(); handleMarkAsCompleted(row.id); }}>✅</span>
+                     )}
+                     <span className="hover:text-blue-600 cursor-pointer">✏️</span>
+                     <span className="hover:text-red-500 cursor-pointer" onClick={(e) => { e.stopPropagation(); handleDeleteExam(row.id); }}>🗑</span>
                   </td>
                 </tr>
               ))
@@ -342,7 +408,7 @@ const Exams = ({ examView, setExamView }) => {
   );
 
   // =======================================
-  // 5. صفحة إنشاء امتحان (Form View)
+  // 5. صفحة إنشاء امتحان (Create View)
   // =======================================
   const renderCreateExam = () => (
     <div className="animate-fade-in max-w-4xl mx-auto pb-10">
@@ -381,16 +447,29 @@ const Exams = ({ examView, setExamView }) => {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Class / Group</label>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Class / Group <span className="text-red-500">*</span></label>
                 <select value={newExam.class_name} onChange={e=>setNewExam({...newExam, class_name: e.target.value})} className="w-full bg-gray-100 border border-gray-200 rounded-xl px-5 py-3 outline-none focus:border-blue-500 text-sm font-bold cursor-pointer">
-                  <option>8 Liaqat</option><option>9 Niaz</option><option>A1 Group</option><option>B1 Group</option>
+                  <option value="">-- Select Class --</option>
+                  {classesData.map(c => (
+                    <option key={c.id} value={c.name}>{c.name}</option>
+                  ))}
                 </select>
               </div>
               <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Assign Teacher <span className="text-red-500">*</span></label>
+                <select value={newExam.teacher_id} onChange={e=>setNewExam({...newExam, teacher_id: e.target.value})} className="w-full bg-gray-100 border border-gray-200 rounded-xl px-5 py-3 outline-none focus:border-blue-500 text-sm font-bold cursor-pointer">
+                  <option value="">-- Select Teacher --</option>
+                  {teachersData.map(t => (
+                    <option key={t.id} value={t.id}>{t.first_name} {t.last_name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="col-span-2">
                 <label className="block text-sm font-bold text-gray-700 mb-2">Duration (minutes)</label>
                 <input type="number" value={newExam.duration} onChange={e=>setNewExam({...newExam, duration: e.target.value})} placeholder="60" className="w-full bg-gray-100 border border-gray-200 rounded-xl px-5 py-3 outline-none focus:border-blue-500 text-sm font-bold" />
               </div>
             </div>
+            
             <div className="mb-10">
               <label className="block text-sm font-bold text-gray-700 mb-2">Exam Instructions</label>
               <textarea value={newExam.instructions} onChange={e=>setNewExam({...newExam, instructions: e.target.value})} rows="4" placeholder="Instructions here..." className="w-full bg-gray-100 border border-gray-200 rounded-xl px-5 py-3 outline-none focus:border-blue-500 text-sm font-bold resize-none"></textarea>
@@ -398,7 +477,7 @@ const Exams = ({ examView, setExamView }) => {
             <div className="flex justify-between border-t border-gray-200 pt-8">
               <button className="text-gray-400 font-medium text-sm cursor-not-allowed">Previous</button>
               <button onClick={() => {
-                if(!newExam.title) { alert("Title is required!"); return; }
+                if(!newExam.title || !newExam.class_name || !newExam.teacher_id) { alert("Title, Class, and Teacher are required!"); return; }
                 setCreateStep(2);
               }} className="bg-[#0A1128] text-white px-8 py-3 rounded-xl text-sm font-bold hover:bg-blue-900 transition-colors cursor-pointer">Next Step</button>
             </div>
@@ -430,16 +509,11 @@ const Exams = ({ examView, setExamView }) => {
   );
 
   // =======================================
-  // 6. صفحة نتائج الامتحانات (تم دمجها مع قاعدة البيانات بذكاء)
+  // 6. صفحة نتائج الامتحانات (Results View)
   // =======================================
   const renderResults = () => {
-    // 💡 ذكاء: إذا الأستاذ مازال ما دخلش النقاط، نعرضو الداتا القديمة باش الديزاين ما يفسدش
-    const dataToDisplay = resultsData.length > 0 ? resultsData : [
-      { name: "Ahmad Ali", id: "9N001", score: "85/100", perc: 85, grade: "A", status: "Passed", time: "87m", sub: "10:27" },
-      { name: "Fatima Khan", id: "9N002", score: "92/100", perc: 92, grade: "A+", status: "Passed", time: "89m", sub: "10:29" },
-      { name: "Hassan Ahmed", id: "9N003", score: "68/100", perc: 68, grade: "B", status: "Passed", time: "90m", sub: "10:30" },
-      { name: "Aisha Malik", id: "9N004", score: "45/100", perc: 45, grade: "F", status: "Failed", time: "78m", sub: "10:18" },
-    ];
+    const completedExamsList = examsData.filter(e => e.status?.toLowerCase() === 'completed');
+    const currentExamDetails = completedExamsList.find(e => e.title === selectedResultExam);
 
     return (
       <div className="animate-fade-in pb-10">
@@ -449,8 +523,18 @@ const Exams = ({ examView, setExamView }) => {
         </div>
 
         <div className="flex justify-between items-center mb-8">
-          <select className="bg-transparent text-[#0A1128] font-bold text-base outline-none cursor-pointer w-80">
-            <option>Mathematics Mid-Term Exam - 9 Niaz</option>
+          <select 
+            value={selectedResultExam}
+            onChange={(e) => setSelectedResultExam(e.target.value)}
+            className="bg-transparent text-[#0A1128] font-bold text-base outline-none cursor-pointer w-80"
+          >
+            {completedExamsList.length === 0 ? (
+               <option value="">No completed exams yet</option>
+            ) : (
+               completedExamsList.map(exam => (
+                 <option key={exam.id} value={exam.title}>{exam.title} - {exam.class_name}</option>
+               ))
+            )}
           </select>
           <div className="flex space-x-6">
             <button className="text-sm font-bold text-gray-600 hover:text-black flex items-center cursor-pointer transition-colors">
@@ -466,52 +550,56 @@ const Exams = ({ examView, setExamView }) => {
           <div className="flex-1 px-6 flex justify-between items-center">
             <div>
               <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Total Students</p>
-              <p className="text-4xl font-bold text-[#0A1128] leading-none">35</p>
+              <p className="text-4xl font-bold text-[#0A1128] leading-none">{resultStats.total}</p>
             </div>
             <span className="text-blue-500 text-3xl opacity-90">👥</span>
           </div>
           <div className="flex-1 px-8 flex justify-between items-center">
             <div>
               <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Completed</p>
-              <p className="text-4xl font-bold text-[#0A1128] leading-none">33</p>
+              <p className="text-4xl font-bold text-[#0A1128] leading-none">{resultStats.completed}</p>
             </div>
             <span className="text-blue-400 text-3xl opacity-90">📄</span>
           </div>
           <div className="flex-1 px-8 flex justify-between items-center">
             <div>
               <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Average Score</p>
-              <p className="text-4xl font-bold text-[#0A1128] leading-none">76.5%</p>
+              <p className="text-4xl font-bold text-[#0A1128] leading-none">{resultStats.avg}%</p>
             </div>
             <span className="text-green-500 text-3xl opacity-90">📊</span>
           </div>
           <div className="flex-1 px-8 flex justify-between items-center">
             <div>
               <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Pass Rate</p>
-              <p className="text-4xl font-bold text-[#0A1128] leading-none">78.8%</p>
+              <p className="text-4xl font-bold text-[#0A1128] leading-none">{resultStats.passRate}%</p>
             </div>
             <span className="text-orange-500 text-3xl opacity-90">🏅</span>
           </div>
         </div>
 
-        <div className="mb-12 pl-2">
-          <h3 className="font-bold text-[#0A1128] text-xl mb-2">Mathematics Mid-Term Exam</h3>
-          <p className="text-sm text-gray-500 mb-8">Mathematics • 9 Niaz • Conducted on 20/12/2023</p>
-          
-          <div className="grid grid-cols-3 gap-6 text-base max-w-3xl">
-            <div>
-              <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-2">Duration</p>
-              <p className="font-bold text-[#0A1128] text-lg">90 minutes</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-2">Passing Score</p>
-              <p className="font-bold text-[#0A1128] text-lg">60%</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-2">Completion Rate</p>
-              <p className="font-bold text-[#0A1128] text-lg">94%</p>
+        {currentExamDetails && (
+          <div className="mb-12 pl-2">
+            <h3 className="font-bold text-[#0A1128] text-xl mb-2">{currentExamDetails.title}</h3>
+            <p className="text-sm text-gray-500 mb-8">{currentExamDetails.subject} • {currentExamDetails.class_name} • Conducted on {currentExamDetails.exam_date}</p>
+            
+            <div className="grid grid-cols-3 gap-6 text-base max-w-3xl">
+              <div>
+                <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-2">Duration</p>
+                <p className="font-bold text-[#0A1128] text-lg">{currentExamDetails.duration_minutes} minutes</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-2">Passing Score</p>
+                <p className="font-bold text-[#0A1128] text-lg">50%</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-2">Completion Rate</p>
+                <p className="font-bold text-[#0A1128] text-lg">
+                   {resultStats.total > 0 ? Math.round((resultStats.completed / resultStats.total) * 100) : 0}%
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         <div className="mb-6 bg-white/50 rounded-2xl p-5 border border-gray-100">
           <div className="mb-6 border-b border-gray-200 pb-4">
@@ -520,13 +608,13 @@ const Exams = ({ examView, setExamView }) => {
           </div>
           
           <div className="flex justify-between items-center mb-6">
-             <div className="relative w-80 bg-gray-50 rounded-lg">
-               <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-400 text-sm">🔍</span>
-               <input type="text" placeholder="Search students by name or ID..." className="w-full bg-transparent py-2.5 pl-10 pr-4 text-sm outline-none text-gray-600" />
-             </div>
-             <select className="bg-transparent border-none py-2 text-sm font-bold text-gray-600 outline-none cursor-pointer">
-               <option>All Grades</option>
-             </select>
+              <div className="relative w-80 bg-gray-50 rounded-lg">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-400 text-sm">🔍</span>
+                <input type="text" placeholder="Search students by name or ID..." className="w-full bg-transparent py-2.5 pl-10 pr-4 text-sm outline-none text-gray-600" />
+              </div>
+              <select className="bg-transparent border-none py-2 text-sm font-bold text-gray-600 outline-none cursor-pointer">
+                <option>All Grades</option>
+              </select>
           </div>
 
           <div className="overflow-x-auto">
@@ -538,38 +626,44 @@ const Exams = ({ examView, setExamView }) => {
                   <th className="py-4 px-3">Percentage</th>
                   <th className="py-4 px-3">Grade</th>
                   <th className="py-4 px-3">Status</th>
-                  <th className="py-4 px-3">Time Spent</th>
-                  <th className="py-4 px-3">Submission Time</th>
                   <th className="py-4 px-3 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {dataToDisplay.map((s, i) => (
-                  <tr key={i} className="hover:bg-gray-50/80 transition-colors">
-                    <td className="py-4 px-3">
-                      <p className="font-bold text-[#0A1128] text-base">{s.students?.name || s.name}</p>
-                      <p className="text-xs text-gray-500 mt-1">{s.students?.student_id || s.id}</p>
-                    </td>
-                    <td className="py-4 px-3 font-medium text-[#0A1128]">{s.score}</td>
-                    <td className="py-4 px-3">
-                      <div className="flex items-center">
-                        <span className="font-bold text-[#0A1128] w-10">{s.perc}%</span>
-                        <div className="w-10 h-2 bg-blue-600 rounded-full ml-2"></div>
-                      </div>
-                    </td>
-                    <td className={`py-4 px-3 font-bold ${s.grade === 'F' ? 'text-red-500' : 'text-green-500'}`}>{s.grade}</td>
-                    <td className="py-4 px-3">
-                       <span className={`px-3 py-1 text-xs font-bold uppercase rounded ${s.status === 'Failed' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
-                         {s.status}
-                       </span>
-                    </td>
-                    <td className="py-4 px-3 text-gray-500 flex items-center"><span className="mr-2 text-sm">⏱</span>{s.time}</td>
-                    <td className="py-4 px-3 text-gray-500">{s.sub}</td>
-                    <td className="py-4 px-3 text-center">
-                       <button className="text-gray-400 hover:text-[#0A1128] cursor-pointer text-lg">👁</button>
-                    </td>
-                  </tr>
-                ))}
+                {resultsData.length === 0 ? (
+                   <tr><td colSpan="6" className="text-center py-8 text-gray-400 font-bold">No results recorded yet for this exam.</td></tr>
+                ) : (
+                  resultsData.map((s, i) => {
+                    const studentName = s.student_name || 'Unknown Student';
+                    const studentId = s.student_id || '-';
+                    const scoreNum = parseFloat(s.score) || 0;
+                    
+                    return (
+                      <tr key={i} className="hover:bg-gray-50/80 transition-colors">
+                        <td className="py-4 px-3">
+                          <p className="font-bold text-[#0A1128] text-base">{studentName}</p>
+                          <p className="text-xs text-gray-500 mt-1">{studentId}</p>
+                        </td>
+                        <td className="py-4 px-3 font-medium text-[#0A1128]">{s.score != null ? `${s.score}/100` : '-'}</td>
+                        <td className="py-4 px-3">
+                          <div className="flex items-center">
+                            <span className="font-bold text-[#0A1128] w-10">{scoreNum}%</span>
+                            <div className="w-10 h-2 bg-blue-600 rounded-full ml-2"></div>
+                          </div>
+                        </td>
+                        <td className={`py-4 px-3 font-bold ${s.grade === 'F' ? 'text-red-500' : 'text-green-500'}`}>{s.grade || '-'}</td>
+                        <td className="py-4 px-3">
+                          <span className={`px-3 py-1 text-xs font-bold uppercase rounded ${s.status === 'Failed' || scoreNum < 50 ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
+                            {s.status || (scoreNum >= 50 ? 'Passed' : 'Failed')}
+                          </span>
+                        </td>
+                        <td className="py-4 px-3 text-center">
+                          <button className="text-gray-400 hover:text-[#0A1128] cursor-pointer text-lg">👁</button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
@@ -579,7 +673,7 @@ const Exams = ({ examView, setExamView }) => {
   };
 
   // =======================================
-  // 7. صفحة جدول الامتحانات (الكود الأصلي ديالك 100%)
+  // 7. صفحة جدول الامتحانات (Schedule View)
   // =======================================
   const renderSchedule = () => (
     <div className="animate-fade-in pb-10">

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../../supabaseClient';
 
 const Icons = {
   User: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>,
@@ -13,18 +14,22 @@ const Icons = {
 const AccountSettings = () => {
   const [selectedDoc, setSelectedDoc] = useState(null);
   const [showIdCard, setShowIdCard] = useState(false);
-  const [profile] = useState({
-    full_name: 'Harboula Selma',
-    student_id: 'STD-2098',
-    program: 'English (B2) / Spanish (B1)',
-    email: 'selma.har@fluentia.edu.dz',
-    phone: '+213 550 12 34 56',
-    dob: '10 SEP 2004',
-    gender: 'Female',
-    blood_group: 'O+',
-    address: 'Algiers, Algeria',
-    level: 'B2 / B1',
-    enrollment_year: '2023'
+  const [loading, setLoading] = useState(true);
+  
+  // 💡 State الديناميكي
+  const [profile, setProfile] = useState({
+    full_name: 'Loading...',
+    student_id: '---',
+    program: '---',
+    email: '---',
+    phone: '---',
+    dob: 'Not Provided',
+    gender: 'Not Provided',
+    blood_group: 'Not Provided',
+    address: 'Not Provided',
+    level: '---',
+    enrollment_year: '---',
+    average: 'N/A'
   });
 
   const [notifications, setNotifications] = useState({
@@ -33,6 +38,76 @@ const AccountSettings = () => {
     schedule: true,
     exams: true
   });
+
+  // ==========================================
+  // 💡 Fetch Student Profile from Supabase
+  // ==========================================
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        // 1. نجيبو معلومات الطالب
+        const { data: student, error } = await supabase
+          .from('students')
+          .select('*')
+          .eq('email', user.email)
+          .single();
+
+        if (student) {
+          const fullName = `${student.first_name || ''} ${student.last_name || ''}`.trim();
+          
+          // 2. نحسبو المعدل تاعو من طابلو grades باش يبان في الـ Stats
+          let avgStr = 'N/A';
+          const { data: grades } = await supabase
+            .from('grades')
+            .select('*')
+            .eq('student_name', fullName);
+
+          if (grades && grades.length > 0) {
+            let totalMarks = 0;
+            let validCount = 0;
+            grades.forEach(g => {
+              let mark = 0;
+              if (g.score) mark = parseFloat(g.score);
+              else if (g.grade) mark = parseFloat(g.grade) || 0;
+              let max = parseFloat(g.max_grade) || 20;
+              totalMarks += (mark / max) * 20;
+              validCount++;
+            });
+            if (validCount > 0) {
+              avgStr = `${(totalMarks / validCount).toFixed(2)} / 20`;
+            }
+          }
+
+          // 3. نعمروا الداتا في الـ State
+          setProfile({
+            full_name: fullName,
+            student_id: `STD-${student.id || Math.floor(Math.random() * 9000 + 1000)}`,
+            program: `${student.language || 'Language'} (${student.level || 'Level'})`,
+            email: student.email || user.email,
+            phone: student.phone || 'Not Provided',
+            dob: student.dob || 'Not Provided', // إذا زدتيها في الداتا باز مستقبلا تقراها
+            gender: student.gender || 'Not Provided',
+            blood_group: student.blood_group || 'Not Provided',
+            address: student.address || 'Not Provided',
+            level: student.level || 'N/A',
+            enrollment_year: student.enrollment_date 
+                ? new Date(student.enrollment_date).getFullYear() 
+                : (student.created_at ? new Date(student.created_at).getFullYear() : '2026'),
+            average: avgStr
+          });
+        }
+      } catch (err) {
+        console.error("Error fetching profile:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, []);
 
   const handleToggle = (setting) => {
     setNotifications(prev => ({ ...prev, [setting]: !prev[setting] }));
@@ -75,9 +150,9 @@ const AccountSettings = () => {
                         </div>
                     </div>
                     <div className="flex items-center gap-6 text-[#A3AED0] text-[10px] font-black uppercase tracking-widest pt-4">
-                        <span>Teacher ID: {profile.student_id}</span>
+                        <span>Student ID: {profile.student_id}</span>
                         <span>•</span>
-                        <span>English German Department</span>
+                        <span>{profile.program} Department</span>
                     </div>
                 </div>
 
@@ -122,7 +197,9 @@ const AccountSettings = () => {
           </div>
           <div className="space-y-1">
             <span className="bg-[#EEF2FF] text-[#4318FF] text-[10px] font-black px-4 py-1.5 rounded-full uppercase tracking-widest border border-[#4318FF]/10 shadow-sm">Certified Profile</span>
-            <h1 className="text-4xl font-black text-[#1B254B] uppercase tracking-tighter italic mt-2">{profile.full_name}</h1>
+            <h1 className="text-4xl font-black text-[#1B254B] uppercase tracking-tighter italic mt-2">
+               {loading ? 'Loading...' : profile.full_name}
+            </h1>
             <div className="flex gap-6 text-[#A3AED0] text-[11px] font-black uppercase tracking-widest pt-1">
               <span className="underline decoration-[#4318FF] decoration-2 underline-offset-4">Ref: {profile.student_id}</span>
               <span>Campus: Algiers Central</span>
@@ -172,8 +249,8 @@ const AccountSettings = () => {
               </h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                 <StatCard label="Enrollment Year" value={profile.enrollment_year} />
-                <StatCard label="Active Modules" value="12" />
-                <StatCard label="Aggregate Average" value="16.5 / 20" />
+                <StatCard label="Active Modules" value="1" />
+                <StatCard label="Aggregate Average" value={profile.average} />
                 <StatCard label="Account Grade" value="PRO" />
               </div>
             </div>
@@ -244,7 +321,7 @@ const InfoItem = ({ label, value }) => (
 );
 
 const StatCard = ({ label, value }) => (
-  <div className="bg-[#F4F7FE] p-6 rounded-[30px] border-2 border-transparent hover:border-[#4318FF]/20 transition-all text-center group active:scale-95 cursor-pointer">
+  <div className="bg-[#F4F7FE] p-6 rounded-[30px] border-2 border-transparent hover:border-[#4318FF]/20 transition-all text-center group active:scale-95 cursor-pointer flex flex-col justify-center h-full">
     <span className="text-[8px] font-black text-[#A3AED0] uppercase block mb-3 tracking-widest group-hover:text-[#4318FF] transition-colors">{label}</span>
     <span className="text-[15px] font-black text-[#1B254B] italic tracking-tighter leading-none">{value}</span>
   </div>

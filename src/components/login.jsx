@@ -71,7 +71,7 @@ const Login = () => {
         }
         
         // التلميذ مريڨل، ندخلوه لباجتو
-        navigate('/student'); 
+        navigate('/student-parent');
         setLoading(false);
         return;
       }
