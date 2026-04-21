@@ -3,9 +3,13 @@ import React, { useState } from 'react';
 const Users = () => {
   const [activeFilter, setActiveFilter] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // State for the custom modern modal
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [userToDelete, setUserToDelete] = useState(null);
 
-  // بيانات المستخدمين الافتراضية بمختلف الأدوار
-  const [usersData] = useState([
+  // Stateful user list to allow UI updates on deletion
+  const [usersData, setUsersData] = useState([
     { id: 1, name: "Malak Ahmed", role: "Super Admin", email: "malak.admin@school.com", status: "Online", lastSeen: "Now", avatar: "MA" },
     { id: 2, name: "Prof. Sarah Ben", role: "Teacher", email: "sarah.b@school.com", status: "Offline", lastSeen: "2h ago", avatar: "SB" },
     { id: 3, name: "Mourad Slimani", role: "Secretary", email: "mourad.sec@school.com", status: "Online", lastSeen: "Now", avatar: "MS" },
@@ -17,7 +21,24 @@ const Users = () => {
 
   const roles = ['All', 'Teacher', 'Secretary', 'Student', 'Parent', 'Lady Cleaning'];
 
-  // تصفية المستخدمين بناءً على الدور والبحث
+  // ==========================================
+  // LOGIC HANDLERS
+  // ==========================================
+  
+  const openDeleteModal = (user) => {
+    setUserToDelete(user);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = () => {
+    if (userToDelete) {
+      setUsersData(usersData.filter(u => u.id !== userToDelete.id));
+      setShowDeleteModal(false);
+      setUserToDelete(null);
+      // Logic for Supabase/Backend delete would go here
+    }
+  };
+
   const filteredUsers = usersData.filter(user => {
     const matchesRole = activeFilter === 'All' || user.role === activeFilter;
     const matchesSearch = user.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -25,7 +46,6 @@ const Users = () => {
     return matchesRole && matchesSearch;
   });
 
-  // دالة لتحديد لون الشارة بناءً على الدور
   const getRoleStyle = (role) => {
     switch (role) {
       case 'Super Admin': return 'bg-red-50 text-red-600 border-red-100';
@@ -38,8 +58,56 @@ const Users = () => {
   };
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
+    <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20 relative">
       
+      {/* ==========================================
+          ✨ MODERN DELETE MODAL (BLUE THEME)
+          ========================================== */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center p-6">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-[#0A1128]/40 backdrop-blur-md animate-in fade-in duration-300"
+            onClick={() => setShowDeleteModal(false)}
+          ></div>
+          
+          {/* Modal Card */}
+          <div className="bg-white rounded-[3.5rem] p-12 max-w-md w-full shadow-2xl border border-blue-50/50 z-10 animate-in zoom-in-95 duration-300 relative overflow-hidden">
+            <div className="w-24 h-24 bg-red-50 rounded-[2rem] flex items-center justify-center text-4xl mb-8 mx-auto shadow-inner">
+              🗑️
+            </div>
+            
+            <h3 className="text-3xl font-black text-[#1A2252] italic text-center mb-4 tracking-tighter">Remove Account?</h3>
+            <p className="text-gray-400 font-bold italic text-center mb-10 leading-relaxed px-4">
+              Are you sure you want to delete <span className="text-[#1A2252] underline decoration-blue-200">{userToDelete?.name}</span>? 
+              This action will erase their data from the school system permanently.
+            </p>
+            
+            <div className="flex flex-col gap-3">
+              <button 
+                onClick={confirmDelete}
+                className="w-full py-5 rounded-2xl bg-[#1A2252] text-white font-black italic tracking-widest hover:bg-red-600 hover:scale-[1.02] transition-all duration-300 shadow-xl shadow-blue-900/20 cursor-pointer"
+              >
+                CONFIRM DELETION
+              </button>
+              <button 
+                onClick={() => setShowDeleteModal(false)}
+                className="w-full py-4 rounded-2xl font-black italic text-gray-400 hover:text-[#1A2252] transition-all cursor-pointer"
+              >
+                GO BACK
+              </button>
+            </div>
+
+            {/* Subtle background decoration in modal */}
+            <div className="absolute -top-10 -left-10 w-32 h-32 bg-blue-50/30 rounded-full blur-3xl"></div>
+          </div>
+        </div>
+      )}
+
+      {/* ==========================================
+          MAIN DIRECTORY UI
+          ========================================== */}
+
       {/* Header & Search */}
       <div className="flex flex-col md:flex-row justify-between items-end mb-12 gap-6">
         <div>
@@ -94,31 +162,30 @@ const Users = () => {
             {/* User Info */}
             <div className="mb-6">
               <h3 className="text-xl font-black text-[#1A2252] mb-1 italic truncate">{user.name}</h3>
-              <p className="text-[10px] text-gray-400 font-bold mb-4">{user.email}</p>
+              <p className="text-[10px] text-gray-400 font-bold mb-4 truncate">{user.email}</p>
               
               <span className={`px-4 py-1.5 rounded-xl text-[9px] font-black border uppercase tracking-widest ${getRoleStyle(user.role)}`}>
                 {user.role}
               </span>
             </div>
 
-            {/* Footer Info */}
-            <div className="pt-6 border-t border-gray-50 flex justify-between items-center">
-              <div>
-                <p className="text-[9px] text-gray-400 font-black uppercase italic">Last Activity</p>
-                <p className="text-xs font-bold text-[#1A2252]">{user.lastSeen}</p>
-              </div>
-              <button className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center hover:bg-red-50 hover:text-red-500 transition-colors cursor-pointer">
-                ⚙️
+            {/* Actions Footer - Removed Last Activity, Added Delete Only */}
+            <div className="pt-6 border-t border-gray-50 flex justify-end items-center">
+              <button 
+                onClick={() => openDeleteModal(user)}
+                className="w-12 h-12 bg-gray-50 text-[#1A2252] rounded-2xl flex items-center justify-center hover:bg-red-50 hover:text-red-600 transition-all duration-300 cursor-pointer shadow-sm group-hover:scale-110 active:scale-95"
+              >
+                <span className="text-xl">🗑️</span>
               </button>
             </div>
 
-            {/* Decorative element */}
+            {/* Decorative background circle */}
             <div className="absolute -bottom-6 -right-6 w-20 h-20 bg-gray-50/50 rounded-full group-hover:scale-150 transition-transform duration-700"></div>
           </div>
         )) : (
-          <div className="col-span-full py-20 text-center">
-            <span className="text-6xl mb-4 block opacity-20">👤</span>
-            <h3 className="text-xl font-black text-gray-300 italic">No users found in this category</h3>
+          <div className="col-span-full py-24 text-center">
+            <span className="text-7xl mb-6 block opacity-10">👤</span>
+            <h3 className="text-2xl font-black text-gray-300 italic tracking-tighter">No members found in this category</h3>
           </div>
         )}
       </div>
