@@ -14,10 +14,11 @@ const ClassroomTasks = () => {
   const [attendanceData, setAttendanceData] = useState({}); 
   const [gradesDataInput, setGradesDataInput] = useState({}); 
   
-  // States للامتحانات
+  // States للامتحانات والتاست
   const [currentTeacherId, setCurrentTeacherId] = useState(null);
   const [currentTeacher, setCurrentTeacher] = useState("Teacher Name"); 
   const [assignedExams, setAssignedExams] = useState([]); 
+  const [placementStudents, setPlacementStudents] = useState([]); // 💡 State جديد لطلبة التاست
   const [selectedExamId, setSelectedExamId] = useState('');
 
   // States لباجة العرض (View Grades)
@@ -57,7 +58,7 @@ const ClassroomTasks = () => {
           classNamesList = clsData.map(c => c.name || c.class_name); 
         }
 
-        // 2. جلب الطلبة
+        // 2. جلب الطلبة النظاميين
         let stdData = [];
         if (classNamesList.length > 0) {
           const { data } = await supabase.from('students').select('*').in('group_name', classNamesList);
@@ -65,8 +66,33 @@ const ClassroomTasks = () => {
           setStudents(stdData);
         }
 
+        // 💡 3. جلب طلبة الـ Placement Test المبرمجين مع هاد الأستاذ بالذات
+        if (tName !== "Teacher Name") {
+          // نجيبو المواعيد اللي فيهم اسم الأستاذ
+          const { data: apps } = await supabase
+            .from('appointments')
+            .select('*')
+            .ilike('sub_title', `%Prof: ${tName}%`)
+            .eq('status', 'Upcoming');
+
+          // نجيبو الطلبة اللي يستناو في التاست
+          const { data: pStudents } = await supabase
+            .from('students')
+            .select('*')
+            .eq('exam_type', 'Placement')
+            .eq('status', 'Scheduled');
+
+          // نفيلتريو الطلبة بناءً على المواعيد
+          if (pStudents && apps) {
+            const myPlacementStudents = pStudents.filter(s => 
+              apps.some(a => a.title === `${s.first_name} ${s.last_name}` || a.phone === s.phone)
+            );
+            setPlacementStudents(myPlacementStudents);
+          }
+        }
+
         if (tId) {
-          // 3. جلب الامتحانات النشطة
+          // 4. جلب الامتحانات النشطة (الكورسات العادية)
           const { data: activeExams } = await supabase
             .from('exams')
             .select('*')
@@ -74,7 +100,7 @@ const ClassroomTasks = () => {
             .eq('status', 'Active');
           if (activeExams) setAssignedExams(activeExams);
 
-          // 4. جلب الامتحانات المكتملة
+          // 5. جلب الامتحانات المكتملة
           const { data: compExams } = await supabase
             .from('exams')
             .select('*')
@@ -91,14 +117,12 @@ const ClassroomTasks = () => {
     fetchTeacherData();
   }, []);
 
-  // جلب القسم المختار باش نأفيشيو الحصة الحالية
   const activeClassObject = classes.find(c => (c.name || c.class_name) === selectedClass);
 
-  // كي الأستاذ يخير امتحان باش ينقطو
   const handleExamChange = (e) => {
     const exId = e.target.value;
     setSelectedExamId(exId);
-    if (exId) {
+    if (exId && exId !== 'placement_tests') {
       const selectedEx = assignedExams.find(ex => ex.id.toString() === exId);
       if (selectedEx) setSelectedClass(selectedEx.class_name);
     } else {
@@ -106,7 +130,6 @@ const ClassroomTasks = () => {
     }
   };
 
-  // كي الأستاذ يخير امتحان مكتمل باش يشوف نقاطو
   const handleViewExamChange = async (e) => {
     const exId = e.target.value;
     setSelectedViewExamId(exId);
@@ -159,7 +182,6 @@ const ClassroomTasks = () => {
     }
   };
 
-  // 💡 دالة تسجيل الغياب + زيادة الحصة أوتوماتيكياً
   const saveAttendance = async () => {
     if (!selectedClass) return alert("Select Class!");
     setLoading(true);
@@ -180,11 +202,9 @@ const ClassroomTasks = () => {
     }
 
     try {
-      // 1. نسجلو الغياب
       const { error } = await supabase.from('attendance').insert(records);
       if (error) throw error;
 
-      // 💡 2. السحر: نزيدو الحصة للقسم في الداتا باز أوتوماتيكياً
       if (activeClassObject) {
         const newCompleted = (activeClassObject.completed_sessions || 0) + 1;
         const total = activeClassObject.total_sessions || 24;
@@ -196,7 +216,6 @@ const ClassroomTasks = () => {
             .eq('id', activeClassObject.id);
             
           if (!classError) {
-            // نحدثو الـ State باش تبان الزيادة في الشاشة ديراكت
             setClasses(classes.map(c => c.id === activeClassObject.id ? { ...c, completed_sessions: newCompleted } : c));
           }
         }
@@ -210,50 +229,86 @@ const ClassroomTasks = () => {
     }
   };
 
+  // 💡 الدالة الذكية اللي تسجل النقاط تاع التاست والامتحانات
   const saveGrades = async () => {
-    if (!selectedExamId) return alert("Please select an Exam first!");
-    const examObj = assignedExams.find(ex => ex.id.toString() === selectedExamId);
-    if (!examObj) return;
-
+    if (!selectedExamId) return alert("Please select an Exam or Test first!");
+    
     setLoading(true);
-    const records = Object.entries(gradesDataInput).map(([sId, gradeValue]) => {
-      const student = students.find(s => s.id.toString() === sId);
-      const scoreNum = parseFloat(gradeValue) || 0;
-      const gradeLetter = scoreNum >= 80 ? 'A' : scoreNum >= 60 ? 'B' : scoreNum >= 50 ? 'C' : 'F';
-      const passStatus = scoreNum >= 50 ? 'Passed' : 'Failed';
-
-      return {
-        student_id: sId, 
-        student_name: `${student.first_name} ${student.last_name}`,
-        course: examObj.subject,
-        exam_title: examObj.title, 
-        score: scoreNum, 
-        grade: gradeLetter,
-        status: passStatus,
-        created_at: new Date().toISOString()
-      };
-    });
-
-    if (records.length === 0) {
-      setLoading(false);
-      return alert("عمر النقاط قبل ما تسجل!");
-    }
 
     try {
-      const { error: gradesError } = await supabase.from('grades').insert(records);
-      if (gradesError) throw gradesError;
+      // 💡 حالة 1: إذا كان الأستاذ ينقط في Placement Test
+      if (selectedExamId === 'placement_tests') {
+        const updates = Object.entries(gradesDataInput).map(async ([sId, gradeValue]) => {
+          const st = placementStudents.find(s => s.id.toString() === sId);
+          if (!st) return;
 
-      const { error: examError } = await supabase.from('exams').update({ status: 'Completed' }).eq('id', selectedExamId);
-      if (examError) throw examError;
+          // 1. نبدلو حالة الطالب لـ Tested ونحطولو النقطة
+          await supabase.from('students').update({ 
+              status: 'Tested', 
+              test_score: gradeValue 
+          }).eq('id', sId);
 
-      alert("Grades Submitted Successfully! 🎉");
-      
-      const completedExam = { ...examObj, status: 'Completed' };
-      setAssignedExams(assignedExams.filter(ex => ex.id.toString() !== selectedExamId)); 
-      setCompletedExams([completedExam, ...completedExams]);
-      
-      setGradesDataInput({});
-      setSelectedExamId('');
+          // 2. نغلقو الموعد في طابلو المواعيد
+          await supabase.from('appointments')
+            .update({ status: 'Completed' })
+            .ilike('sub_title', `%Prof: ${currentTeacher}%`)
+            .eq('title', `${st.first_name} ${st.last_name}`);
+        });
+
+        await Promise.all(updates);
+        
+        alert("✅ Placement Test grades submitted successfully! The secretary can now enroll them.");
+        
+        // نحيو الطلبة اللي تنقطو من الشاشة
+        const remaining = placementStudents.filter(s => !gradesDataInput[s.id]);
+        setPlacementStudents(remaining);
+        setGradesDataInput({});
+        if(remaining.length === 0) setSelectedExamId('');
+
+      } 
+      // حالة 2: إذا كان ينقط في امتحان عادي
+      else {
+        const examObj = assignedExams.find(ex => ex.id.toString() === selectedExamId);
+        if (!examObj) return;
+
+        const records = Object.entries(gradesDataInput).map(([sId, gradeValue]) => {
+          const student = students.find(s => s.id.toString() === sId);
+          const scoreNum = parseFloat(gradeValue) || 0;
+          const gradeLetter = scoreNum >= 80 ? 'A' : scoreNum >= 60 ? 'B' : scoreNum >= 50 ? 'C' : 'F';
+          const passStatus = scoreNum >= 50 ? 'Passed' : 'Failed';
+
+          return {
+            student_id: sId, 
+            student_name: `${student.first_name} ${student.last_name}`,
+            course: examObj.subject,
+            exam_title: examObj.title, 
+            score: scoreNum, 
+            grade: gradeLetter,
+            status: passStatus,
+            created_at: new Date().toISOString()
+          };
+        });
+
+        if (records.length === 0) {
+          setLoading(false);
+          return alert("عمر النقاط قبل ما تسجل!");
+        }
+
+        const { error: gradesError } = await supabase.from('grades').insert(records);
+        if (gradesError) throw gradesError;
+
+        const { error: examError } = await supabase.from('exams').update({ status: 'Completed' }).eq('id', selectedExamId);
+        if (examError) throw examError;
+
+        alert("Grades Submitted Successfully! 🎉");
+        
+        const completedExam = { ...examObj, status: 'Completed' };
+        setAssignedExams(assignedExams.filter(ex => ex.id.toString() !== selectedExamId)); 
+        setCompletedExams([completedExam, ...completedExams]);
+        
+        setGradesDataInput({});
+        setSelectedExamId('');
+      }
     } catch (err) {
       alert("Error: " + err.message);
     } finally {
@@ -265,6 +320,18 @@ const ClassroomTasks = () => {
     g.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     g.course.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // 💡 تحديد شكون هما الطلبة اللي لازم يبانو في الجدول دركا
+  let displayStudents = [];
+  if (activeTab === 'Attendance') {
+    displayStudents = students.filter(s => s.group_name === selectedClass);
+  } else if (activeTab === 'Enter Grades') {
+    if (selectedExamId === 'placement_tests') {
+      displayStudents = placementStudents;
+    } else if (selectedClass) {
+      displayStudents = students.filter(s => s.group_name === selectedClass);
+    }
+  }
 
   return (
     <div className="h-full w-full flex flex-col bg-[#F4F7FE] overflow-y-auto custom-scrollbar p-4 md:p-8 space-y-12 animate-fadeIn relative">
@@ -340,7 +407,6 @@ const ClassroomTasks = () => {
                           {classes.map(c => <option key={c.id} value={c.name || c.class_name}>{c.name || c.class_name}</option>)}
                         </select>
                         
-                        {/* 💡 هنا الأستاذ يشوف رقم الحصة الحالية */}
                         {activeClassObject && (
                           <div className="mt-3 flex items-center gap-3">
                             <span className="bg-[#eef2ff] text-[#4318FF] px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border border-[#4318FF]/10 shadow-sm">
@@ -361,10 +427,17 @@ const ClassroomTasks = () => {
                     </>
                   ) : (
                     <div className="flex-1 min-w-[300px]">
-                      <label className="text-[10px] font-black text-[#1B254B] mb-2 block uppercase">Pending Exams</label>
+                      <label className="text-[10px] font-black text-[#1B254B] mb-2 block uppercase">Pending Assessments</label>
                       <select value={selectedExamId} onChange={handleExamChange} className="w-full bg-[#F4F7FE] rounded-xl p-3 text-xs font-bold outline-none border border-transparent focus:border-[#4318FF]">
                         <option value="">-- Select an Exam to Grade --</option>
-                        {assignedExams.length === 0 && <option disabled>No active exams assigned to you.</option>}
+                        
+                        {/* 💡 السحر هنا: تخرجلو Placement Tests إذا كانو كاينين */}
+                        {placementStudents.length > 0 && (
+                          <option value="placement_tests" className="font-bold text-[#4318FF]">
+                            🎯 Placement Tests ({placementStudents.length} students waiting)
+                          </option>
+                        )}
+
                         {assignedExams.map(ex => (
                           <option key={ex.id} value={ex.id}>{ex.title} (Class: {ex.class_name})</option>
                         ))}
@@ -383,15 +456,17 @@ const ClassroomTasks = () => {
                       <thead className="sticky top-0 bg-white z-10 shadow-sm border-b border-gray-100">
                         <tr>
                           <th className="p-5 pl-10 text-[#A3AED0] text-[10px] font-black uppercase">Student Name</th>
-                          <th className="p-5 text-[#A3AED0] text-[10px] font-black uppercase text-center">{activeTab === 'Attendance' ? 'Status' : 'Score / 100'}</th>
+                          <th className="p-5 text-[#A3AED0] text-[10px] font-black uppercase text-center">
+                             {activeTab === 'Attendance' ? 'Status' : (selectedExamId === 'placement_tests' ? 'Note / Level' : 'Score / 100')}
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-50">
                         {(!selectedClass && activeTab === 'Attendance') || (!selectedExamId && activeTab === 'Enter Grades') ? (
-                            <tr><td colSpan="2" className="py-10 text-center text-gray-400 font-bold">Please select {activeTab === 'Attendance' ? 'a class' : 'an exam'} from the menu above.</td></tr>
-                        ) : students.filter(s => s.group_name === selectedClass).length === 0 ? (
-                            <tr><td colSpan="2" className="py-10 text-center text-gray-400 font-bold">No students found in this class.</td></tr>
-                        ) : students.filter(s => s.group_name === selectedClass).map((s) => (
+                            <tr><td colSpan="2" className="py-10 text-center text-gray-400 font-bold">Please select {activeTab === 'Attendance' ? 'a class' : 'an assessment'} from the menu above.</td></tr>
+                        ) : displayStudents.length === 0 ? (
+                            <tr><td colSpan="2" className="py-10 text-center text-gray-400 font-bold">No students found.</td></tr>
+                        ) : displayStudents.map((s) => (
                           <tr key={s.id} className="hover:bg-gray-50/50 transition-colors">
                             <td className="p-4 pl-10 font-bold text-[#1B254B] text-sm">{s.first_name} {s.last_name}</td>
                             <td className="p-4">
@@ -404,8 +479,9 @@ const ClassroomTasks = () => {
                                 </div>
                               ) : (
                                 <div className="flex justify-center">
-                                  <input type="number" placeholder="--" onChange={(e) => setGradesDataInput({...gradesDataInput, [s.id]: e.target.value})}
-                                         className="w-24 bg-[#F4F7FE] rounded-lg p-2 text-center font-bold text-[#1B254B] outline-none border-2 border-transparent focus:border-[#4318FF]" />
+                                  {/* 💡 بدلتها لـ text باش الأستاذ يقدر يكتب A2 ولا 18/20 */}
+                                  <input type="text" placeholder={selectedExamId === 'placement_tests' ? "e.g. B1 or 15/20" : "--"} onChange={(e) => setGradesDataInput({...gradesDataInput, [s.id]: e.target.value})}
+                                         className={`w-32 bg-[#F4F7FE] rounded-lg p-2 text-center font-bold text-[#1B254B] outline-none border-2 border-transparent focus:border-[#4318FF]`} />
                                 </div>
                               )}
                             </td>
