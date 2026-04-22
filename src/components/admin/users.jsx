@@ -171,9 +171,7 @@ const Users = () => {
       </div>
 
       {/* Floating Action Button (Optional) */}
-      <button className="fixed bottom-10 right-10 bg-[#1A2252] text-white w-16 h-16 rounded-full shadow-2xl flex items-center justify-center text-2xl hover:scale-110 active:scale-95 transition-all cursor-pointer z-50">
-        ＋
-      </button>
+      
     </div>
   );
 };
