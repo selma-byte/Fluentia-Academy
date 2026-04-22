@@ -66,16 +66,11 @@ const RegistrationRequestsTab = () => {
   
   const [schedDay, setSchedDay] = useState('Mon');
   const [schedTime, setSchedTime] = useState('10:00');
-  const [schedDate, setSchedDate] = useState('');
   const [schedRoom, setSchedRoom] = useState('');
 
-  const [notifyEmail, setNotifyEmail] = useState(true);
-  const [notifyWhatsApp, setNotifyWhatsApp] = useState(false);
-
-  // States for Final Enrollment Decision
   const [enrollClassId, setEnrollClassId] = useState('');
   const [enrollGrade, setEnrollGrade] = useState('');
-  const [enrollLevel, setEnrollLevel] = useState('A1'); // State للنيفو
+  const [enrollLevel, setEnrollLevel] = useState('A1'); 
   
   const filteredRequests = requests.filter(req => {
     if (activeFilter === 'All') return true;
@@ -92,18 +87,13 @@ const RegistrationRequestsTab = () => {
       return parseInt(hours) + parseInt(minutes)/60;
   };
 
-  // 💡 الدالة اللي تكتشف النيفو أوتوماتيكياً من النقطة
   const detectLevelFromScore = (scoreStr) => {
     if (!scoreStr) return 'A1';
     const upper = String(scoreStr).toUpperCase();
-    
-    // إذا الأستاذ كتب الحرف مباشرة (مثلا B1)
     const levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
     for (let l of levels) {
       if (upper.includes(l)) return l;
     }
-    
-    // إذا الأستاذ حط نقطة بالأرقام (مثلا 14/20)
     const numMatch = upper.match(/(\d+)/);
     if (numMatch) {
        const score = parseFloat(numMatch[1]);
@@ -121,21 +111,18 @@ const RegistrationRequestsTab = () => {
     const score = req.test_score || '';
     setEnrollGrade(score); 
     
-    // 💡 التحديد الأوتوماتيكي للنيفو
     const detectedLevel = detectLevelFromScore(score);
     setEnrollLevel(detectedLevel);
-    setEnrollClassId(''); // نفرغو القسم باش تخير من جديد
+    setEnrollClassId(''); 
 
     setIsEnrollMode(true); 
   };
   
   const handleOpenScheduleModal = (req) => { setSelectedStudent(req); setIsScheduleModalOpen(true); };
-  
   const handleOpenInfoModal = (req) => { setSelectedStudent(req); setIsViewInfoModalOpen(true); };
 
   const handleSaveSchedule = async () => {
     setLoading(true);
-
     try {
       if (!schedRoom || !schedTeacher) {
         alert("⚠️ من فضلك خيري الأستاذ والقاعة!");
@@ -152,10 +139,8 @@ const RegistrationRequestsTab = () => {
 
       if (existingTests && existingTests.length > 0) {
         const confirmJoin = window.confirm(`⚠️ كاين ديجا ${existingTests.length} تلاميذ راهم مبرمجين لـ Placement Test في هاد الوقت! \n\nتحبي تزيدي هاد التلميذ معاهم في نفس الفوج؟`);
-        
         if (!confirmJoin) {
-          setLoading(false);
-          return; 
+          setLoading(false); return; 
         }
       }
 
@@ -169,22 +154,14 @@ const RegistrationRequestsTab = () => {
 
       if (conflicts && conflicts.length > 0) {
         alert(`⚠️ القاعة [${schedRoom}] محجوزة! راهم يقراو فيها فوج: ${conflicts[0].name} في هاد الوقت.`);
-        setLoading(false);
-        return; 
+        setLoading(false); return; 
       }
 
       const fullAppointmentDate = `${schedDay}, ${schedTime}`;
       
-      const { error: stuError } = await supabase
-        .from('students')
-        .update({ status: 'Scheduled', appointment_date: fullAppointmentDate })
-        .eq('id', selectedStudent.id);
+      await supabase.from('students').update({ status: 'Scheduled', appointment_date: fullAppointmentDate }).eq('id', selectedStudent.id);
 
-      if (stuError) throw stuError;
-
-      const { error: appError } = await supabase
-        .from('appointments')
-        .insert([{
+      await supabase.from('appointments').insert([{
           title: selectedStudent.name,
           sub_title: `Placement Test: ${selectedStudent.language} (Prof: ${schedTeacher}, Room: ${schedRoom})`, 
           appointment_day: getDayNumber(schedDay), 
@@ -193,17 +170,10 @@ const RegistrationRequestsTab = () => {
           phone: selectedStudent.phone
         }]);
 
-      if (appError) throw appError;
-
       alert("✅ تم برمجة التاست بنجاح!");
       setIsScheduleModalOpen(false);
       fetchRequests(); 
-
-    } catch (err) {
-      alert("إيرور: " + err.message);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { alert("إيرور: " + err.message); } finally { setLoading(false); }
   };
 
   const handleFinalEnrollment = async () => {
@@ -220,15 +190,13 @@ const RegistrationRequestsTab = () => {
 
       await supabase.from('classes').update({ enrolled_count: currentCount + 1 }).eq('id', enrollClassId);
       
-      const { error: dbError } = await supabase.from('students').update({ 
+      await supabase.from('students').update({ 
         status: 'Active', 
         exam_type: 'Course',
         group_name: selectedClass.name,
-        level: enrollLevel, // 💡 نسجلو النيفو الجديد اللي خيراتو السكريتيرة
+        level: enrollLevel, 
         test_score: enrollGrade
       }).eq('id', selectedStudent.id);
-      
-      if (dbError) throw dbError;
       
       alert(`🎉 تم ترسيم ${selectedStudent.name} بنجاح في فوج ${selectedClass.name}! يقدر يدخل للسيت دركا.`);
       setIsEnrollMode(false);
@@ -237,9 +205,7 @@ const RegistrationRequestsTab = () => {
   };
 
   if (isEnrollMode) {
-    // 💡 الفلترة السحرية: نجيبو غير الأقسام اللي بنفس اللغة ونفس النيفو المكتشف
     const matchingClasses = classesData.filter(c => c.language === selectedStudent?.language && c.level === enrollLevel);
-    
     return (
       <div className="min-h-screen bg-[#F8F9FA] p-12 font-sans text-left transition-all duration-300">
         <div className="flex items-center mb-12">
@@ -247,7 +213,6 @@ const RegistrationRequestsTab = () => {
           <h1 className="text-3xl font-bold text-[#0A1128]">Enroll Student</h1>
         </div>
         <div className="max-w-6xl space-y-16">
-          
           <section className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
             <h2 className="text-sm font-bold text-[#0A1128] mb-6 uppercase tracking-wide border-b border-gray-100 pb-2 w-max">🎓 Final Registration Decision</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -274,12 +239,8 @@ const RegistrationRequestsTab = () => {
                     }} 
                     className="w-full bg-blue-50 border border-blue-200 text-blue-700 rounded-xl p-3 text-sm font-bold outline-none focus:border-[#2563eb] shadow-sm cursor-pointer"
                   >
-                     <option value="A1">A1</option>
-                     <option value="A2">A2</option>
-                     <option value="B1">B1</option>
-                     <option value="B2">B2</option>
-                     <option value="C1">C1</option>
-                     <option value="C2">C2</option>
+                     <option value="A1">A1</option><option value="A2">A2</option><option value="B1">B1</option>
+                     <option value="B2">B2</option><option value="C1">C1</option><option value="C2">C2</option>
                   </select>
                </div>
                <div>
@@ -322,7 +283,6 @@ const RegistrationRequestsTab = () => {
               <div className="space-y-8">
                 <input type="text" defaultValue={selectedStudent?.first_name} placeholder="First Name" className="w-full bg-transparent border-b border-gray-200 py-3 text-sm font-bold outline-none" />
                 <input type="text" defaultValue={selectedStudent?.last_name} placeholder="Last Name" className="w-full bg-transparent border-b border-gray-200 py-3 text-sm font-bold outline-none" />
-                <input type="text" placeholder="jj/mm/aaaa 📅" className="w-full bg-transparent border-b border-gray-200 py-3 text-sm font-bold outline-none" />
               </div>
             </section>
             <section className="space-y-10">
@@ -348,24 +308,9 @@ const RegistrationRequestsTab = () => {
       <div className="mb-8 flex justify-between items-center">
         <h1 className="text-2xl font-bold uppercase tracking-tight text-[#0A1128]">Registration Requests</h1>
         <div className="flex bg-[#0A1128] text-white rounded-2xl p-1 text-[11px] font-bold">
-          <span 
-            onClick={() => setActiveFilter('All')} 
-            className={`px-6 py-2 rounded-xl cursor-pointer transition-all ${activeFilter === 'All' ? 'bg-white/20' : 'opacity-40 hover:opacity-80'}`}
-          >
-            All
-          </span>
-          <span 
-            onClick={() => setActiveFilter('Student')} 
-            className={`px-6 py-2 rounded-xl cursor-pointer transition-all ${activeFilter === 'Student' ? 'bg-white/20' : 'opacity-40 hover:opacity-80'}`}
-          >
-            Students
-          </span>
-          <span 
-            onClick={() => setActiveFilter('Parent')} 
-            className={`px-6 py-2 rounded-xl cursor-pointer transition-all ${activeFilter === 'Parent' ? 'bg-white/20' : 'opacity-40 hover:opacity-80'}`}
-          >
-            Parents
-          </span>
+          <span onClick={() => setActiveFilter('All')} className={`px-6 py-2 rounded-xl cursor-pointer transition-all ${activeFilter === 'All' ? 'bg-white/20' : 'opacity-40 hover:opacity-80'}`}>All</span>
+          <span onClick={() => setActiveFilter('Student')} className={`px-6 py-2 rounded-xl cursor-pointer transition-all ${activeFilter === 'Student' ? 'bg-white/20' : 'opacity-40 hover:opacity-80'}`}>Students</span>
+          <span onClick={() => setActiveFilter('Parent')} className={`px-6 py-2 rounded-xl cursor-pointer transition-all ${activeFilter === 'Parent' ? 'bg-white/20' : 'opacity-40 hover:opacity-80'}`}>Parents</span>
         </div>
         </div>
 
@@ -397,31 +342,16 @@ const RegistrationRequestsTab = () => {
                   <div className="text-[10px] text-gray-400 font-bold uppercase">Level: {req.level}</div>
                 </td>
                 <td className="p-6 text-center">
-                  <span className={`px-4 py-1.5 rounded-xl text-[10px] font-black border ${
-                    req.status === 'Passed' ? 'bg-green-50 text-green-600 border-green-100' : 
-                    req.status === 'Scheduled' ? 'bg-blue-50 text-blue-600 border-blue-100' : 
-                    'bg-orange-50 text-orange-600 border-orange-100'
-                  }`}>
+                  <span className={`px-4 py-1.5 rounded-xl text-[10px] font-black border ${req.status === 'Passed' ? 'bg-green-50 text-green-600 border-green-100' : req.status === 'Scheduled' ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-orange-50 text-orange-600 border-orange-100'}`}>
                     {req.status.toUpperCase()}
                   </span>
                 </td>
                 <td className="p-6 flex justify-center gap-3 items-center">
-                  <button onClick={() => handleOpenInfoModal(req)} className="px-3 py-2 bg-gray-50 text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-100 transition-colors shadow-sm" title="View Details">
-                     👁️
-                  </button>
-
+                  <button onClick={() => handleOpenInfoModal(req)} className="px-3 py-2 bg-gray-50 text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-100 transition-colors shadow-sm" title="View Details">👁️</button>
                   {req.status === 'Passed' ? (
-                    <button onClick={() => handleEnrollNow(req)} className="px-6 py-2 bg-green-600 text-white rounded-xl text-[11px] font-bold hover:bg-green-700 cursor-pointer shadow-md">
-                      Enroll Now ✅
-                    </button>
+                    <button onClick={() => handleEnrollNow(req)} className="px-6 py-2 bg-green-600 text-white rounded-xl text-[11px] font-bold hover:bg-green-700 cursor-pointer shadow-md">Enroll Now ✅</button>
                   ) : (
-                    <button 
-                      onClick={() => handleOpenScheduleModal(req)}
-                      disabled={req.status === 'Scheduled'}
-                      className={`px-4 py-2 rounded-xl text-[11px] font-bold transition-all shadow-sm ${
-                        req.status === 'Scheduled' ? 'bg-gray-100 text-gray-300 cursor-not-allowed border border-gray-100' : 'bg-[#0A1128] text-white hover:bg-blue-900 cursor-pointer'
-                      }`}
-                    >
+                    <button onClick={() => handleOpenScheduleModal(req)} disabled={req.status === 'Scheduled'} className={`px-4 py-2 rounded-xl text-[11px] font-bold transition-all shadow-sm ${req.status === 'Scheduled' ? 'bg-gray-100 text-gray-300 cursor-not-allowed border border-gray-100' : 'bg-[#0A1128] text-white hover:bg-blue-900 cursor-pointer'}`}>
                       {req.status === 'Scheduled' ? 'Scheduled 📅' : 'Schedule Test 📅'}
                     </button>
                   )}
@@ -453,10 +383,6 @@ const RegistrationRequestsTab = () => {
                     <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Email</p>
                     <p className="text-sm font-bold text-[#0A1128] truncate">{selectedStudent?.email || 'N/A'}</p>
                  </div>
-               </div>
-               <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Application Date</p>
-                  <p className="text-sm font-bold text-[#0A1128]">{new Date(selectedStudent?.enrollment_date).toLocaleDateString()}</p>
                </div>
                {selectedStudent?.test_score && (
                  <div className="bg-green-50 p-4 rounded-xl border border-green-100">
@@ -491,10 +417,6 @@ const RegistrationRequestsTab = () => {
                 <input type="text" defaultValue={selectedStudent?.name} className="w-full bg-transparent border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold text-gray-700 outline-none" readOnly />
               </div>
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Test Type</label>
-                <input type="text" defaultValue="PLACEMENT TEST" className="w-full bg-transparent border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold text-gray-700 outline-none" readOnly/>
-              </div>
-              <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Day</label>
                 <div className="relative">
                   <select value={schedDay} onChange={(e) => setSchedDay(e.target.value)} className="w-full bg-transparent border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold text-gray-700 outline-none appearance-none cursor-pointer"><option value="Mon">Mon</option><option value="Tue">Tue</option><option value="Wed">Wed</option><option value="Thu">Thu</option></select>
@@ -509,57 +431,23 @@ const RegistrationRequestsTab = () => {
                 </div>
               </div>
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Teacher / Interviewer</label>
+                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Teacher</label>
                 <div className="relative">
-                  <select 
-                    value={schedTeacher} 
-                    onChange={(e) => setSchedTeacher(e.target.value)} 
-                    className="w-full bg-transparent border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold text-gray-700 outline-none appearance-none cursor-pointer"
-                  >
+                  <select value={schedTeacher} onChange={(e) => setSchedTeacher(e.target.value)} className="w-full bg-transparent border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold text-gray-700 outline-none appearance-none cursor-pointer">
                     <option value="">-- Select Teacher --</option>
-                    {staffData.map(staff => (
-                      <option key={staff.id} value={`${staff.first_name} ${staff.last_name}`}>
-                        {staff.first_name} {staff.last_name}
-                      </option>
-                    ))}
+                    {staffData.map(staff => <option key={staff.id} value={`${staff.first_name} ${staff.last_name}`}>{staff.first_name} {staff.last_name}</option>)}
                   </select>
                   <span className="absolute right-4 top-3 text-gray-500 text-[10px]">▼</span>
                 </div>
               </div>
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Room / Lab</label>
+                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Room</label>
                 <div className="relative">
-                  <select 
-                    value={schedRoom} 
-                    onChange={(e) => setSchedRoom(e.target.value)} 
-                    className="w-full bg-transparent border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold text-gray-700 outline-none appearance-none cursor-pointer"
-                  >
+                  <select value={schedRoom} onChange={(e) => setSchedRoom(e.target.value)} className="w-full bg-transparent border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold text-gray-700 outline-none appearance-none cursor-pointer">
                     <option value="">-- Select Room --</option>
-                    {roomsData.map(room => (
-                      <option key={room.id} value={room.name || room.room_name || room.id}>
-                        {room.name || room.room_name || `Room ${room.id}`}
-                      </option>
-                    ))}
+                    {roomsData.map(room => <option key={room.id} value={room.name || room.room_name || room.id}>{room.name || room.room_name || `Room ${room.id}`}</option>)}
                   </select>
                   <span className="absolute right-4 top-3 text-gray-500 text-[10px]">▼</span>
-                </div>
-              </div>
-              <div className="col-span-2 space-y-1.5 mt-2">
-                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Date (For Calendar)</label>
-                <input type="text" value={schedDate} onChange={(e) => setSchedDate(e.target.value)} placeholder="e.g. 23 May" className="w-full bg-transparent border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold text-gray-700 outline-none" />
-              </div>
-              <div className="col-span-2 mt-4 p-4 bg-blue-50/50 rounded-xl border border-blue-100 flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-bold text-[#0A1128]">Notify Applicant</p>
-                  <p className="text-[10px] text-gray-500 font-bold mt-1">Send an automated message with date & time.</p>
-                </div>
-                <div className="flex gap-4">
-                  <label className="flex items-center gap-1.5 text-xs font-bold text-gray-700 cursor-pointer">
-                    <input type="checkbox" checked={notifyEmail} onChange={(e) => setNotifyEmail(e.target.checked)} className="w-4 h-4 accent-[#0A1128] cursor-pointer" /> Email 📧
-                  </label>
-                  <label className="flex items-center gap-1.5 text-xs font-bold text-gray-700 cursor-pointer">
-                    <input type="checkbox" checked={notifyWhatsApp} onChange={(e) => setNotifyWhatsApp(e.target.checked)} className="w-4 h-4 accent-[#0A1128] cursor-pointer" /> WhatsApp 💬
-                  </label>
                 </div>
               </div>
             </div>
@@ -588,7 +476,7 @@ const StudentRecordsTab = () => {
   const [studentsData, setStudentsData] = useState([]);
   
   const fetchActiveStudents = async () => {
-    const { data, error } = await supabase.from('students').select('*').eq('status', 'Active');
+    const { data } = await supabase.from('students').select('*').eq('status', 'Active');
     if (data) {
       const formatted = data.map(s => ({
         ...s, id: s.id, firstName: s.first_name || '', lastName: s.last_name || '', language: s.language || '', level: s.level || '', group: s.group_name || '', status: s.status || '', phone: s.phone || '', email: s.email || '', address: s.address || '', parentName: s.parent_name || '', parentContact: s.parent_contact || '', enrollmentDate: s.enrollment_date || ''
@@ -606,7 +494,7 @@ const StudentRecordsTab = () => {
     const matchLang = filterLang === 'All' || student.language === filterLang;
     const matchLevel = filterLevel === 'All' || student.level === filterLevel;
     const matchGroup = filterGroup === 'All' || student.group === filterGroup;
-    const matchSearch = student.firstName.toLowerCase().includes(searchQuery.toLowerCase()) || student.lastName.toLowerCase().includes(searchQuery.toLowerCase()) || String(student.id).toLowerCase().includes(searchQuery.toLowerCase());
+    const matchSearch = student.firstName.toLowerCase().includes(searchQuery.toLowerCase()) || student.lastName.toLowerCase().includes(searchQuery.toLowerCase());
     return matchLang && matchLevel && matchGroup && matchSearch;
   });
 
@@ -639,13 +527,10 @@ const StudentRecordsTab = () => {
           <input type="text" placeholder="Search by name or ID..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-lg py-2.5 pl-10 pr-4 text-sm outline-none focus:border-blue-500 transition-all" />
         </div>
         <select value={filterLang} onChange={(e) => setFilterLang(e.target.value)} className="bg-gray-50 border border-gray-200 text-sm rounded-lg px-4 py-2.5 outline-none focus:border-blue-500 font-bold text-gray-600 cursor-pointer">
-          <option value="All">🌐 All Languages</option><option value="English">English</option><option value="Spanish">Spanish</option><option value="German">German</option><option value="French">French</option>
+          <option value="All">🌐 All Languages</option><option value="English">English</option><option value="Français">Français</option><option value="Deutsch">Deutsch</option><option value="Español">Español</option>
         </select>
         <select value={filterLevel} onChange={(e) => setFilterLevel(e.target.value)} className="bg-gray-50 border border-gray-200 text-sm rounded-lg px-4 py-2.5 outline-none focus:border-blue-500 font-bold text-gray-600 cursor-pointer">
-          <option value="All">📊 All Levels</option><option value="A1">A1</option><option value="A2">A2</option><option value="B1">B1</option><option value="B2">B2</option><option value="C1">C1</option>
-        </select>
-        <select value={filterGroup} onChange={(e) => setFilterGroup(e.target.value)} className="bg-gray-50 border border-gray-200 text-sm rounded-lg px-4 py-2.5 outline-none focus:border-blue-500 font-bold text-gray-600 cursor-pointer">
-          <option value="All">👥 All Groups</option><option value="Grp 1">Grp 1</option><option value="Grp 2">Grp 2</option><option value="Grp 3">Grp 3</option>
+          <option value="All">📊 All Levels</option><option value="A1">A1</option><option value="A2">A2</option><option value="B1">B1</option><option value="B2">B2</option><option value="C1">C1</option><option value="C2">C2</option>
         </select>
         {(filterLang !== 'All' || filterLevel !== 'All' || filterGroup !== 'All' || searchQuery !== '') && (
           <button onClick={() => { setFilterLang('All'); setFilterLevel('All'); setFilterGroup('All'); setSearchQuery(''); }} className="text-xs font-bold text-red-500 hover:text-red-700 underline cursor-pointer px-2">Clear Filters</button>
@@ -772,21 +657,6 @@ const StudentRecordsTab = () => {
                    </form>
                 </div>
             </div>
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
-               <h4 className="font-bold text-sm text-[#0A1128] mb-4">Academic History</h4>
-               <div className="overflow-x-auto border border-gray-100 rounded-xl">
-                  <table className="w-full text-left text-sm min-w-[600px]">
-                     <thead className="bg-gray-50 border-b border-gray-100">
-                        <tr>
-                           <th className="py-3 px-4 font-bold text-gray-500 text-[10px] uppercase">Date</th><th className="py-3 px-4 font-bold text-gray-500 text-[10px] uppercase">Assessment</th><th className="py-3 px-4 font-bold text-gray-500 text-[10px] uppercase">Grade</th><th className="py-3 px-4 font-bold text-gray-500 text-[10px] uppercase">Remarks</th>
-                        </tr>
-                     </thead>
-                     <tbody className="divide-y divide-gray-100">
-                        <tr className="hover:bg-gray-50"><td className="py-3 px-4 text-gray-500 text-xs">Oct 12, 2025</td><td className="py-3 px-4 font-medium text-[#0A1128] text-xs">Speaking Test 1</td><td className="py-3 px-4 text-green-600 font-bold text-xs">92%</td><td className="py-3 px-4 text-gray-600 text-xs">Excellent pronunciation.</td></tr>
-                     </tbody>
-                  </table>
-               </div>
-            </div>
         </div>
       </div>
     );
@@ -796,17 +666,23 @@ const StudentRecordsTab = () => {
 };
 
 // ==========================================
-// 3. الرواق الثالث: تسجيل جديد مباشر (Add Student)
+// 3. الرواق الثالث: تسجيل جديد مباشر (Add Student & Family)
 // ==========================================
 const StudentRegistrationTab = () => {
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({ 
+  const [regMode, setRegMode] = useState('Single'); // 'Single' or 'Family'
+  const [classesData, setClassesData] = useState([]);
+
+  const [singleData, setSingleData] = useState({ 
     firstName: '', lastName: '', language: 'English', level: 'A1', classId: '', 
-    phone: '', email: '', exam_type: 'Course', password: '' 
+    phone: '', email: '', parentEmail: '', exam_type: 'Course'
   });
 
-  const [classesData, setClassesData] = useState([]);
-  
+  const [parentData, setParentData] = useState({ firstName: '', lastName: '', email: '', phone: '' });
+  const [kidsList, setKidsList] = useState([
+    { firstName: '', lastName: '', language: 'English', level: 'A1', classId: '', phone: '', email: '', exam_type: 'Course' }
+  ]);
+
   useEffect(() => {
     const fetchClasses = async () => {
       const { data } = await supabase.from('classes').select('*');
@@ -815,14 +691,16 @@ const StudentRegistrationTab = () => {
     fetchClasses();
   }, []);
 
-  const availableClasses = classesData.filter(c => 
-    c.language === formData.language && 
-    (formData.exam_type === 'Placement' || c.level.includes(formData.level))
-  );
-
-  const handleInputChange = (e) => { 
-    const { name, value } = e.target; 
-    setFormData(prev => ({ ...prev, [name]: value })); 
+  const addKid = () => {
+    setKidsList([...kidsList, { firstName: '', lastName: '', language: 'English', level: 'A1', classId: '', phone: '', email: '', exam_type: 'Course' }]);
+  };
+  const removeKid = (index) => {
+    setKidsList(kidsList.filter((_, i) => i !== index));
+  };
+  const handleKidChange = (index, field, value) => {
+    const newKids = [...kidsList];
+    newKids[index][field] = value;
+    setKidsList(newKids);
   };
 
   const handleSave = async (e) => {
@@ -830,122 +708,216 @@ const StudentRegistrationTab = () => {
     setLoading(true);
 
     try {
-        const isPlacement = formData.exam_type === 'Placement';
-        const finalStatus = isPlacement ? 'Pending' : 'Active';
-
+      if (regMode === 'Single') {
+        const isPlacement = singleData.exam_type === 'Placement';
         let selectedClassName = null;
 
         if (!isPlacement) {
-            if (!formData.classId) return alert("⚠️ من فضلك خيري الفوج (Class)!");
-            
-            const selectedClass = classesData.find(c => c.id === formData.classId);
-            selectedClassName = selectedClass.name;
-            const currentCount = selectedClass.enrolled_count || 0;
+          if (!singleData.classId) return alert("⚠️ من فضلك خيري الفوج!");
+          const selectedClass = classesData.find(c => c.id === singleData.classId);
+          selectedClassName = selectedClass.name;
+          const currentCount = selectedClass.enrolled_count || 0;
+          if (currentCount >= selectedClass.capacity) return alert("❌ هاد الفوج معمر!");
+          await supabase.from('classes').update({ enrolled_count: currentCount + 1 }).eq('id', singleData.classId);
+        }
 
-            if (currentCount >= selectedClass.capacity) return alert("❌ هاد الفوج معمر!");
+        const { error: authError } = await supabase.auth.signUp({ email: singleData.email, password: singleData.phone });
+        if (authError && authError.message !== "User already registered") throw authError; 
 
-            const { error: authError } = await supabase.auth.signUp({ email: formData.email, password: formData.phone });
-            if (authError && authError.message !== "User already registered") throw authError; 
-
-            await supabase.from('classes').update({ enrolled_count: currentCount + 1 }).eq('id', formData.classId);
-        } else {
-            const { error: authError } = await supabase.auth.signUp({ email: formData.email, password: formData.phone });
-            if (authError && authError.message !== "User already registered") throw authError; 
+        if (singleData.parentEmail) {
+          const { error: parentAuthError } = await supabase.auth.signUp({ email: singleData.parentEmail, password: singleData.phone });
+          if (parentAuthError && parentAuthError.message !== "User already registered") console.error(parentAuthError);
         }
 
         const { error: dbError } = await supabase.from('students').insert([{
-            first_name: formData.firstName, 
-            last_name: formData.lastName, 
-            email: formData.email, 
-            phone: formData.phone, 
-            language: formData.language, 
-            level: formData.level, 
-            group_name: selectedClassName, 
-            exam_type: formData.exam_type, 
-            status: finalStatus, 
-            enrollment_date: new Date().toISOString().split('T')[0]
+          first_name: singleData.firstName, last_name: singleData.lastName, email: singleData.email, 
+          phone: singleData.phone, parent_email: singleData.parentEmail || null, language: singleData.language, 
+          level: singleData.level, group_name: selectedClassName, exam_type: singleData.exam_type, 
+          status: isPlacement ? 'Pending' : 'Active', enrollment_date: new Date().toISOString().split('T')[0]
         }]);
 
         if (dbError) throw dbError;
+        alert(isPlacement ? "✅ تم تسجيل الطلب للتاست!" : `🎉 تم ترسيم الطالب بنجاح!`);
+        setSingleData({ firstName: '', lastName: '', language: 'English', level: 'A1', classId: '', phone: '', email: '', parentEmail: '', exam_type: 'Course' });
 
-        alert(isPlacement ? "تم تسجيل الطلب للتاست!" : `🎉 تم ترسيم الطالب! يقدر دركا يدخل للسيت للإيميل ورقم الهاتف كمودباس.`);
-        
-        setFormData({ firstName: '', lastName: '', language: 'English', level: 'A1', classId: '', phone: '', email: '', exam_type: 'Course', password: '' });
-        
+      } else {
+        if (!parentData.email) return alert("⚠️ إيميل الولي ضروري!");
+        if (kidsList.length === 0) return alert("⚠️ لازم تسجلي طفل واحد على الأقل!");
+
+        const { error: parentAuthError } = await supabase.auth.signUp({ email: parentData.email, password: parentData.phone });
+        if (parentAuthError && parentAuthError.message !== "User already registered") console.error(parentAuthError);
+
+        for (let i = 0; i < kidsList.length; i++) {
+          const kid = kidsList[i];
+          const isPlacement = kid.exam_type === 'Placement';
+          let selectedClassName = null;
+
+          if (!isPlacement) {
+            if (!kid.classId) return alert(`⚠️ خيري الفوج للطفل رقم ${i + 1}`);
+            const selectedClass = classesData.find(c => c.id === kid.classId);
+            selectedClassName = selectedClass.name;
+            const currentCount = selectedClass.enrolled_count || 0;
+            if (currentCount >= selectedClass.capacity) return alert(`❌ الفوج المختار للطفل ${kid.firstName} معمر!`);
+            
+            await supabase.from('classes').update({ enrolled_count: currentCount + 1 }).eq('id', kid.classId);
+          }
+
+          const { error: authError } = await supabase.auth.signUp({ email: kid.email, password: kid.phone });
+          if (authError && authError.message !== "User already registered") throw authError;
+
+          const { error: dbError } = await supabase.from('students').insert([{
+            first_name: kid.firstName, last_name: kid.lastName, email: kid.email, phone: kid.phone, 
+            parent_email: parentData.email, parent_name: `${parentData.firstName} ${parentData.lastName}`, parent_contact: parentData.phone,
+            language: kid.language, level: kid.level, group_name: selectedClassName, exam_type: kid.exam_type, 
+            status: isPlacement ? 'Pending' : 'Active', enrollment_date: new Date().toISOString().split('T')[0]
+          }]);
+
+          if (dbError) throw dbError;
+        }
+
+        alert(`🎉 تم تسجيل العائلة بنجاح (${kidsList.length} أولاد)!`);
+        setParentData({ firstName: '', lastName: '', email: '', phone: '' });
+        setKidsList([{ firstName: '', lastName: '', language: 'English', level: 'A1', classId: '', phone: '', email: '', exam_type: 'Course' }]);
+      }
     } catch (err) { alert("إيرور: " + err.message); } finally { setLoading(false); }
   };
 
   return (
     <div className="w-full flex flex-col h-full p-8 animate-fade-in">
-      <h2 className="text-3xl font-bold text-[#0A1128] mb-8">Manual Student Registration</h2>
+      <div className="flex justify-between items-center mb-8">
+        <h2 className="text-3xl font-bold text-[#0A1128]">Manual Registration</h2>
+        <div className="flex bg-gray-200 p-1 rounded-xl">
+          <button onClick={() => setRegMode('Single')} className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${regMode === 'Single' ? 'bg-white text-[#2563eb] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Single Student</button>
+          <button onClick={() => setRegMode('Family')} className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${regMode === 'Family' ? 'bg-white text-[#2563eb] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Family (Parent & Kids)</button>
+        </div>
+      </div>
+
       <form onSubmit={handleSave} className="flex-1 overflow-y-auto pr-4 custom-scrollbar">
         
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-6">
-           <h3 className="font-bold text-lg mb-4 border-b border-gray-100 pb-2">Academic Details</h3>
-           <div className={`grid gap-4 ${formData.exam_type === 'Course' ? 'grid-cols-4' : 'grid-cols-2'}`}>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Registration Type</label>
-                <select name="exam_type" value={formData.exam_type} onChange={handleInputChange} className="w-full bg-gray-50 border border-gray-100 rounded-lg p-3 text-sm outline-none focus:border-blue-500">
-                  <option value="Course">Direct Course</option><option value="Placement">Placement Test</option>
-                </select>
-              </div>
-              
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Language</label>
-                <select name="language" value={formData.language} onChange={handleInputChange} className="w-full bg-gray-50 border border-gray-100 rounded-lg p-3 text-sm">
-                  <option>English</option><option>Français</option><option>Deutsch</option><option>Español</option>
-                </select>
-              </div>
-
-              {formData.exam_type === 'Course' && (
-                <>
+        {regMode === 'Single' ? (
+          <>
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-6">
+              <h3 className="font-bold text-lg mb-4 border-b border-gray-100 pb-2">Academic Details</h3>
+              <div className={`grid gap-4 ${singleData.exam_type === 'Course' ? 'grid-cols-4' : 'grid-cols-2'}`}>
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Level</label>
-                    <select name="level" value={formData.level} onChange={handleInputChange} className="w-full bg-gray-50 border border-gray-100 rounded-lg p-3 text-sm">
-                      <option>A1</option><option>A2</option><option>B1</option><option>B2</option><option>C1</option><option>C2</option>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Registration Type</label>
+                    <select value={singleData.exam_type} onChange={e=>setSingleData({...singleData, exam_type: e.target.value})} className="w-full bg-gray-50 border border-gray-100 rounded-lg p-3 text-sm">
+                      <option value="Course">Direct Course</option><option value="Placement">Placement Test</option>
                     </select>
                   </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Language</label>
+                    <select value={singleData.language} onChange={e=>setSingleData({...singleData, language: e.target.value})} className="w-full bg-gray-50 border border-gray-100 rounded-lg p-3 text-sm">
+                      <option>English</option><option>Français</option><option>Deutsch</option><option>Español</option>
+                    </select>
+                  </div>
+                  {singleData.exam_type === 'Course' && (
+                    <>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Level</label>
+                        <select value={singleData.level} onChange={e=>setSingleData({...singleData, level: e.target.value})} className="w-full bg-gray-50 border border-gray-100 rounded-lg p-3 text-sm">
+                          <option>A1</option><option>A2</option><option>B1</option><option>B2</option><option>C1</option><option>C2</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-[#2563eb] uppercase mb-1">Available Groups</label>
+                        <select value={singleData.classId} onChange={e=>setSingleData({...singleData, classId: e.target.value})} className="w-full bg-white border border-blue-200 rounded-lg p-3 text-sm font-bold">
+                          <option value="">-- Select Group --</option>
+                          {classesData.filter(c => c.language === singleData.language && c.level.includes(singleData.level)).map(c => {
+                            const isFull = (c.enrolled_count || 0) >= (c.capacity || 20);
+                            return <option key={c.id} value={c.id} disabled={isFull}>{c.name} {isFull ? '🔴 FULL' : ''}</option>
+                          })}
+                        </select>
+                      </div>
+                    </>
+                  )}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-8">
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                <h3 className="font-bold text-lg mb-4 border-b border-gray-100 pb-2">Personal Info</h3>
+                <div className="space-y-4">
+                  <input type="text" value={singleData.firstName} onChange={e=>setSingleData({...singleData, firstName: e.target.value})} placeholder="First Name" className="w-full bg-gray-50 border border-gray-100 p-3 rounded-lg text-sm" required />
+                  <input type="text" value={singleData.lastName} onChange={e=>setSingleData({...singleData, lastName: e.target.value})} placeholder="Last Name" className="w-full bg-gray-50 border border-gray-100 p-3 rounded-lg text-sm" required />
+                </div>
+              </div>
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                <h3 className="font-bold text-lg mb-4 border-b border-gray-100 pb-2">Contact & Login</h3>
+                <div className="space-y-4">
+                  <input type="email" value={singleData.email} onChange={e=>setSingleData({...singleData, email: e.target.value})} placeholder="Student Email" className="w-full bg-gray-50 border border-gray-100 p-3 rounded-lg text-sm" required />
+                  <input type="tel" value={singleData.phone} onChange={e=>setSingleData({...singleData, phone: e.target.value})} placeholder="Phone Number (Becomes Password)" className="w-full bg-gray-50 border border-gray-100 p-3 rounded-lg text-sm" required />
+                  <input type="email" value={singleData.parentEmail} onChange={e=>setSingleData({...singleData, parentEmail: e.target.value})} placeholder="Parent Email (Optional for linking)" className="w-full bg-blue-50 border border-blue-100 p-3 rounded-lg text-sm" />
+                </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="space-y-8 animate-fadeIn">
+            <div className="bg-[#0A1128] p-6 rounded-2xl shadow-md text-white border border-[#111C44]">
+              <div className="flex items-center gap-3 mb-6 border-b border-white/10 pb-3">
+                <span className="text-2xl">👥</span>
+                <h3 className="font-bold text-lg uppercase tracking-widest text-blue-300">Parent / Guardian Details</h3>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <input type="text" value={parentData.firstName} onChange={e=>setParentData({...parentData, firstName: e.target.value})} placeholder="First Name" className="bg-white/10 border border-white/20 p-3 rounded-lg text-sm text-white placeholder-gray-400" required />
+                <input type="text" value={parentData.lastName} onChange={e=>setParentData({...parentData, lastName: e.target.value})} placeholder="Last Name" className="bg-white/10 border border-white/20 p-3 rounded-lg text-sm text-white placeholder-gray-400" required />
+                <input type="email" value={parentData.email} onChange={e=>setParentData({...parentData, email: e.target.value})} placeholder="Parent Email (Login)" className="bg-white/10 border border-white/20 p-3 rounded-lg text-sm text-white placeholder-gray-400" required />
+                <input type="tel" value={parentData.phone} onChange={e=>setParentData({...parentData, phone: e.target.value})} placeholder="Phone (Password)" className="bg-white/10 border border-white/20 p-3 rounded-lg text-sm text-white placeholder-gray-400" required />
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              {kidsList.map((kid, index) => (
+                <div key={index} className="bg-white p-6 rounded-2xl shadow-sm border-2 border-blue-50 relative">
+                  <div className="absolute -top-3 -left-3 bg-[#2563eb] text-white w-8 h-8 rounded-full flex items-center justify-center font-black border-4 border-[#F8F9FA]">
+                    {index + 1}
+                  </div>
+                  {kidsList.length > 1 && (
+                    <button type="button" onClick={() => removeKid(index)} className="absolute top-4 right-4 text-red-400 hover:text-red-600 font-bold text-xs">✕ Remove</button>
+                  )}
                   
-                  <div>
-                    <label className="block text-xs font-bold text-[#2563eb] uppercase mb-1">Available Groups</label>
-                    <select name="classId" value={formData.classId} onChange={handleInputChange} className="w-full bg-white border border-blue-200 rounded-lg p-3 text-sm font-bold outline-none focus:border-blue-500 shadow-sm cursor-pointer">
-                      <option value="">-- Select Group --</option>
-                      {availableClasses.length > 0 ? availableClasses.map(c => {
-                        const isFull = (c.enrolled_count || 0) >= (c.capacity || 20);
-                        return (
-                          <option key={c.id} value={c.id} disabled={isFull}>
-                            {c.name} ({(c.enrolled_count || 0)}/{c.capacity || 20}) {isFull ? '🔴 FULL' : ''}
-                          </option>
-                        );
-                      }) : <option value="" disabled>❌ No groups available</option>}
-                    </select>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 mt-2">
+                    <input type="text" value={kid.firstName} onChange={e=>handleKidChange(index, 'firstName', e.target.value)} placeholder="Kid First Name" className="bg-gray-50 border border-gray-200 p-3 rounded-lg text-sm font-bold" required />
+                    <input type="text" value={kid.lastName} onChange={e=>handleKidChange(index, 'lastName', e.target.value)} placeholder="Kid Last Name" className="bg-gray-50 border border-gray-200 p-3 rounded-lg text-sm font-bold" required />
+                    <input type="email" value={kid.email} onChange={e=>handleKidChange(index, 'email', e.target.value)} placeholder="Kid Email" className="bg-gray-50 border border-gray-200 p-3 rounded-lg text-sm" required />
+                    <input type="tel" value={kid.phone} onChange={e=>handleKidChange(index, 'phone', e.target.value)} placeholder="Kid Phone" className="bg-gray-50 border border-gray-200 p-3 rounded-lg text-sm" required />
                   </div>
-                </>
-              )}
-           </div>
-        </div>
 
-        <div className="grid grid-cols-2 gap-8">
-           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-             <h3 className="font-bold text-lg mb-4 border-b border-gray-100 pb-2">Personal Info</h3>
-             <div className="space-y-4">
-               <input type="text" name="firstName" value={formData.firstName} onChange={handleInputChange} placeholder="First Name" className="w-full bg-gray-50 border border-gray-100 p-3 rounded-lg text-sm" required />
-               <input type="text" name="lastName" value={formData.lastName} onChange={handleInputChange} placeholder="Last Name" className="w-full bg-gray-50 border border-gray-100 p-3 rounded-lg text-sm" required />
-             </div>
-           </div>
-           
-           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-             <h3 className="font-bold text-lg mb-4 border-b border-gray-100 pb-2">Contact Info</h3>
-             <div className="space-y-4">
-               <input type="email" name="email" value={formData.email} onChange={handleInputChange} placeholder="Email Address" className="w-full bg-gray-50 border border-gray-100 p-3 rounded-lg text-sm" required />
-               <input type="tel" name="phone" value={formData.phone} onChange={handleInputChange} placeholder="Phone Number (Becomes Password)" className="w-full bg-gray-50 border border-gray-100 p-3 rounded-lg text-sm" required />
-             </div>
-           </div>
-        </div>
+                  <div className="grid grid-cols-4 gap-4 p-4 bg-blue-50/50 rounded-xl border border-blue-100">
+                    <select value={kid.exam_type} onChange={e=>handleKidChange(index, 'exam_type', e.target.value)} className="bg-white border border-blue-200 rounded-lg p-2.5 text-xs font-bold text-blue-800">
+                      <option value="Course">Direct Course</option><option value="Placement">Placement Test</option>
+                    </select>
+                    <select value={kid.language} onChange={e=>handleKidChange(index, 'language', e.target.value)} className="bg-white border border-blue-200 rounded-lg p-2.5 text-xs font-bold text-blue-800">
+                      <option>English</option><option>Français</option><option>Deutsch</option><option>Español</option>
+                    </select>
+                    {kid.exam_type === 'Course' && (
+                      <>
+                        <select value={kid.level} onChange={e=>handleKidChange(index, 'level', e.target.value)} className="bg-white border border-blue-200 rounded-lg p-2.5 text-xs font-bold text-blue-800">
+                          <option>A1</option><option>A2</option><option>B1</option><option>B2</option><option>C1</option>
+                        </select>
+                        <select value={kid.classId} onChange={e=>handleKidChange(index, 'classId', e.target.value)} className="bg-white border border-blue-500 rounded-lg p-2.5 text-xs font-bold text-blue-800">
+                          <option value="">-- Assign Group --</option>
+                          {classesData.filter(c => c.language === kid.language && c.level.includes(kid.level)).map(c => {
+                            const isFull = (c.enrolled_count || 0) >= (c.capacity || 20);
+                            return <option key={c.id} value={c.id} disabled={isFull}>{c.name} {isFull ? '🔴 FULL' : ''}</option>
+                          })}
+                        </select>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+              
+              <button type="button" onClick={addKid} className="w-full py-4 border-2 border-dashed border-[#2563eb] text-[#2563eb] font-black rounded-2xl hover:bg-blue-50 transition-colors uppercase tracking-widest text-xs">
+                + Add Another Child to this Family
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="mt-8 pt-6 border-t border-gray-200 flex justify-end space-x-4">
-          <button type="submit" disabled={loading} className="px-8 py-3 bg-[#0A1128] hover:bg-gray-800 text-white font-bold rounded-lg shadow-md transition-colors cursor-pointer">
-            {loading ? 'Processing...' : 'Save & Register Student'}
+          <button type="submit" disabled={loading} className="px-10 py-4 bg-[#0A1128] hover:bg-blue-900 text-white font-black uppercase tracking-widest rounded-xl shadow-xl transition-all active:scale-95 cursor-pointer">
+            {loading ? 'Processing...' : (regMode === 'Single' ? 'Save & Register Student' : `Register Family (${kidsList.length} Kids)`)}
           </button>
         </div>
       </form>
@@ -954,7 +926,7 @@ const StudentRegistrationTab = () => {
 };
 
 // ==========================================
-// 4. الرواق الرابع: إضافة موظف جديد (Add Staff) 👨‍💼
+// 4. الرواق الرابع: إضافة موظف جديد (Add Staff)
 // ==========================================
 const StaffRegistrationTab = () => {
   const [loading, setLoading] = useState(false);
@@ -1060,37 +1032,15 @@ const StudentsManagement = () => {
   return (
     <div className="min-h-screen bg-[#F8F9FA] flex flex-col font-sans">
       
-      {/* 🚀 Navigation Tabs - شريط التبديل */}
       <div className="pt-8 px-8 pb-2">
         <div className="flex space-x-2 bg-white p-2 rounded-2xl shadow-sm border border-gray-200 w-max">
-          <button 
-            onClick={() => setActiveTab('requests')} 
-            className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'requests' ? 'bg-[#0A1128] text-white shadow-md' : 'text-gray-500 hover:bg-gray-50 cursor-pointer'}`}
-          >
-            📥 Requests Pipeline
-          </button>
-          <button 
-            onClick={() => setActiveTab('records')} 
-            className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'records' ? 'bg-[#0A1128] text-white shadow-md' : 'text-gray-500 hover:bg-gray-50 cursor-pointer'}`}
-          >
-            🎓 Active Records
-          </button>
-          <button 
-            onClick={() => setActiveTab('add')} 
-            className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'add' ? 'bg-[#0A1128] text-white shadow-md' : 'text-gray-500 hover:bg-gray-50 cursor-pointer'}`}
-          >
-            ➕ Manual Registration
-          </button>
-          <button 
-            onClick={() => setActiveTab('addStaff')} 
-            className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ml-4 ${activeTab === 'addStaff' ? 'bg-[#2563eb] text-white shadow-md' : 'text-gray-500 hover:bg-gray-50 cursor-pointer border border-gray-100'}`}
-          >
-            👥 Add Staff
-          </button>
+          <button onClick={() => setActiveTab('requests')} className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'requests' ? 'bg-[#0A1128] text-white shadow-md' : 'text-gray-500 hover:bg-gray-50 cursor-pointer'}`}>📥 Requests Pipeline</button>
+          <button onClick={() => setActiveTab('records')} className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'records' ? 'bg-[#0A1128] text-white shadow-md' : 'text-gray-500 hover:bg-gray-50 cursor-pointer'}`}>🎓 Active Records</button>
+          <button onClick={() => setActiveTab('add')} className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'add' ? 'bg-[#0A1128] text-white shadow-md' : 'text-gray-500 hover:bg-gray-50 cursor-pointer'}`}>➕ Manual Registration</button>
+          <button onClick={() => setActiveTab('addStaff')} className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ml-4 ${activeTab === 'addStaff' ? 'bg-[#2563eb] text-white shadow-md' : 'text-gray-500 hover:bg-gray-50 cursor-pointer border border-gray-100'}`}>👥 Add Staff</button>
         </div>
       </div>
 
-      {/* 📺 عرض المحتوى حسب الرواق المختار */}
       <div className="flex-1 overflow-hidden">
         {activeTab === 'requests' && <RegistrationRequestsTab />}
         {activeTab === 'records' && <StudentRecordsTab />}
