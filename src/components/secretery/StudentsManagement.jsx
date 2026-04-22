@@ -1,16 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabaseClient';
 
+const Icons = {
+  Search: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>,
+  Book: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>,
+  Video: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect><line x1="7" y1="2" x2="7" y2="22"></line><line x1="17" y1="2" x2="17" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line><line x1="2" y1="7" x2="7" y2="7"></line><line x1="2" y1="17" x2="7" y2="17"></line><line x1="17" y1="17" x2="22" y2="17"></line><line x1="17" y1="7" x2="22" y2="7"></line></svg>,
+  Notes: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>,
+  Pdf: () => <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><text x="9" y="18" fontSize="6" fontWeight="bold">PDF</text></svg>,
+  Back: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 8 8 12 12 16"></polyline><line x1="16" y1="12" x2="8" y2="12"></line></svg>,
+  Homework: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline><circle cx="10" cy="13" r="1"></circle><circle cx="10" cy="17" r="1"></circle></svg>
+};
+
 // ==========================================
 // 1. الرواق الأول: طلبات التسجيل (Registration Requests)
 // ==========================================
 const RegistrationRequestsTab = () => {
-  const [activeFilter, setActiveFilter] = useState('All'); // 💡 يقدر يكون 'All', 'Student', أو 'Parent'
+  const [activeFilter, setActiveFilter] = useState('All'); 
   const [requests, setRequests] = useState([]);
   const [classesData, setClassesData] = useState([]);
-  const [staffData, setStaffData] = useState([]); // 💡 جلب الأساتذة
-  const [roomsData, setRoomsData] = useState([]); // 💡 جلب القاعات
-  const [schedTeacher, setSchedTeacher] = useState(''); // 💡 الأستاذ المختار // 💡 إضافة لجلب الأقسام
+  const [staffData, setStaffData] = useState([]); 
+  const [roomsData, setRoomsData] = useState([]); 
+  const [schedTeacher, setSchedTeacher] = useState(''); 
 
   const fetchRequests = async () => {
     const { data, error } = await supabase
@@ -39,11 +49,9 @@ const RegistrationRequestsTab = () => {
     if (data) setClassesData(data);
   };
   const fetchStaffAndRooms = async () => {
-    // جلب الأساتذة
     const { data: staff } = await supabase.from('staff').select('*');
     if (staff) setStaffData(staff);
     
-    // جلب القاعات
     const { data: rooms } = await supabase.from('rooms').select('*');
     if (rooms) setRoomsData(rooms);
   };
@@ -52,8 +60,9 @@ const RegistrationRequestsTab = () => {
 
   const [isEnrollMode, setIsEnrollMode] = useState(false);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [isViewInfoModalOpen, setIsViewInfoModalOpen] = useState(false); 
   const [selectedStudent, setSelectedStudent] = useState(null);
-  const [loading, setLoading] = useState(false); // 💡 إضافة اللودينغ
+  const [loading, setLoading] = useState(false); 
   
   const [schedDay, setSchedDay] = useState('Mon');
   const [schedTime, setSchedTime] = useState('10:00');
@@ -63,26 +72,66 @@ const RegistrationRequestsTab = () => {
   const [notifyEmail, setNotifyEmail] = useState(true);
   const [notifyWhatsApp, setNotifyWhatsApp] = useState(false);
 
-  // 💡 State for Final Enrollment Decision
+  // States for Final Enrollment Decision
   const [enrollClassId, setEnrollClassId] = useState('');
   const [enrollGrade, setEnrollGrade] = useState('');
-  // 💡 هادي تفيلتري الداتا على حساب البوطون اللي كليكيتي عليه
+  const [enrollLevel, setEnrollLevel] = useState('A1'); // State للنيفو
+  
   const filteredRequests = requests.filter(req => {
     if (activeFilter === 'All') return true;
     return req.type === activeFilter;
   });
-  // دوال مساعدة للتوقيت
+
   const getDayNumber = (dayStr) => {
       const days = { 'Mon': 1, 'Tue': 2, 'Wed': 3, 'Thu': 4, 'Fri': 5, 'Sat': 6, 'Sun': 0 };
       return days[dayStr] || 1;
   };
+  
   const parseTimeToFloat = (timeStr) => {
       const [hours, minutes] = timeStr.split(':');
       return parseInt(hours) + parseInt(minutes)/60;
   };
 
-  const handleEnrollNow = (req) => { setSelectedStudent(req); setIsEnrollMode(true); };
+  // 💡 الدالة اللي تكتشف النيفو أوتوماتيكياً من النقطة
+  const detectLevelFromScore = (scoreStr) => {
+    if (!scoreStr) return 'A1';
+    const upper = String(scoreStr).toUpperCase();
+    
+    // إذا الأستاذ كتب الحرف مباشرة (مثلا B1)
+    const levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+    for (let l of levels) {
+      if (upper.includes(l)) return l;
+    }
+    
+    // إذا الأستاذ حط نقطة بالأرقام (مثلا 14/20)
+    const numMatch = upper.match(/(\d+)/);
+    if (numMatch) {
+       const score = parseFloat(numMatch[1]);
+       if (score < 10) return 'A1';
+       if (score < 13) return 'A2';
+       if (score < 16) return 'B1';
+       if (score < 18) return 'B2';
+       return 'C1';
+    }
+    return 'A1';
+  };
+
+  const handleEnrollNow = (req) => { 
+    setSelectedStudent(req); 
+    const score = req.test_score || '';
+    setEnrollGrade(score); 
+    
+    // 💡 التحديد الأوتوماتيكي للنيفو
+    const detectedLevel = detectLevelFromScore(score);
+    setEnrollLevel(detectedLevel);
+    setEnrollClassId(''); // نفرغو القسم باش تخير من جديد
+
+    setIsEnrollMode(true); 
+  };
+  
   const handleOpenScheduleModal = (req) => { setSelectedStudent(req); setIsScheduleModalOpen(true); };
+  
+  const handleOpenInfoModal = (req) => { setSelectedStudent(req); setIsViewInfoModalOpen(true); };
 
   const handleSaveSchedule = async () => {
     setLoading(true);
@@ -94,7 +143,6 @@ const RegistrationRequestsTab = () => {
         return;
       }
 
-      // 💡 1. التحقق: هل كاين Placement Test في نفس الوقت؟
       const { data: existingTests } = await supabase
         .from('appointments')
         .select('*')
@@ -103,16 +151,14 @@ const RegistrationRequestsTab = () => {
         .ilike('sub_title', '%Placement Test%');
 
       if (existingTests && existingTests.length > 0) {
-        // يخرجلك ميساج فيه وي ولا للا
         const confirmJoin = window.confirm(`⚠️ كاين ديجا ${existingTests.length} تلاميذ راهم مبرمجين لـ Placement Test في هاد الوقت! \n\nتحبي تزيدي هاد التلميذ معاهم في نفس الفوج؟`);
         
         if (!confirmJoin) {
           setLoading(false);
-          return; // إذا قلتي للا، يحبس وميسجلش
+          return; 
         }
       }
 
-      // 💡 2. التحقق من القاعات (نفس الكود ديالك)
       const { data: conflicts } = await supabase
         .from('classes')
         .select('*')
@@ -140,7 +186,7 @@ const RegistrationRequestsTab = () => {
         .from('appointments')
         .insert([{
           title: selectedStudent.name,
-          sub_title: `Placement Test: ${selectedStudent.language} (Prof: ${schedTeacher}, Room: ${schedRoom})`, // 💡 زدنا اسم الأستاذ والقاعة هنا باش يبانو
+          sub_title: `Placement Test: ${selectedStudent.language} (Prof: ${schedTeacher}, Room: ${schedRoom})`, 
           appointment_day: getDayNumber(schedDay), 
           start_time_float: parseTimeToFloat(schedTime),
           status: 'Upcoming',
@@ -169,7 +215,6 @@ const RegistrationRequestsTab = () => {
       const currentCount = selectedClass.enrolled_count || 0;
       if (currentCount >= selectedClass.capacity) return alert("❌ هاد الفوج معمر!");
 
-      // 💡 السحر هنا: نكرييولو الحساب باش يولي يقدر يدير Login
       const { error: authError } = await supabase.auth.signUp({ email: selectedStudent.email, password: selectedStudent.phone });
       if (authError && authError.message !== "User already registered") throw authError;
 
@@ -179,7 +224,7 @@ const RegistrationRequestsTab = () => {
         status: 'Active', 
         exam_type: 'Course',
         group_name: selectedClass.name,
-        level: selectedClass.level,
+        level: enrollLevel, // 💡 نسجلو النيفو الجديد اللي خيراتو السكريتيرة
         test_score: enrollGrade
       }).eq('id', selectedStudent.id);
       
@@ -192,7 +237,9 @@ const RegistrationRequestsTab = () => {
   };
 
   if (isEnrollMode) {
-    const matchingClasses = classesData.filter(c => c.language === selectedStudent?.language);
+    // 💡 الفلترة السحرية: نجيبو غير الأقسام اللي بنفس اللغة ونفس النيفو المكتشف
+    const matchingClasses = classesData.filter(c => c.language === selectedStudent?.language && c.level === enrollLevel);
+    
     return (
       <div className="min-h-screen bg-[#F8F9FA] p-12 font-sans text-left transition-all duration-300">
         <div className="flex items-center mb-12">
@@ -201,23 +248,58 @@ const RegistrationRequestsTab = () => {
         </div>
         <div className="max-w-6xl space-y-16">
           
-          {/* 💡 الإضافة الجديدة: قسم القرار النهائي (علامة التاست وتحديد الفوج) بنفس ستايلك */}
           <section className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
             <h2 className="text-sm font-bold text-[#0A1128] mb-6 uppercase tracking-wide border-b border-gray-100 pb-2 w-max">🎓 Final Registration Decision</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                <div>
-                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Assign to Group (Based on Test)</label>
-                  <select value={enrollClassId} onChange={(e) => setEnrollClassId(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm font-bold outline-none focus:border-[#0A1128] shadow-sm cursor-pointer">
-                     <option value="">-- Select Group --</option>
-                     {matchingClasses.map(c => {
-                         const isFull = (c.enrolled_count || 0) >= (c.capacity || 20);
-                         return <option key={c.id} value={c.id} disabled={isFull}>{c.name} - Lvl: {c.level} ({(c.enrolled_count || 0)}/{c.capacity || 20}) {isFull ? '🔴 FULL' : ''}</option>
-                     })}
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Test Score (By Teacher)</label>
+                  <input 
+                    type="text" 
+                    value={enrollGrade} 
+                    onChange={(e) => {
+                      setEnrollGrade(e.target.value);
+                      setEnrollLevel(detectLevelFromScore(e.target.value));
+                      setEnrollClassId('');
+                    }} 
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm font-black text-blue-600 outline-none focus:border-[#0A1128] shadow-sm" 
+                  />
+               </div>
+               <div>
+                  <label className="block text-[10px] font-bold text-[#2563eb] uppercase tracking-widest mb-2">Assign Level</label>
+                  <select 
+                    value={enrollLevel} 
+                    onChange={(e) => {
+                      setEnrollLevel(e.target.value); 
+                      setEnrollClassId('');
+                    }} 
+                    className="w-full bg-blue-50 border border-blue-200 text-blue-700 rounded-xl p-3 text-sm font-bold outline-none focus:border-[#2563eb] shadow-sm cursor-pointer"
+                  >
+                     <option value="A1">A1</option>
+                     <option value="A2">A2</option>
+                     <option value="B1">B1</option>
+                     <option value="B2">B2</option>
+                     <option value="C1">C1</option>
+                     <option value="C2">C2</option>
                   </select>
                </div>
                <div>
-                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Test Score / Note</label>
-                  <input type="text" value={enrollGrade} onChange={(e)=>setEnrollGrade(e.target.value)} placeholder="e.g. 18/20 or B2+" className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm font-bold outline-none focus:border-[#0A1128]" />
+                  <label className="block text-[10px] font-bold text-[#00a65e] uppercase tracking-widest mb-2">Available Groups</label>
+                  <select 
+                    value={enrollClassId} 
+                    onChange={(e) => setEnrollClassId(e.target.value)} 
+                    className="w-full bg-green-50 border border-green-200 text-green-700 rounded-xl p-3 text-sm font-bold outline-none focus:border-[#00a65e] shadow-sm cursor-pointer"
+                  >
+                     <option value="">-- Select Group --</option>
+                     {matchingClasses.length === 0 && <option disabled>❌ No classes found for {enrollLevel}</option>}
+                     {matchingClasses.map(c => {
+                         const isFull = (c.enrolled_count || 0) >= (c.capacity || 20);
+                         return (
+                           <option key={c.id} value={c.id} disabled={isFull}>
+                             {c.name} ({(c.enrolled_count || 0)}/{c.capacity || 20}) {isFull ? '🔴 FULL' : ''}
+                           </option>
+                         );
+                     })}
+                  </select>
                </div>
             </div>
           </section>
@@ -225,15 +307,15 @@ const RegistrationRequestsTab = () => {
           <section>
             <h2 className="text-sm font-bold text-gray-800 mb-8 uppercase tracking-wide border-b border-gray-100 pb-2 w-max">Academic Details</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
-              {[{ label: "Language", v: selectedStudent?.language }, { label: "Level", v: selectedStudent?.level }, { label: "Group", v: enrollClassId ? classesData.find(c=>c.id===enrollClassId)?.name : "Pending..." }].map((item) => (
+              {[{ label: "Language", v: selectedStudent?.language }, { label: "Level", v: enrollLevel }, { label: "Group", v: enrollClassId ? classesData.find(c=>c.id===enrollClassId)?.name : "Pending..." }].map((item) => (
                 <div key={item.label} className="space-y-2 border-b border-gray-200 pb-2 relative">
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{item.label}</label>
-                  <div className="text-sm font-bold text-gray-700">{item.v}</div>
-                  <span className="absolute right-0 bottom-2 text-gray-300 text-[10px]">▼</span>
+                  <div className="text-sm font-bold text-[#0A1128]">{item.v}</div>
                 </div>
               ))}
             </div>
           </section>
+          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-24">
             <section className="space-y-10">
               <h2 className="text-sm font-bold text-gray-800 uppercase tracking-wide">Personal Info</h2>
@@ -251,6 +333,7 @@ const RegistrationRequestsTab = () => {
               </div>
             </section>
           </div>
+
           <div className="flex justify-end space-x-4 pt-12">
             <button onClick={() => setIsEnrollMode(false)} className="px-10 py-3 bg-gray-100 text-gray-500 rounded-xl text-sm font-bold hover:bg-gray-200 transition-all cursor-pointer">Cancel</button>
             <button onClick={handleFinalEnrollment} className="px-10 py-3 bg-[#0A1128] text-white rounded-xl text-sm font-bold hover:bg-blue-900 shadow-lg cursor-pointer">Approve & Save Student</button>
@@ -264,7 +347,6 @@ const RegistrationRequestsTab = () => {
     <div className="p-8 bg-[#F8F9FA] h-full font-sans text-left text-[#0A1128] overflow-y-auto custom-scrollbar">
       <div className="mb-8 flex justify-between items-center">
         <h1 className="text-2xl font-bold uppercase tracking-tight text-[#0A1128]">Registration Requests</h1>
-        {/* 💡 أزرار الفلترة الديناميكية */}
         <div className="flex bg-[#0A1128] text-white rounded-2xl p-1 text-[11px] font-bold">
           <span 
             onClick={() => setActiveFilter('All')} 
@@ -323,16 +405,20 @@ const RegistrationRequestsTab = () => {
                     {req.status.toUpperCase()}
                   </span>
                 </td>
-                <td className="p-6 flex justify-center gap-3">
+                <td className="p-6 flex justify-center gap-3 items-center">
+                  <button onClick={() => handleOpenInfoModal(req)} className="px-3 py-2 bg-gray-50 text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-100 transition-colors shadow-sm" title="View Details">
+                     👁️
+                  </button>
+
                   {req.status === 'Passed' ? (
-                    <button onClick={() => handleEnrollNow(req)} className="px-8 py-2.5 bg-green-600 text-white rounded-xl text-[11px] font-bold hover:bg-green-700 cursor-pointer shadow-md">
+                    <button onClick={() => handleEnrollNow(req)} className="px-6 py-2 bg-green-600 text-white rounded-xl text-[11px] font-bold hover:bg-green-700 cursor-pointer shadow-md">
                       Enroll Now ✅
                     </button>
                   ) : (
                     <button 
                       onClick={() => handleOpenScheduleModal(req)}
                       disabled={req.status === 'Scheduled'}
-                      className={`px-6 py-2.5 rounded-xl text-[11px] font-bold transition-all shadow-sm ${
+                      className={`px-4 py-2 rounded-xl text-[11px] font-bold transition-all shadow-sm ${
                         req.status === 'Scheduled' ? 'bg-gray-100 text-gray-300 cursor-not-allowed border border-gray-100' : 'bg-[#0A1128] text-white hover:bg-blue-900 cursor-pointer'
                       }`}
                     >
@@ -345,6 +431,44 @@ const RegistrationRequestsTab = () => {
           </tbody>
         </table>
       </div>
+
+      {isViewInfoModalOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl p-8 font-sans border border-gray-100">
+            <div className="flex justify-between items-center mb-6">
+               <h2 className="text-xl font-bold text-[#0A1128]">Applicant Details</h2>
+               <button onClick={() => setIsViewInfoModalOpen(false)} className="text-gray-400 hover:text-red-500 font-bold text-xl">×</button>
+            </div>
+            <div className="space-y-4">
+               <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Full Name</p>
+                  <p className="text-sm font-bold text-[#0A1128]">{selectedStudent?.name}</p>
+               </div>
+               <div className="grid grid-cols-2 gap-4">
+                 <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Phone</p>
+                    <p className="text-sm font-bold text-[#0A1128]">{selectedStudent?.phone || 'N/A'}</p>
+                 </div>
+                 <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 overflow-hidden">
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Email</p>
+                    <p className="text-sm font-bold text-[#0A1128] truncate">{selectedStudent?.email || 'N/A'}</p>
+                 </div>
+               </div>
+               <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Application Date</p>
+                  <p className="text-sm font-bold text-[#0A1128]">{new Date(selectedStudent?.enrollment_date).toLocaleDateString()}</p>
+               </div>
+               {selectedStudent?.test_score && (
+                 <div className="bg-green-50 p-4 rounded-xl border border-green-100">
+                    <p className="text-[10px] text-green-600 font-bold uppercase tracking-widest mb-1">Test Score / Note</p>
+                    <p className="text-lg font-black text-green-700">{selectedStudent?.test_score}</p>
+                 </div>
+               )}
+            </div>
+            <button onClick={() => setIsViewInfoModalOpen(false)} className="w-full mt-6 bg-[#0A1128] text-white py-3 rounded-xl font-bold text-sm hover:bg-black transition-colors">Close</button>
+          </div>
+        </div>
+      )}
 
       {isScheduleModalOpen && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
@@ -720,13 +844,11 @@ const StudentRegistrationTab = () => {
 
             if (currentCount >= selectedClass.capacity) return alert("❌ هاد الفوج معمر!");
 
-            // 💡 السحر هنا: نكرييولو الحساب باش يولي يقدر يدير Login
             const { error: authError } = await supabase.auth.signUp({ email: formData.email, password: formData.phone });
             if (authError && authError.message !== "User already registered") throw authError; 
 
             await supabase.from('classes').update({ enrolled_count: currentCount + 1 }).eq('id', formData.classId);
         } else {
-            // حتى لو Placement, نكرييولو حساب
             const { error: authError } = await supabase.auth.signUp({ email: formData.email, password: formData.phone });
             if (authError && authError.message !== "User already registered") throw authError; 
         }
@@ -780,7 +902,7 @@ const StudentRegistrationTab = () => {
                   <div>
                     <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Level</label>
                     <select name="level" value={formData.level} onChange={handleInputChange} className="w-full bg-gray-50 border border-gray-100 rounded-lg p-3 text-sm">
-                      <option>A1</option><option>A2</option><option>B1</option><option>B2</option><option>C1</option>
+                      <option>A1</option><option>A2</option><option>B1</option><option>B2</option><option>C1</option><option>C2</option>
                     </select>
                   </div>
                   
@@ -832,9 +954,9 @@ const StudentRegistrationTab = () => {
 };
 
 // ==========================================
-// 4. الرواق الرابع: إضافة أستاذ جديد (Add Teacher) 👨‍🏫
+// 4. الرواق الرابع: إضافة موظف جديد (Add Staff) 👨‍💼
 // ==========================================
-const TeacherRegistrationTab = () => {
+const StaffRegistrationTab = () => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({ 
     firstName: '', lastName: '', email: '', phone: '', department: 'English', role: 'Teacher' 
@@ -850,16 +972,14 @@ const TeacherRegistrationTab = () => {
     setLoading(true);
 
     try {
-        // 💡 نكرييولو الحساب في Auth باش يدير Login ديريكت
         const { data: authData, error: authError } = await supabase.auth.signUp({ 
             email: formData.email, 
-            password: formData.phone // الباسورد هو رقم التيليفون
+            password: formData.phone 
         });
         if (authError && authError.message !== "User already registered") throw authError; 
 
-        const uid = authData.user?.id; // جلب الـ UID
+        const uid = authData.user?.id; 
 
-        // 💡 نحطوه في طابلو الأساتذة ونربطوه بالـ ID
         const { error: dbError } = await supabase.from('staff').insert([{
             auth_id: uid, 
             first_name: formData.firstName, 
@@ -872,7 +992,7 @@ const TeacherRegistrationTab = () => {
 
         if (dbError) throw dbError;
 
-        alert(`🎉 تم إضافة الأستاذ ${formData.firstName}! يقدر دركا يدخل للسيت بالإيميل ورقم الهاتف.`);
+        alert(`🎉 تم إضافة ${formData.firstName} بنجاح! يقدر دركا يدخل للسيت بالإيميل ورقم الهاتف.`);
         setFormData({ firstName: '', lastName: '', email: '', phone: '', department: 'English', role: 'Teacher' });
         
     } catch (err) { alert("إيرور: " + err.message); } finally { setLoading(false); }
@@ -880,7 +1000,7 @@ const TeacherRegistrationTab = () => {
 
   return (
     <div className="w-full flex flex-col h-full p-8 animate-fade-in">
-      <h2 className="text-3xl font-bold text-[#0A1128] mb-8">Add New Staff / Teacher</h2>
+      <h2 className="text-3xl font-bold text-[#0A1128] mb-8">Add New Staff</h2>
       <form onSubmit={handleSave} className="flex-1 overflow-y-auto pr-4 custom-scrollbar">
         
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-6">
@@ -889,13 +1009,15 @@ const TeacherRegistrationTab = () => {
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Department</label>
                 <select name="department" value={formData.department} onChange={handleInputChange} className="w-full bg-gray-50 border border-gray-100 rounded-lg p-3 text-sm outline-none focus:border-blue-500">
-                  <option>English</option><option>Français</option><option>Deutsch</option><option>Español</option><option>Administration</option>
+                  <option>English</option><option>Français</option><option>Deutsch</option><option>Español</option><option>Administration</option><option>Maintenance</option>
                 </select>
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">System Role</label>
                 <select name="role" value={formData.role} onChange={handleInputChange} className="w-full bg-gray-50 border border-gray-100 rounded-lg p-3 text-sm outline-none focus:border-blue-500">
-                  <option value="Teacher">Teacher</option><option value="Admin">Admin</option><option value="Secretary">Secretary</option>
+                  <option value="Teacher">Teacher</option>
+                  <option value="Secretary">Secretary</option>
+                  <option value="Clean Lady">Clean Lady</option>
                 </select>
               </div>
            </div>
@@ -959,12 +1081,11 @@ const StudentsManagement = () => {
           >
             ➕ Manual Registration
           </button>
-          {/* 💡 قفلة جديدة باش تروح لباجة إضافة الأستاذ */}
           <button 
-            onClick={() => setActiveTab('addTeacher')} 
-            className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ml-4 ${activeTab === 'addTeacher' ? 'bg-[#2563eb] text-white shadow-md' : 'text-gray-500 hover:bg-gray-50 cursor-pointer border border-gray-100'}`}
+            onClick={() => setActiveTab('addStaff')} 
+            className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ml-4 ${activeTab === 'addStaff' ? 'bg-[#2563eb] text-white shadow-md' : 'text-gray-500 hover:bg-gray-50 cursor-pointer border border-gray-100'}`}
           >
-            👨‍🏫 Add Teacher
+            👥 Add Staff
           </button>
         </div>
       </div>
@@ -974,7 +1095,7 @@ const StudentsManagement = () => {
         {activeTab === 'requests' && <RegistrationRequestsTab />}
         {activeTab === 'records' && <StudentRecordsTab />}
         {activeTab === 'add' && <StudentRegistrationTab />}
-        {activeTab === 'addTeacher' && <TeacherRegistrationTab />}
+        {activeTab === 'addStaff' && <StaffRegistrationTab />}
       </div>
 
     </div>
