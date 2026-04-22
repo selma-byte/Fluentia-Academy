@@ -5,11 +5,13 @@ import { supabase } from '../../supabaseClient';
 // 🔔 MODERN NOTIFICATION COMPONENT (BLUE)
 // ==========================================
 const Toast = ({ message, onClose }) => (
-  <div className="fixed bottom-12 right-12 z-[250] animate-in slide-in-from-right duration-500 text-left">
-    <div className="bg-[#1A2252] text-white px-10 py-6 rounded-[2.5rem] shadow-2xl flex items-center gap-6 border border-blue-400/30 backdrop-blur-xl min-w-[400px]">
-      <div className="w-12 h-12 bg-blue-500 rounded-2xl flex items-center justify-center text-2xl shadow-lg shadow-blue-500/40 animate-pulse">✨</div>
+  <div className="fixed bottom-12 right-12 z-[1000] animate-in slide-in-from-right duration-500 text-left">
+    <div className="bg-[#1A2252] text-white px-10 py-6 rounded-[2.5rem] shadow-2xl flex items-center gap-6 border border-blue-400/30 backdrop-blur-xl min-w-[450px]">
+      <div className="w-14 h-14 bg-blue-500 rounded-2xl flex items-center justify-center text-3xl shadow-lg shadow-blue-500/40">
+        <span className="animate-pulse">✨</span>
+      </div>
       <div className="flex-1">
-        <p className="text-lg font-black italic tracking-tight leading-none mb-1">Financial Update</p>
+        <p className="text-xl font-black italic tracking-tight leading-none mb-1 text-white">Financial Update</p>
         <p className="text-sm font-bold text-blue-200/80 italic">{message}</p>
       </div>
       <button onClick={onClose} className="ml-6 text-white/30 hover:text-white transition-colors text-2xl p-2 cursor-pointer">✕</button>
@@ -21,14 +23,14 @@ const Payment = () => {
   const [currentView, setCurrentView] = useState('student');
   const [showAddPaymentModal, setShowAddPaymentModal] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
-  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+  const [toast, setToast] = useState({ show: false, message: '' });
   const [loading, setLoading] = useState(true);
 
-  // الداتا الحقيقية
+  // Data States
   const [members, setMembers] = useState([]);
   const [paymentHistory, setPaymentHistory] = useState([]);
 
-  // حالات الفورم والفاتورة
+  // Form States
   const [selectedMember, setSelectedMember] = useState('');
   const [payAmount, setPayAmount] = useState('3000');
   const [payDate, setPayDate] = useState(new Date().toISOString().split('T')[0]);
@@ -36,22 +38,22 @@ const Payment = () => {
   const [payNotes, setPayNotes] = useState('');
   const [receiptData, setReceiptData] = useState(null);
 
-  // --- Student Filters ---
+  // Student Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [langFilter, setLangFilter] = useState('All');
   const [groupFilter, setGroupFilter] = useState('All');
 
-  // --- Staff States ---
+  // Staff States
   const [staffList, setStaffList] = useState([]);
   const [staffSearchTerm, setStaffSearchTerm] = useState('');
   const [staffStatusFilter, setStaffStatusFilter] = useState('All');
   const [roleFilter, setRoleFilter] = useState('All');
   const [selectedMonth, setSelectedMonth] = useState('April 2026');
 
-  const showToast = (msg) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 4500);
+  const showNotification = (msg) => {
+    setToast({ show: true, message: msg });
+    setTimeout(() => setToast({ show: false, message: '' }), 4500);
   };
 
   const fetchData = async () => {
@@ -77,7 +79,7 @@ const Payment = () => {
         setPaymentHistory(paymentsData.map(p => ({
           id: p.id,
           amount: p.amount,
-          amountStr: `${p.amount} دج`,
+          amountStr: `${p.amount} DZD`,
           member: p.member_name
         })));
       }
@@ -94,7 +96,7 @@ const Payment = () => {
         })));
       }
     } catch (err) {
-      showToast("Sync Error: " + err.message);
+      showNotification("Sync Error: " + err.message);
     }
     setLoading(false);
   };
@@ -112,7 +114,7 @@ const Payment = () => {
       setShowReceiptModal(true);
       fetchData();
     } catch (err) {
-      showToast("Error saving payment: " + err.message, "error");
+      showNotification("Error saving payment: " + err.message);
     }
   };
 
@@ -125,10 +127,10 @@ const Payment = () => {
     setStaffList(prev => prev.map(staff => 
       staff.id === id ? { ...staff, status: 'Paid' } : staff
     ));
-    showToast(`Salary for ${name} disbursed for ${selectedMonth} 💸`);
+    showNotification(`Salary for ${name} disbursed for ${selectedMonth} 💸`);
   };
 
-  // --- Stats Calculation ---
+  // Stats Calculations
   const totalIncome = paymentHistory.reduce((sum, p) => sum + (p.amount || 0), 0);
   const unpaidCount = members.filter(m => m.status !== 'Paid').length;
   const unpaidBalance = members.reduce((sum, m) => sum + m.balance, 0);
@@ -138,6 +140,7 @@ const Payment = () => {
   const staffPendingCount = staffList.filter(s => s.status === 'Pending').length;
   const totalStaffPaid = staffList.filter(s => s.status === 'Paid').reduce((sum, s) => sum + s.salary, 0);
 
+  // Filter Logic
   const filteredMembers = members.filter(m => {
     const matchesSearch = m.name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'All' || m.status === statusFilter;
@@ -155,7 +158,7 @@ const Payment = () => {
 
   return (
     <div className="flex-1 h-full overflow-y-auto bg-[#F8F9FA] p-8 custom-scrollbar relative font-sans text-left">
-      {toast && <Toast message={toast} onClose={() => setToast(null)} />}
+      {toast.show && <Toast message={toast.message} onClose={() => setToast({ show: false, message: '' })} />}
 
       {/* HEADER BAR */}
       <div className="mb-8 flex justify-between items-center">
@@ -164,11 +167,7 @@ const Payment = () => {
            <button onClick={() => setCurrentView('student')} className={`px-8 py-2.5 rounded-xl text-[11px] font-black italic transition-all cursor-pointer ${currentView === 'student' ? 'bg-[#0A1128] text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}>STUDENTS</button>
            <button onClick={() => setCurrentView('staff')} className={`px-8 py-2.5 rounded-xl text-[11px] font-black italic transition-all cursor-pointer ${currentView === 'staff' ? 'bg-[#0A1128] text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}>STAFF PAYROLL</button>
         </div>
-      )}
-
-      {/* =========================================
-          1. محتوى صفحة الدفع الرئيسية
-          ========================================= */}
+      </div>
 
       <div className="mb-8 flex justify-end">
         <button
@@ -207,7 +206,6 @@ const Payment = () => {
 
           <div className="flex justify-between items-center mb-8">
              <h3 className="text-lg font-black text-[#0A1128] italic uppercase tracking-widest">Member Payment Status</h3>
-             <button onClick={() => setShowAddPaymentModal(true)} className="bg-[#0A1128] text-white px-8 py-3 rounded-2xl text-[10px] font-black italic shadow-xl">+ ADD PAYMENT</button>
           </div>
 
           {/* FILTER BAR */}
@@ -224,7 +222,6 @@ const Payment = () => {
              </select>
           </div>
 
-          {/* CARDS GRID */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {filteredMembers.map(member => (
               <div key={member.id} className="bg-white rounded-[2.5rem] p-8 border border-gray-100 shadow-sm relative overflow-hidden group">
@@ -241,22 +238,18 @@ const Payment = () => {
                       <p className={`text-2xl font-black ${member.balance > 0 ? 'text-red-600' : 'text-green-500'}`}>{member.balance} دج</p>
                    </div>
                 </div>
-                {member.balance > 0 ? (
+                {member.balance > 0 && (
                   <div className="flex gap-2">
                     <button onClick={() => processPayment(member.name, member.balance, 'Cash', 'Quick Pay', new Date().toISOString().split('T')[0])} className="flex-1 bg-[#4CAF50] text-white py-3.5 rounded-2xl text-[10px] font-black italic shadow-lg active:scale-95 transition-all cursor-pointer">✓ MARK PAID</button>
-                    <button onClick={() => showToast(`Reminder sent to ${member.name} 📲`)} className="bg-[#0A1128] text-white px-5 rounded-2xl shadow-lg hover:bg-slate-800 transition-all cursor-pointer flex items-center justify-center">🔔</button>
+                    <button onClick={() => showNotification(`Reminder sent to ${member.name} 📲`)} className="bg-[#0A1128] text-white px-5 rounded-2xl shadow-lg hover:bg-slate-800 transition-all cursor-pointer flex items-center justify-center">🔔</button>
                   </div>
-                </div>
+                )}
               </div>
             ))}
           </div>
         </div>
       ) : (
-        /* ==========================================
-           STAFF PAYROLL VIEW (MATCHED TO STUDENT PAGE)
-           ========================================== */
         <div className="animate-in slide-in-from-bottom-10 duration-700">
-          {/* STATS CARDS (MATCHING STUDENT COLORS) */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
              <div className="bg-white p-6 rounded-[1.5rem] border border-gray-100 shadow-sm">
                 <div className="flex justify-between items-start mb-4"><span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Paid This Month</span><span className="text-green-500 font-bold">$</span></div>
@@ -279,7 +272,6 @@ const Payment = () => {
              <h3 className="text-lg font-black text-[#0A1128] italic uppercase tracking-widest">Staff Payroll Management</h3>
           </div>
 
-          {/* FILTER BAR (MATCHING STUDENT DESIGN) */}
           <div className="mb-8 flex flex-wrap gap-4 bg-white p-6 rounded-[2rem] shadow-sm border border-gray-50 items-center">
              <div className="relative flex-1 min-w-[250px]">
                 <input type="text" placeholder="Search staff name..." value={staffSearchTerm} onChange={e => setStaffSearchTerm(e.target.value)} className="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold outline-none" />
@@ -290,16 +282,8 @@ const Payment = () => {
              <select value={staffStatusFilter} onChange={e => setStaffStatusFilter(e.target.value)} className="bg-gray-50 border-none rounded-2xl px-6 py-4 text-xs font-black italic outline-none cursor-pointer">
                 <option value="All">All Status</option><option value="Paid">Paid</option><option value="Pending">Pending</option>
              </select>
-             <select value={roleFilter} onChange={e=>setRoleFilter(e.target.value)} className="bg-[#0A1128] text-white rounded-2xl px-8 py-4 text-xs font-black italic outline-none shadow-lg tracking-widest uppercase cursor-pointer">
-                <option value="All">All Roles</option>
-                <option value="Teacher">Teachers</option>
-                <option value="Secretary">Secretary</option>
-                <option value="Lady Cleaning">Cleaning Crew</option>
-                <option value="Security Guard">Security guard</option>
-             </select>
           </div>
 
-          {/* STAFF CARDS (MATCHING STUDENT CARD STYLE) */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {filteredStaff.map((staff) => (
               <div key={staff.id} className="bg-white rounded-[2.5rem] p-8 border border-gray-100 shadow-sm relative overflow-hidden group">
@@ -325,9 +309,7 @@ const Payment = () => {
                     ✓ DISBURSE SALARY
                   </button>
                 ) : (
-                  <div className="w-full bg-green-50 text-green-600 py-4 rounded-2xl text-[10px] font-black italic border border-green-100 text-center uppercase tracking-widest">
-                    Paid for {selectedMonth.split(' ')[0]} ✓
-                  </div>
+                  <div className="w-full bg-green-50 text-green-600 py-4 rounded-2xl text-[10px] font-black text-center uppercase">Paid ✓</div>
                 )}
               </div>
             ))}
@@ -335,9 +317,9 @@ const Payment = () => {
         </div>
       )}
 
-      {/* --- MODALS SECTION --- */}
+      {/* --- ADD PAYMENT MODAL --- */}
       {showAddPaymentModal && (
-        <div className="fixed inset-0 z-[500] flex items-center justify-center bg-[#0A1128]/60 backdrop-blur-md p-4 animate-in fade-in">
+        <div className="fixed inset-0 z-[500] flex items-center justify-center bg-[#0A1128]/60 backdrop-blur-md p-4">
           <div className="bg-white w-full max-w-lg rounded-[3.5rem] shadow-2xl p-12 text-left">
             <h2 className="text-2xl font-black text-[#0A1128] italic mb-8 border-b pb-4 tracking-tighter uppercase">Manual Entry System</h2>
             <form onSubmit={handleSavePayment} className="space-y-6">
@@ -370,41 +352,33 @@ const Payment = () => {
                 </div>
               </div>
 
-            </div>
-
-            <div className="p-5 border-t border-gray-100 flex justify-end gap-3 bg-white rounded-b-2xl">
-              <button onClick={() => setShowAddPaymentModal(false)} className="px-5 py-2.5 rounded-lg text-sm font-bold text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer">Cancel</button>
-              <button
-                onClick={handleSavePayment}
-                className="px-5 py-2.5 rounded-lg text-sm font-bold bg-[#0A1128] text-white hover:bg-slate-800 transition-colors cursor-pointer"
-              >
-                Record Payment
-              </button>
-            </div>
+              <div className="p-5 border-t border-gray-100 flex justify-end gap-3 bg-white rounded-b-2xl">
+                <button type="button" onClick={() => setShowAddPaymentModal(false)} className="px-5 py-2.5 rounded-lg text-sm font-bold text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer">Cancel</button>
+                <button type="submit" className="px-5 py-2.5 rounded-lg text-sm font-bold bg-[#0A1128] text-white hover:bg-slate-800 transition-colors cursor-pointer">Record Payment</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
 
+      {/* --- RECEIPT MODAL --- */}
       {showReceiptModal && receiptData && (
-        <div className="fixed inset-0 z-[600] flex items-center justify-center bg-[#1A2252]/80 backdrop-blur-xl p-4 animate-in zoom-in-95 duration-300">
+        <div className="fixed inset-0 z-[600] flex items-center justify-center bg-[#1A2252]/80 backdrop-blur-xl p-4">
           <div className="bg-white w-full max-w-sm rounded-[3rem] shadow-2xl p-12 text-center relative">
             <button onClick={() => setShowReceiptModal(false)} className="absolute top-8 right-8 text-gray-300 hover:text-red-500 text-2xl cursor-pointer">✕</button>
-            <div className="w-20 h-20 bg-green-500 text-white rounded-full flex items-center justify-center mb-8 mx-auto shadow-2xl text-3xl font-black italic ring-8 ring-green-50">✓</div>
-            <h2 className="text-3xl font-black italic text-[#0A1128] mb-1 tracking-tighter">Receipt Generated</h2>
-            <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-10">{receiptData.name}</p>
+            <div className="w-20 h-20 bg-green-500 text-white rounded-full flex items-center justify-center mb-8 mx-auto text-3xl font-black ring-8 ring-green-50">✓</div>
+            <h2 className="text-3xl font-black italic text-[#0A1128] mb-1 tracking-tighter text-center">Receipt Generated</h2>
+            <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-10 text-center">{receiptData.name}</p>
             <div className="bg-gray-50 rounded-[2rem] p-8 mb-10 border border-gray-100">
-               <p className="text-[9px] font-black text-gray-300 uppercase mb-2">Amount Confirmed</p>
-               <p className="text-4xl font-black text-[#0A1128] tracking-tighter">{receiptData.amount} دج</p>
+               <p className="text-4xl font-black text-[#0A1128] tracking-tighter text-center">{receiptData.amount} دج</p>
                <p className="text-[10px] text-gray-400 font-bold mt-2 italic">Paid on: {receiptData.date}</p>
             </div>
-            <button onClick={() => { showToast("Exporting PDF Receipt..."); setShowReceiptModal(false); }} className="w-full bg-[#0A1128] text-white py-5 rounded-[1.5rem] font-black italic text-[11px] shadow-xl tracking-widest flex items-center justify-center gap-3">
-               📥 GENERATE PDF DOSSIER
+            <button onClick={() => { showNotification("Exporting PDF Receipt..."); setShowReceiptModal(false); }} className="w-full bg-[#0A1128] text-white py-5 rounded-[1.5rem] font-black italic text-[11px] shadow-xl tracking-widest flex items-center justify-center gap-3">
+                📥 GENERATE PDF DOSSIER
             </button>
-
           </div>
         </div>
       )}
-
     </div>
   );
 };
