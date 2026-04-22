@@ -23,6 +23,7 @@ const Toast = ({ message, onClose }) => (
 const RegistrationRequestsTab = ({ showToast }) => {
   const [requests, setRequests] = useState([]);
   const [classesData, setClassesData] = useState([]); 
+  const [filter, setFilter] = useState('All'); // State for your screenshot filter logic
 
   const fetchRequests = async () => {
     const { data, error } = await supabase
@@ -83,14 +84,12 @@ const RegistrationRequestsTab = ({ showToast }) => {
 
   const handleSaveSchedule = async () => {
     setLoading(true);
-
     try {
       if (!schedRoom) {
         showToast("⚠️ Room number is required to check availability!");
         setLoading(false);
         return;
       }
-
       const { data: conflicts } = await supabase
         .from('classes')
         .select('*')
@@ -105,16 +104,12 @@ const RegistrationRequestsTab = ({ showToast }) => {
         setLoading(false);
         return; 
       }
-
       const fullAppointmentDate = `${schedDay}, ${schedTime}`;
-      
       const { error: stuError } = await supabase
         .from('students')
         .update({ status: 'Scheduled', appointment_date: fullAppointmentDate })
         .eq('id', selectedStudent.id);
-
       if (stuError) throw stuError;
-
       const { error: appError } = await supabase
         .from('appointments')
         .insert([{
@@ -125,13 +120,10 @@ const RegistrationRequestsTab = ({ showToast }) => {
           status: 'Upcoming',
           phone: selectedStudent.phone
         }]);
-
       if (appError) throw appError;
-
       showToast("✅ Placement test scheduled successfully!");
       setIsScheduleModalOpen(false);
       fetchRequests(); 
-
     } catch (err) {
       showToast("Error: " + err.message);
     } finally {
@@ -142,17 +134,13 @@ const RegistrationRequestsTab = ({ showToast }) => {
   const handleFinalEnrollment = async () => {
     if (!enrollClassId) return showToast("⚠️ Please select a group!");
     if (!enrollGrade) return showToast("⚠️ Please enter the test score!");
-
     try {
       const selectedClass = classesData.find(c => c.id === enrollClassId);
       const currentCount = selectedClass.enrolled_count || 0;
       if (currentCount >= selectedClass.capacity) return showToast("❌ This group is full!");
-
       const { error: authError } = await supabase.auth.signUp({ email: selectedStudent.email, password: selectedStudent.phone });
       if (authError && authError.message !== "User already registered") throw authError;
-
       await supabase.from('classes').update({ enrolled_count: currentCount + 1 }).eq('id', enrollClassId);
-      
       const { error: dbError } = await supabase.from('students').update({ 
         status: 'Active', 
         exam_type: 'Course',
@@ -160,14 +148,18 @@ const RegistrationRequestsTab = ({ showToast }) => {
         level: selectedClass.level,
         test_score: enrollGrade
       }).eq('id', selectedStudent.id);
-      
       if (dbError) throw dbError;
-      
       showToast(`🎉 ${selectedStudent.name} is now enrolled in ${selectedClass.name}!`);
       setIsEnrollMode(false);
       fetchRequests();
     } catch (err) { showToast("Enrollment Error: " + err.message); }
   };
+
+  // Logic to apply the filter based on request type
+  const filteredRequestsList = requests.filter(req => {
+    if (filter === 'All') return true;
+    return req.type === filter;
+  });
 
   if (isEnrollMode) {
     const matchingClasses = classesData.filter(c => c.language === selectedStudent?.language);
@@ -197,7 +189,6 @@ const RegistrationRequestsTab = ({ showToast }) => {
                 </div>
             </div>
           </section>
-
           <section>
             <h2 className="text-sm font-bold text-gray-800 mb-8 uppercase tracking-wide border-b border-gray-100 pb-2 w-max">Academic Details</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
@@ -240,10 +231,27 @@ const RegistrationRequestsTab = ({ showToast }) => {
     <div className="p-8 bg-[#F8F9FA] h-full font-sans text-left text-[#0A1128] overflow-y-auto custom-scrollbar">
       <div className="mb-8 flex justify-between items-center">
         <h1 className="text-2xl font-bold uppercase tracking-tight text-[#0A1128]">Registration Requests</h1>
-        <div className="flex bg-[#0A1128] text-white rounded-2xl p-1 text-[11px] font-bold">
-          <span className="px-6 py-2 bg-white/20 rounded-xl cursor-pointer">All</span>
-          <span className="px-6 py-2 opacity-40 cursor-pointer">Students</span>
-          <span className="px-6 py-2 opacity-40 cursor-pointer">Parents</span>
+        
+        {/* UPDATED FILTER PILL BOX FROM SCREENSHOT */}
+        <div className="flex bg-[#0A1128] text-white rounded-2xl p-1 text-[11px] font-bold shadow-xl border border-white/5">
+          <button 
+            onClick={() => setFilter('All')} 
+            className={`px-8 py-2 rounded-xl transition-all cursor-pointer ${filter === 'All' ? 'bg-[#3E4668] text-white' : 'opacity-40 hover:opacity-100'}`}
+          >
+            All
+          </button>
+          <button 
+            onClick={() => setFilter('Student')} 
+            className={`px-8 py-2 rounded-xl transition-all cursor-pointer ${filter === 'Student' ? 'bg-[#3E4668] text-white' : 'opacity-40 hover:opacity-100'}`}
+          >
+            Students
+          </button>
+          <button 
+            onClick={() => setFilter('Parent')} 
+            className={`px-8 py-2 rounded-xl transition-all cursor-pointer ${filter === 'Parent' ? 'bg-[#3E4668] text-white' : 'opacity-40 hover:opacity-100'}`}
+          >
+            Parents
+          </button>
         </div>
       </div>
 
@@ -259,7 +267,7 @@ const RegistrationRequestsTab = ({ showToast }) => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {requests.map((req) => (
+            {filteredRequestsList.map((req) => (
               <tr key={req.id} className="hover:bg-blue-50/5 transition-colors">
                 <td className="p-6">
                   <div className="font-bold text-[#0A1128] text-lg">{req.name}</div>
@@ -285,9 +293,7 @@ const RegistrationRequestsTab = ({ showToast }) => {
                 </td>
                 <td className="p-6 flex justify-center gap-3">
                   {req.status === 'Passed' ? (
-                    <button onClick={() => handleEnrollNow(req)} className="px-8 py-2.5 bg-green-600 text-white rounded-xl text-[11px] font-bold hover:bg-green-700 cursor-pointer shadow-md">
-                      Enroll Now ✅
-                    </button>
+                    <button onClick={() => handleEnrollNow(req)} className="px-8 py-2.5 bg-green-600 text-white rounded-xl text-[11px] font-bold hover:bg-green-700 cursor-pointer shadow-md">Enroll Now ✅</button>
                   ) : (
                     <button 
                       onClick={() => handleOpenScheduleModal(req)}
@@ -304,6 +310,9 @@ const RegistrationRequestsTab = ({ showToast }) => {
             ))}
           </tbody>
         </table>
+        {filteredRequestsList.length === 0 && (
+          <div className="p-20 text-center text-gray-300 font-bold italic">No requests found for this category.</div>
+        )}
       </div>
 
       {isScheduleModalOpen && (
@@ -350,13 +359,7 @@ const RegistrationRequestsTab = ({ showToast }) => {
               </div>
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Room / Lab</label>
-                <input 
-                 type="text" 
-                 value={schedRoom} 
-                 onChange={(e) => setSchedRoom(e.target.value)} 
-                 placeholder="e.g. Room 12" 
-                 className="w-full bg-transparent border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold text-gray-700 outline-none" 
-               />
+                <input type="text" value={schedRoom} onChange={(e) => setSchedRoom(e.target.value)} placeholder="e.g. Room 12" className="w-full bg-transparent border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold text-gray-700 outline-none" />
               </div>
               <div className="col-span-2 space-y-1.5 mt-2">
                 <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Date (For Calendar)</label>
@@ -398,7 +401,6 @@ const StudentRecordsTab = ({ showToast }) => {
   const [filterLang, setFilterLang] = useState('All');
   const [filterLevel, setFilterLevel] = useState('All');
   const [filterGroup, setFilterGroup] = useState('All');
-
   const [studentsData, setStudentsData] = useState([]);
   
   const fetchActiveStudents = async () => {
@@ -410,7 +412,6 @@ const StudentRecordsTab = ({ showToast }) => {
       setStudentsData(formatted);
     }
   };
-
   useEffect(() => { fetchActiveStudents(); }, []);
 
   const [academicEntry, setAcademicEntry] = useState({ subject: '', grade: '', attendance: '', remarks: '' });
@@ -435,7 +436,6 @@ const StudentRecordsTab = ({ showToast }) => {
     showToast(`✅ Academic record saved for ${selectedStudent.firstName}! Grade: ${academicEntry.grade}`);
     setAcademicEntry({ subject: '', grade: '', attendance: '', remarks: '' });
   };
-
   const handleUpdateContact = (e) => { e.preventDefault(); showToast(`✅ Contact info updated for ${selectedStudent.firstName}!`); };
   const handlePrint = () => { window.print(); };
 
@@ -475,7 +475,7 @@ const StudentRecordsTab = ({ showToast }) => {
           </thead>
           <tbody className="divide-y divide-gray-100">
             {filteredStudents.length > 0 ? filteredStudents.map((student) => (
-              <tr key={student.id} className="hover:bg-blue-50/50 transition-colors group">
+              <tr key={student.id} className="hover:bg-blue-50/5 transition-colors group">
                 <td className="py-4 px-6 font-bold text-gray-500">{student.id}</td>
                 <td className="py-4 px-6"><p className="font-bold text-[#0A1128]">{student.firstName} {student.lastName}</p></td>
                 <td className="py-4 px-6 font-medium text-gray-700">{student.language}</td>
@@ -587,7 +587,6 @@ const StudentRecordsTab = ({ showToast }) => {
       </div>
     );
   };
-
   return <div className="h-full w-full">{currentView === 'list' ? renderList() : renderProfile()}</div>;
 };
 
@@ -600,9 +599,7 @@ const StudentRegistrationTab = ({ showToast }) => {
     firstName: '', lastName: '', language: 'English', level: 'A1', classId: '', 
     phone: '', email: '', exam_type: 'Course', password: '' 
   });
-
   const [classesData, setClassesData] = useState([]);
-  
   useEffect(() => {
     const fetchClasses = async () => {
       const { data } = await supabase.from('classes').select('*');
@@ -610,26 +607,20 @@ const StudentRegistrationTab = ({ showToast }) => {
     };
     fetchClasses();
   }, []);
-
   const availableClasses = classesData.filter(c => 
-    c.language === formData.language && 
-    (formData.exam_type === 'Placement' || c.level.includes(formData.level))
+    c.language === formData.language && (formData.exam_type === 'Placement' || c.level.includes(formData.level))
   );
-
   const handleInputChange = (e) => { 
     const { name, value } = e.target; 
     setFormData(prev => ({ ...prev, [name]: value })); 
   };
-
   const handleSave = async (e) => {
     e.preventDefault();
     setLoading(true);
-
     try {
         const isPlacement = formData.exam_type === 'Placement';
         const finalStatus = isPlacement ? 'Pending' : 'Active';
         let selectedClassName = null;
-
         if (!isPlacement) {
             if (!formData.classId) {
               showToast("⚠️ Please select a class!");
@@ -645,14 +636,11 @@ const StudentRegistrationTab = ({ showToast }) => {
               return;
             }
         }
-
         const { error: authError } = await supabase.auth.signUp({ email: formData.email, password: formData.phone });
         if (authError && authError.message !== "User already registered") throw authError; 
-
         if (!isPlacement) {
             await supabase.from('classes').update({ enrolled_count: (classesData.find(c => c.id === formData.classId).enrolled_count || 0) + 1 }).eq('id', formData.classId);
         }
-
         const { error: dbError } = await supabase.from('students').insert([{
             first_name: formData.firstName, 
             last_name: formData.lastName, 
@@ -665,12 +653,9 @@ const StudentRegistrationTab = ({ showToast }) => {
             status: finalStatus, 
             enrollment_date: new Date().toISOString().split('T')[0]
         }]);
-
         if (dbError) throw dbError;
-
         showToast(isPlacement ? "Registration request saved for test!" : `🎉 Student ${formData.firstName} registered successfully!`);
         setFormData({ firstName: '', lastName: '', language: 'English', level: 'A1', classId: '', phone: '', email: '', exam_type: 'Course', password: '' });
-        
     } catch (err) { showToast("Error: " + err.message); } finally { setLoading(false); }
   };
 
@@ -681,19 +666,19 @@ const StudentRegistrationTab = ({ showToast }) => {
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-6">
            <h3 className="font-bold text-lg mb-4 border-b border-gray-100 pb-2">Academic Details</h3>
            <div className={`grid gap-4 ${formData.exam_type === 'Course' ? 'grid-cols-4' : 'grid-cols-2'}`}>
-              <div>
+             <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Registration Type</label>
                 <select name="exam_type" value={formData.exam_type} onChange={handleInputChange} className="w-full bg-gray-50 border border-gray-100 rounded-lg p-3 text-sm outline-none focus:border-blue-500">
                   <option value="Course">Direct Course</option><option value="Placement">Placement Test</option>
                 </select>
-              </div>
-              <div>
+             </div>
+             <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Language</label>
                 <select name="language" value={formData.language} onChange={handleInputChange} className="w-full bg-gray-50 border border-gray-100 rounded-lg p-3 text-sm cursor-pointer">
                   <option>English</option><option>Français</option><option>Deutsch</option><option>Español</option>
                 </select>
-              </div>
-              {formData.exam_type === 'Course' && (
+             </div>
+             {formData.exam_type === 'Course' && (
                 <>
                   <div>
                     <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Level</label>
@@ -712,7 +697,7 @@ const StudentRegistrationTab = ({ showToast }) => {
                     </select>
                   </div>
                 </>
-              )}
+             )}
            </div>
         </div>
         <div className="grid grid-cols-2 gap-8">
@@ -723,7 +708,7 @@ const StudentRegistrationTab = ({ showToast }) => {
                <input type="text" name="lastName" value={formData.lastName} onChange={handleInputChange} placeholder="Last Name" className="w-full bg-gray-50 border border-gray-100 p-3 rounded-lg text-sm" required />
              </div>
            </div>
-           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
              <h3 className="font-bold text-lg mb-4 border-b border-gray-100 pb-2">Contact Info</h3>
              <div className="space-y-4">
                <input type="email" name="email" value={formData.email} onChange={handleInputChange} placeholder="Email Address" className="w-full bg-gray-50 border border-gray-100 p-3 rounded-lg text-sm" required />
@@ -748,7 +733,6 @@ const StudentsManagement = ({ initialAction }) => {
   const [activeTab, setActiveTab] = useState('requests');
   const [toast, setToast] = useState(null);
 
-  // Trigger from Dashboard Quick Action
   useEffect(() => {
     if (initialAction === 'add') {
       setActiveTab('add');
@@ -785,7 +769,6 @@ const StudentsManagement = ({ initialAction }) => {
           </button>
         </div>
       </div>
-
       <div className="flex-1 overflow-hidden">
         {activeTab === 'requests' && <RegistrationRequestsTab showToast={showToast} />}
         {activeTab === 'records' && <StudentRecordsTab showToast={showToast} />}

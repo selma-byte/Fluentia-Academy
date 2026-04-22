@@ -1,846 +1,908 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../supabaseClient';
-
+import { supabase } from '../../supabaseClient'; // تأكدي من مسار الملف
+  
 const ParentPortal = () => {
-  const [chatMessages, setChatMessages] = useState([]);
-  const [mainView, setMainView] = useState('portal');
-  const [activeTab, setActiveTab] = useState('parents');
-  const [modalView, setModalView] = useState(null);
-  const [chatType, setChatType] = useState(null);
-  const [newMessage, setNewMessage] = useState('');
-  const [selectedRecipient, setSelectedRecipient] = useState(null);
-  const [studentsList, setStudentsList] = useState([]);
-  const [staffList, setStaffList] = useState([]);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [mainView, setMainView] = useState('portal'); 
+  const [activeTab, setActiveTab] = useState('parents'); 
+  const [modalView, setModalView] = useState(null); 
+  const [chatType, setChatType] = useState(null);
+  const [newMessage, setNewMessage] = useState(''); 
+  const [selectedRecipient, setSelectedRecipient] = useState(null); // { id, name, role }
+  const [studentsList, setStudentsList] = useState([]); // 💡 زدنا قائمة التلاميذ
+  const [staffList, setStaffList] = useState([]); 
+  
+  // --- New Logic & States ---
+  const [searchQuery, setSearchQuery] = useState('');
+  const [notification, setNotification] = useState({ show: false, message: '' });
+  const [selectedProfile, setSelectedProfile] = useState(null);
+  const [newStaffData, setNewStaffData] = useState({ first_name: '', last_name: '', role: 'Secretaire', email: '', phone: '' });
 
-  const [announcementForm, setAnnouncementForm] = useState({ title: '', content: '' });
+  const showToast = (msg) => {
+    setNotification({ show: true, message: msg });
+    setTimeout(() => setNotification({ show: false, message: '' }), 4000);
+  };
 
-  const [selectedAudiences, setSelectedAudiences] = useState({
-    all: true,
-    students: false,
-    parents: false,
-    staff: false,
-    teacher: false,
-    admin: false
-  });
+  const NotificationToast = () => (
+    <div className={`fixed bottom-10 left-1/2 -translate-x-1/2 z-[200] transition-all duration-500 transform ${notification.show ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0'}`}>
+      <div className="bg-[#0A1128] text-white px-8 py-5 rounded-[2rem] shadow-2xl flex items-center min-w-[450px] border border-blue-500/30">
+        <div className="bg-blue-600 p-3 rounded-xl mr-5 shadow-[0_0_15px_rgba(37,99,235,0.4)]">
+          <span className="text-2xl">✨</span>
+        </div>
+        <div className="flex-1">
+          <p className="font-bold text-base tracking-tight">System Update</p>
+          <p className="text-xs text-blue-200/80">{notification.message} 💸</p>
+        </div>
+        <button onClick={() => setNotification({show: false})} className="ml-4 text-gray-500 hover:text-white">✕</button>
+      </div>
+    </div>
+  );
 
-  useEffect(() => {
-    const fetchMessages = async () => {
-      if (!chatType) return;
+  const ProfileModal = ({ data }) => (
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl overflow-hidden animate-fade-in-up border border-gray-100">
+        <div className="bg-gradient-to-br from-[#0A1128] to-[#1e293b] p-8 text-center relative">
+          <button onClick={() => setModalView(null)} className="absolute top-6 right-6 text-white/50 hover:text-white transition-colors">✕</button>
+          <div className="w-20 h-20 bg-white/10 rounded-full mx-auto flex items-center justify-center text-3xl mb-4 border border-white/20">👤</div>
+          <h2 className="text-white font-bold text-xl">{data.first_name || data.name} {data.last_name || ''}</h2>
+          <p className="text-blue-300 text-xs font-bold uppercase tracking-widest mt-1">{data.role || data.relationship || 'Information'}</p>
+        </div>
+        <div className="p-8 space-y-4">
+          <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
+            <p className="text-[10px] font-bold text-gray-400 uppercase">Contact Email</p>
+            <p className="text-sm font-bold truncate text-[#0A1128]">{data.email || 'N/A'}</p>
+          </div>
+          <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
+            <p className="text-[10px] font-bold text-gray-400 uppercase">Phone Number</p>
+            <p className="text-sm font-bold text-[#0A1128]">{data.phone || 'N/A'}</p>
+          </div>
+          <button onClick={() => setModalView(null)} className="w-full bg-[#0A1128] text-white py-4 rounded-2xl font-bold text-sm hover:bg-black transition-all">Close</button>
+        </div>
+      </div>
+    </div>
+  );
 
-      let filterQuery = `type.eq.${chatType},type.eq.smart,type.eq.General`;
-
-      if (chatType === 'staff') {
-        filterQuery += `,type.eq.teacher,type.eq.admin`;
-      }
-
-      const { data } = await supabase
-        .from('communications')
-        .select('*')
-        .or(filterQuery)
-        .order('created_at', { ascending: true });
-
-      if (data) setChatMessages(data);
-    };
-
-    fetchMessages();
-  }, [chatType, activeTab]);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      const { data: staffData } = await supabase.from('staff').select('*');
-      if (staffData) setStaffList(staffData);
-
-      const { data: studentData } = await supabase.from('students').select('*');
-      if (studentData) setStudentsList(studentData);
-    };
-
-    fetchData();
-  }, []);
-
-  const handleAudienceChange = (audience) => {
-    if (audience === 'all') {
-      setSelectedAudiences({
-        all: true, students: false, parents: false, staff: false, teacher: false, admin: false
-      });
-    } else {
-      setSelectedAudiences(prev => {
-        const newState = { ...prev, [audience]: !prev[audience], all: false };
-        if (!newState.students && !newState.parents && !newState.staff && !newState.teacher && !newState.admin) {
-          newState.all = true;
-        }
-        return newState;
-      });
-    }
-  };
-
-  const handlePublishAnnouncement = async () => {
-    if (!announcementForm.title || !announcementForm.content) return alert("Please fill title and content");
-    const { error } = await supabase.from('communications').insert([{
-      content: `📢 ${announcementForm.title}\n\n${announcementForm.content}`,
-      type: 'announcement',
-      recipient_name: 'All',
-      recipient_id: 'all',
-      sender_role: 'admin'
-    }]);
+  const handleSaveStaff = async () => {
+    const { data, error } = await supabase.from('staff').insert([newStaffData]).select();
     if (!error) {
-      alert("✅ Announcement Published!");
+      setStaffList([...staffList, data[0]]);
+      showToast("Staff Member Saved Successfully!");
       setModalView(null);
     }
   };
+  // --- End New Logic ---
 
-  const renderParentsTab = () => (
-    <div className="flex flex-col flex-1 min-h-0 animate-fade-in">
-      <div className="flex justify-between items-center mb-6 shrink-0">
-        <div>
-          <h3 className="font-bold text-[#0A1128] text-lg">Parent Directory</h3>
-          <p className="text-xs text-gray-500 mt-1">Manage parent and guardian information for school network</p>
-        </div>
-        <button
-          onClick={() => setModalView('addParent')}
-          className="bg-[#2563eb] hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center"
-        >
-          <span className="mr-2 text-lg">+</span> Add Parent
-        </button>
-      </div>
+  // 💡 State زدناه باش نرفدو واش تكتبي في الإعلان
+  const [announcementForm, setAnnouncementForm] = useState({ title: '', content: '' });
 
-      <div className="mb-6 relative w-96 shrink-0">
-        <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-400">🔍</span>
-        <input type="text" placeholder="Search parents by name or student..." className="w-full bg-white border border-gray-200 rounded-xl py-3 pl-10 pr-4 text-sm outline-none focus:border-blue-500 shadow-sm" />
-      </div>
+  // --- حالات الفلترة لصناديق الاختيار (تمت إضافة teacher و admin) ---
+  const [selectedAudiences, setSelectedAudiences] = useState({
+    all: true,
+    students: false,
+    parents: false,
+    staff: false,
+    teacher: false,
+    admin: false
+  });
 
-      <div className="overflow-x-auto flex-1 custom-scrollbar bg-white border border-gray-100 rounded-xl shadow-sm">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold sticky top-0">
-            <tr>
-              <th className="py-4 px-6">Parent/Guardian</th>
-              <th className="py-4 px-6">Contact</th>
-              <th className="py-4 px-6">Students</th>
-              <th className="py-4 px-6">Relationship</th>
-              <th className="py-4 px-6">Emergency</th>
-              <th className="py-4 px-6">Status</th>
-              <th className="py-4 px-6 text-center">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            <tr className="hover:bg-gray-50/50 transition-colors">
-              <td className="py-4 px-6">
-                <p className="font-bold text-[#0A1128]">Ahmed Al-Mansouri</p>
-                <p className="text-xs text-gray-500">Business Manager</p>
-              </td>
-              <td className="py-4 px-6 text-xs text-gray-600 space-y-1">
-                <p className="flex items-center"><span className="mr-2">✉️</span> ahmed.mansouri@email.com</p>
-                <p className="flex items-center"><span className="mr-2">📞</span> +971 50 123 4567</p>
-                <p className="flex items-center"><span className="mr-2">📍</span> 123 Main Street</p>
-              </td>
-              <td className="py-4 px-6">
-                <div className="flex space-x-2">
-                  <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-md text-xs font-bold">Alex Mansouri (B1)</span>
-                </div>
-              </td>
-              <td className="py-4 px-6 text-gray-600">Father</td>
-              <td className="py-4 px-6"><span className="bg-green-50 text-green-600 px-2 py-1 rounded text-xs font-bold">Yes</span></td>
-              <td className="py-4 px-6"><span className="text-green-600 font-bold flex items-center"><span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-2"></span>Active</span></td>
-              <td className="py-4 px-6 text-center space-x-4">
-                <button className="text-gray-500 hover:text-blue-600 font-bold text-xs transition-colors">View</button>
-                <button onClick={() => { setMainView('chat'); setChatType('parent'); setModalView(null); }} className="text-gray-400 hover:text-blue-600 text-lg transition-colors cursor-pointer">💬</button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+ useEffect(() => {
+  const fetchData = async () => {
+    // 1. جلب قاع الـ Staff (أساتذة وأدمن)
+    const { data: staffData } = await supabase.from('staff').select('*');
+    if (staffData) setStaffList(staffData);
 
-  const renderStudentsTab = () => (
-    <div className="flex flex-col flex-1 min-h-0 animate-fade-in">
-      <div className="flex justify-between items-center mb-6 shrink-0">
-        <div>
-          <h3 className="font-bold text-[#0A1128] text-lg">Student Directory</h3>
-          <p className="text-xs text-gray-500 mt-1">Manage student contact information for school network</p>
-        </div>
-      </div>
+    // 2. جلب قاع التلاميذ (Students)
+    const { data: studentData } = await supabase.from('students').select('*');
+    if (studentData) setStudentsList(studentData);
+  };
+  
+  fetchData();
+ }, []);
 
-      <div className="mb-6 relative w-96 shrink-0">
-        <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-400">🔍</span>
-        <input type="text" placeholder="Search students by name..." className="w-full bg-white border border-gray-200 rounded-xl py-3 pl-10 pr-4 text-sm outline-none focus:border-blue-500 shadow-sm" />
-      </div>
+  const handleAudienceChange = (audience) => {
+    if (audience === 'all') {
+      setSelectedAudiences({
+        all: true,
+        students: false,
+        parents: false,
+        staff: false,
+        teacher: false,
+        admin: false
+      });
+    } else {
+      setSelectedAudiences(prev => {
+        const newState = { ...prev, [audience]: !prev[audience], all: false };
+        if (!newState.students && !newState.parents && !newState.staff && !newState.teacher && !newState.admin) {
+          newState.all = true;
+        }
+        return newState;
+      });
+    }
+  };
 
-      <div className="overflow-x-auto flex-1 custom-scrollbar bg-white border border-gray-100 rounded-xl shadow-sm">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold sticky top-0">
-            <tr>
-              <th className="py-4 px-6">Student Name</th>
-              <th className="py-4 px-6">Contact Info</th>
-              <th className="py-4 px-6">Course Info</th>
-              <th className="py-4 px-6">Group</th>
-              <th className="py-4 px-6">Status</th>
-              <th className="py-4 px-6 text-center">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {studentsList.map((student) => (
-              <tr key={student.id} className="hover:bg-gray-50/50 transition-colors">
-                <td className="py-4 px-6 font-bold text-[#0A1128]">{student.first_name} {student.last_name}</td>
-                <td className="py-4 px-6 text-xs text-gray-600 space-y-1">
-                  <p className="flex items-center"><span className="mr-2">✉️</span> {student.email}</p>
-                  <p className="flex items-center"><span className="mr-2">📱</span> {student.phone}</p>
-                </td>
-                <td className="py-4 px-6 font-bold text-[#0A1128]">{student.language || 'N/A'} ({student.level || '-'})</td>
-                <td className="py-4 px-6 text-gray-600">{student.group_name || 'No Group'}</td>
-                <td className="py-4 px-6">
-                  <span className="text-green-600 font-bold flex items-center">
-                    <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-2"></span>Active
-                  </span>
-                </td>
-                <td className="py-4 px-6 text-center space-x-4">
-                  <button className="text-gray-500 hover:text-blue-600 font-bold text-xs transition-colors">View</button>
-                  <button onClick={() => {
-                    setMainView('chat');
-                    setChatType('student_individual');
-                    setSelectedRecipient({ id: student.id, name: `${student.first_name} ${student.last_name}`, role: 'Student' });
-                  }} className="text-gray-400 hover:text-blue-600 text-lg transition-colors cursor-pointer">💬</button>
-                </td>
-              </tr>
+  // 💡 الدالة اللي تنشر الإعلان في قاعدة البيانات
+  const handlePublishAnnouncement = async () => {
+    if (!announcementForm.title || !announcementForm.content) return showToast("Please fill title and content");
+    const { error } = await supabase.from('communications').insert([{
+      content: `📢 ${announcementForm.title}\n\n${announcementForm.content}`,
+      type: 'announcement',
+      recipient_name: 'All',
+      recipient_id: 'all',
+      sender_role: 'admin'
+    }]);
+    if (!error) {
+      showToast("✅ Announcement Published!");
+      setModalView(null);
+    }
+  };
+
+  const renderParentsTab = () => (
+    <div className="flex flex-col flex-1 min-h-0 animate-fade-in">
+      <div className="flex justify-between items-center mb-6 shrink-0">
+        <div>
+          <h3 className="font-bold text-[#0A1128] text-lg">Parent Directory</h3>
+          <p className="text-xs text-gray-500 mt-1">Manage parent and guardian information for school network</p>
+        </div>
+        <button 
+          onClick={() => setModalView('addParent')}
+          className="bg-[#2563eb] hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center"
+        >
+          <span className="mr-2 text-lg">+</span> Add Parent
+        </button>
+      </div>
+
+      <div className="mb-6 relative w-96 shrink-0">
+        <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-400">🔍</span>
+        <input type="text" onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search parents by name or student..." className="w-full bg-white border border-gray-200 rounded-xl py-3 pl-10 pr-4 text-sm outline-none focus:border-blue-500 shadow-sm" />
+      </div>
+
+      <div className="overflow-x-auto flex-1 custom-scrollbar bg-white border border-gray-100 rounded-xl shadow-sm">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold sticky top-0">
+            <tr>
+              <th className="py-4 px-6">Parent/Guardian</th>
+              <th className="py-4 px-6">Contact</th>
+              <th className="py-4 px-6">Students</th>
+              <th className="py-4 px-6">Relationship</th>
+              <th className="py-4 px-6">Emergency</th>
+              <th className="py-4 px-6">Status</th>
+              <th className="py-4 px-6 text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            <tr className="hover:bg-gray-50/50 transition-colors">
+              <td className="py-4 px-6">
+                <p className="font-bold text-[#0A1128]">Ahmed Al-Mansouri</p>
+                <p className="text-xs text-gray-500">Business Manager</p>
+              </td>
+              <td className="py-4 px-6 text-xs text-gray-600 space-y-1">
+                <p className="flex items-center"><span className="mr-2">✉️</span> ahmed.mansouri@email.com</p>
+                <p className="flex items-center"><span className="mr-2">📞</span> +971 50 123 4567</p>
+                <p className="flex items-center"><span className="mr-2">📍</span> 123 Main Street</p>
+              </td>
+              <td className="py-4 px-6">
+                <div className="flex space-x-2">
+                  <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-md text-xs font-bold">Alex Mansouri (B1)</span>
+                </div>
+              </td>
+              <td className="py-4 px-6 text-gray-600">Father</td>
+              <td className="py-4 px-6"><span className="bg-green-50 text-green-600 px-2 py-1 rounded text-xs font-bold">Yes</span></td>
+              <td className="py-4 px-6"><span className="text-green-600 font-bold flex items-center"><span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-2"></span>Active</span></td>
+              <td className="py-4 px-6 text-center space-x-4">
+                <button onClick={() => { setSelectedProfile({name: 'Ahmed Al-Mansouri', email: 'ahmed.mansouri@email.com', phone: '+971 50 123 4567', relationship: 'Father'}); setModalView('viewProfile'); }} className="text-lg hover:scale-125 transition-transform">👁️</button>
+                <button onClick={() => { setMainView('chat'); setChatType('parent'); setModalView(null); }} className="text-gray-400 hover:text-blue-600 text-lg transition-colors cursor-pointer">💬</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
+  const renderStudentsTab = () => (
+    <div className="flex flex-col flex-1 min-h-0 animate-fade-in">
+      <div className="flex justify-between items-center mb-6 shrink-0">
+        <div>
+          <h3 className="font-bold text-[#0A1128] text-lg">Student Directory</h3>
+          <p className="text-xs text-gray-500 mt-1">Manage student contact information for school network</p>
+        </div>
+      </div>
+
+      <div className="mb-6 relative w-96 shrink-0">
+        <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-400">🔍</span>
+        <input type="text" onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search students by name..." className="w-full bg-white border border-gray-200 rounded-xl py-3 pl-10 pr-4 text-sm outline-none focus:border-blue-500 shadow-sm" />
+      </div>
+
+      <div className="overflow-x-auto flex-1 custom-scrollbar bg-white border border-gray-100 rounded-xl shadow-sm">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold sticky top-0">
+            <tr>
+              <th className="py-4 px-6">Student Name</th>
+              <th className="py-4 px-6">Contact Info</th>
+              <th className="py-4 px-6">Course Info</th>
+              <th className="py-4 px-6">Group</th>
+              <th className="py-4 px-6">Status</th>
+              <th className="py-4 px-6 text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+  {studentsList.filter(s => `${s.first_name} ${s.last_name}`.toLowerCase().includes(searchQuery.toLowerCase())).map((student) => (
+    <tr key={student.id} className="hover:bg-gray-50/50 transition-colors">
+      <td className="py-4 px-6 font-bold text-[#0A1128]">{student.first_name} {student.last_name}</td>
+      <td className="py-4 px-6 text-xs text-gray-600 space-y-1">
+        <p>✉️ {student.email}</p>
+        <p>📱 {student.phone}</p>
+      </td>
+      <td className="py-4 px-6 font-bold text-[#0A1128]">{student.language || 'N/A'} ({student.level || '-'})</td>
+      <td className="py-4 px-6 text-gray-600">{student.group_name || 'No Group'}</td>
+      <td className="py-4 px-6">
+        <span className="text-green-600 font-bold flex items-center">
+          <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-2"></span>Active
+        </span>
+      </td>
+      <td className="py-4 px-6 text-center space-x-4">
+        <button onClick={() => { setSelectedProfile(student); setModalView('viewProfile'); }} className="text-xl hover:scale-125 transition-transform">👁️</button>
+        <button onClick={() => { 
+            setMainView('chat'); 
+            setChatType('student_individual'); 
+            setSelectedRecipient({ id: student.id, name: `${student.first_name} ${student.last_name}`, role: 'Student' }); 
+        }} className="text-gray-400 hover:text-blue-600 text-lg transition-colors cursor-pointer">💬</button>
+      </td>
+    </tr>
+  ))}
+</tbody>
+        </table>
+      </div>
+    </div>
+  );
+
+  const renderStaffTab = () => (
+    <div className="flex flex-col flex-1 min-h-0 animate-fade-in">
+      <div className="flex justify-between items-center mb-6 shrink-0">
+        <div>
+          <h3 className="font-bold text-[#0A1128] text-lg">Staff Directory</h3>
+          <p className="text-xs text-gray-500 mt-1">Manage school staff information for school network</p>
+        </div>
+        <button onClick={() => setModalView('addStaff')} className="bg-[#2563eb] hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center">
+          <span className="mr-2 text-lg">+</span> Add Staff
+        </button>
+      </div>
+
+      <div className="mb-6 relative w-96 shrink-0">
+        <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-400">🔍</span>
+        <input type="text" onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search staff by name or role..." className="w-full bg-white border border-gray-200 rounded-xl py-3 pl-10 pr-4 text-sm outline-none focus:border-blue-500 shadow-sm" />
+      </div>
+
+      <div className="overflow-x-auto flex-1 custom-scrollbar bg-white border border-gray-100 rounded-xl shadow-sm">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold sticky top-0">
+            <tr>
+              <th className="py-4 px-6">Staff Member</th>
+              <th className="py-4 px-6">Contact</th>
+              <th className="py-4 px-6">Role</th>
+              <th className="py-4 px-6">Department</th>
+              <th className="py-4 px-6">Status</th>
+              <th className="py-4 px-6 text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {staffList.filter(s => 
+              (s.role === 'Secretaire' || s.role === 'Cleaning Lady' || s.role === 'Security Guy') &&
+              (`${s.first_name} ${s.last_name}`.toLowerCase().includes(searchQuery.toLowerCase()))
+            ).map(member => (
+            <tr key={member.id} className="hover:bg-gray-50/50 transition-colors">
+              <td className="py-4 px-6">
+                <p className="font-bold text-[#0A1128]">{member.first_name} {member.last_name}</p>
+                <p className="text-xs text-gray-500">{member.role}</p>
+              </td>
+              <td className="py-4 px-6 text-xs text-gray-600 space-y-1">
+                <p className="flex items-center"><span className="mr-2">✉️</span> {member.email}</p>
+                <p className="flex items-center"><span className="mr-2">📞</span> {member.phone}</p>
+              </td>
+              <td className="py-4 px-6 text-gray-600 font-bold">{member.role}</td>
+              <td className="py-4 px-6 text-gray-600">{member.department || 'General'}</td>
+              <td className="py-4 px-6"><span className="text-green-600 font-bold flex items-center"><span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-2"></span>Active</span></td>
+              <td className="py-4 px-6 text-center space-x-4">
+                <button onClick={() => { setSelectedProfile(member); setModalView('viewProfile'); }} className="text-xl hover:scale-125 transition-transform">👁️</button>
+                <button 
+                  onClick={() => {  setMainView('chat'); 
+                  setChatType('staff_individual'); 
+                  setSelectedRecipient({ id: member.id, name: `${member.first_name} ${member.last_name}`, role: member.role }); 
+                 }} 
+                 className="text-gray-400 hover:text-blue-600 text-xl transition-colors cursor-pointer"
+                >
+                 💬
+                </button>
+              </td>
+            </tr>
             ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 
-  const renderStaffTab = () => (
-    <div className="flex flex-col flex-1 min-h-0 animate-fade-in">
-      <div className="flex justify-between items-center mb-6 shrink-0">
-        <div>
-          <h3 className="font-bold text-[#0A1128] text-lg">Staff Directory</h3>
-          <p className="text-xs text-gray-500 mt-1">Manage school staff information for school network</p>
-        </div>
-        <button className="bg-[#2563eb] hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center">
-          <span className="mr-2 text-lg">+</span> Add Staff
-        </button>
-      </div>
+  const renderAnnouncementsTab = () => (
+    <div className="flex flex-col flex-1 min-h-0 animate-fade-in">
+      <div className="flex justify-between items-center mb-8 shrink-0">
+        <div>
+          <h3 className="font-bold text-[#0A1128] text-lg">Announcements</h3>
+          <p className="text-xs text-gray-500 mt-1">Manage school-wide announcements and notices</p>
+        </div>
+        <button onClick={() => setModalView('newAnnouncement')} className="bg-[#0A1128] hover:bg-gray-800 text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center">
+          <span className="mr-2 text-lg">+</span> New Announcement
+        </button>
+      </div>
 
-      <div className="mb-6 relative w-96 shrink-0">
-        <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-400">🔍</span>
-        <input type="text" placeholder="Search staff by name or role..." className="w-full bg-white border border-gray-200 rounded-xl py-3 pl-10 pr-4 text-sm outline-none focus:border-blue-500 shadow-sm" />
-      </div>
+      <div className="space-y-6 overflow-y-auto custom-scrollbar pr-2 flex-1">
+        <div className="bg-[#fff7ed] border border-[#ffedd5] rounded-2xl p-6 flex shadow-sm relative overflow-hidden">
+          <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-orange-400"></div>
+          <div className="flex-1 pl-2">
+            <div className="flex items-center mb-2">
+              <span className="text-orange-500 mr-2">📌</span>
+              <h4 className="font-bold text-orange-900 text-base">Language Proficiency Test (Placement)</h4>
+              <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[10px] font-bold ml-4">High</span>
+            </div>
+            <p className="text-sm text-orange-800/80 mb-4 leading-relaxed">
+              New students can take the placement test from July 20 to August 15. The detailed schedule and levels (CEFR A1 to C2) are available in the portal.
+            </p>
+            <p className="text-xs text-orange-600/70">By Academic Department • 2024-07-20</p>
+          </div>
+          <div className="flex flex-col justify-between items-end">
+            <div className="flex space-x-2 text-orange-400">
+              <button className="hover:text-orange-600">✏️</button>
+              <button className="hover:text-orange-600">🗑</button>
+            </div>
+            <div className="flex space-x-2">
+              <span className="bg-white/50 text-orange-800 border border-orange-200 px-3 py-1 rounded-lg text-xs font-bold">Students</span>
+              <span className="bg-white/50 text-orange-800 border border-orange-200 px-3 py-1 rounded-lg text-xs font-bold">Parents</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
-      <div className="overflow-x-auto flex-1 custom-scrollbar bg-white border border-gray-100 rounded-xl shadow-sm">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold sticky top-0">
-            <tr>
-              <th className="py-4 px-6">Staff Member</th>
-              <th className="py-4 px-6">Contact</th>
-              <th className="py-4 px-6">Role</th>
-              <th className="py-4 px-6">Department</th>
-              <th className="py-4 px-6">Status</th>
-              <th className="py-4 px-6 text-center">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            <tr className="hover:bg-gray-50/50 transition-colors">
-              <td className="py-4 px-6">
-                <p className="font-bold text-[#0A1128]">Sarah Jamel</p>
-                <p className="text-xs text-gray-500">Senior Teacher</p>
-              </td>
-              <td className="py-4 px-6 text-xs text-gray-600 space-y-1">
-                <p className="flex items-center"><span className="mr-2">✉️</span> sarah.j@email.com</p>
-                <p className="flex items-center"><span className="mr-2">📞</span> +213 555 987 654</p>
-              </td>
-              <td className="py-4 px-6 text-gray-600">Teacher</td>
-              <td className="py-4 px-6 text-gray-600">Languages</td>
-              <td className="py-4 px-6"><span className="text-green-600 font-bold flex items-center"><span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-2"></span>Active</span></td>
-              <td className="py-4 px-6 text-center space-x-4">
-                <button className="text-gray-500 hover:text-blue-600 font-bold text-xs transition-colors">View</button>
-                <button onClick={() => { setMainView('chat'); setChatType('staff'); }} className="text-gray-400 hover:text-blue-600 text-lg transition-colors cursor-pointer">💬</button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+  const renderCommunicationsTab = () => (
+    <div className="flex flex-col flex-1 min-h-0 animate-fade-in">
+      <div className="mb-6 shrink-0">
+        <h3 className="font-bold text-[#0A1128] text-lg">Communications</h3>
+        <p className="text-xs text-gray-500 mt-1">Send messages and notifications to parents, students, or staff</p>
+      </div>
 
-  const renderAnnouncementsTab = () => (
-    <div className="flex flex-col flex-1 min-h-0 animate-fade-in">
-      <div className="flex justify-between items-center mb-8 shrink-0">
-        <div>
-          <h3 className="font-bold text-[#0A1128] text-lg">Announcements</h3>
-          <p className="text-xs text-gray-500 mt-1">Manage school-wide announcements and notices</p>
-        </div>
-        <button onClick={() => setModalView('newAnnouncement')} className="bg-[#0A1128] hover:bg-gray-800 text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center">
-          <span className="mr-2 text-lg">+</span> New Announcement
-        </button>
-      </div>
+      <div className="grid grid-cols-2 gap-8 mb-10 shrink-0">
+        <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+          <h4 className="font-bold text-[#0A1128] text-base mb-4">Targeted Messages</h4>
+  0         <div className="space-y-3">
+            <button onClick={() => { setMainView('chat'); setChatType('smart'); setSelectedRecipient(null); }} className="w-full bg-[#0A1128] hover:bg-gray-800 text-white font-bold text-sm py-3.5 rounded-xl transition-colors flex items-center justify-center shadow-sm">
+              <span className="mr-2">💬</span> Send Message
+            </button>
+          </div>
+        </div>
 
-      <div className="space-y-6 overflow-y-auto custom-scrollbar pr-2 flex-1">
-        <div className="bg-[#fff7ed] border border-[#ffedd5] rounded-2xl p-6 flex shadow-sm relative overflow-hidden">
-          <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-orange-400"></div>
-          <div className="flex-1 pl-2">
-            <div className="flex items-center mb-2">
-              <span className="text-orange-500 mr-2">📌</span>
-              <h4 className="font-bold text-orange-900 text-base">Language Proficiency Test (Placement)</h4>
-              <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[10px] font-bold ml-4">High</span>
-            </div>
-            <p className="text-sm text-orange-800/80 mb-4 leading-relaxed">
-              New students can take the placement test from July 20 to August 15. The detailed schedule and levels (CEFR A1 to C2) are available in the portal.
-            </p>
-            <p className="text-xs text-orange-600/70">By Academic Department • 2024-07-20</p>
-          </div>
-          <div className="flex flex-col justify-between items-end">
-            <div className="flex space-x-2 text-orange-400">
-              <button className="hover:text-orange-600">✏️</button>
-              <button className="hover:text-orange-600">🗑</button>
-            </div>
-            <div className="flex space-x-2">
-              <span className="bg-white/50 text-orange-800 border border-orange-200 px-3 py-1 rounded-lg text-xs font-bold">Students</span>
-              <span className="bg-white/50 text-orange-800 border border-orange-200 px-3 py-1 rounded-lg text-xs font-bold">Parents</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+        <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+          <h4 className="font-bold text-[#0A1128] text-base mb-4">Bulk Communications</h4>
+          <div className="space-y-3">
+            <button onClick={() => { setMainView('chat'); setChatType('staff'); setSelectedRecipient(null); }} className="w-full bg-gray-50 hover:bg-gray-100 text-[#0A1128] border border-gray-200 font-bold text-sm py-3.5 rounded-xl transition-colors flex items-center justify-center">
+              <span className="mr-2 text-gray-500">👨‍🏫</span> Send to Staff
+            </button>
+            <button onClick={() => { setMainView('chat'); setChatType('emergency'); setSelectedRecipient(null); }} className="w-full bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold text-sm py-3.5 rounded-xl transition-colors flex items-center justify-center">
+              <span className="mr-2">🚨</span> Emergency Notification
+            </button>
+          </div>
+        </div>
+      </div>
 
-  const renderCommunicationsTab = () => (
-    <div className="flex flex-col flex-1 min-h-0 animate-fade-in">
-      <div className="mb-6 shrink-0">
-        <h3 className="font-bold text-[#0A1128] text-lg">Communications</h3>
-        <p className="text-xs text-gray-500 mt-1">Send messages and notifications to parents, students, or staff</p>
-      </div>
+      <div className="flex-1 flex flex-col min-h-0 bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+        <h4 className="font-bold text-[#0A1128] text-base mb-4 shrink-0">Recent Communications</h4>
+        <div className="overflow-y-auto custom-scrollbar flex-1">
+          <table className="w-full text-left text-sm">
+            <tbody className="divide-y divide-gray-100">
+              <tr className="hover:bg-gray-50 transition-colors">
+                <td className="py-4 px-2">
+                  <p className="font-bold text-[#0A1128]">Mid-term exam schedule (B1)</p>
+                  <p className="text-xs text-gray-500">Sent to Level B1 parents</p>
+                </td>
+                <td className="py-4 px-2 text-right text-xs text-gray-400 font-medium">2 hours ago</td>
+              </tr>
+              <tr className="hover:bg-gray-50 transition-colors">
+                <td className="py-4 px-2">
+                  <p className="font-bold text-[#0A1128]">Alex Mansouri - Attendance concern</p>
+                  <p className="text-xs text-gray-500">Individual message to Ahmed Al-Mansouri</p>
+                </td>
+                <td className="py-4 px-2 text-right text-xs text-gray-400 font-medium">1 day ago</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
 
-      <div className="grid grid-cols-2 gap-8 mb-10 shrink-0">
-        <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-          <h4 className="font-bold text-[#0A1128] text-base mb-4">Targeted Messages</h4>
-          <div className="space-y-3">
-            <button onClick={() => { setMainView('chat'); setChatType('smart'); }} className="w-full bg-[#0A1128] hover:bg-gray-800 text-white font-bold text-sm py-3.5 rounded-xl transition-colors flex items-center justify-center shadow-sm">
-              <span className="mr-2">💬</span> Send Message
-            </button>
-          </div>
-        </div>
+  const FilterSection = () => (
+    <div className="bg-white border-b border-gray-200 p-6 shrink-0 shadow-sm z-10">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      0 <div>
+          <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Target Audience</label>
+          <div className="flex space-x-4 pt-1">
+            <label className="flex items-center cursor-pointer">
+              <input type="checkbox" checked={selectedAudiences.all} onChange={() => handleAudienceChange('all')} className="w-4 h-4 text-blue-600 rounded border-gray-300" />
+              <span className="ml-2 text-sm font-bold text-[#0A1128]">All</span>
+            </label>
 
-        <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-          <h4 className="font-bold text-[#0A1128] text-base mb-4">Bulk Communications</h4>
-          <div className="space-y-3">
-            <button onClick={() => { setMainView('chat'); setChatType('staff'); }} className="w-full bg-gray-50 hover:bg-gray-100 text-[#0A1128] border border-gray-200 font-bold text-sm py-3.5 rounded-xl transition-colors flex items-center justify-center">
-              <span className="mr-2 text-gray-500">👨‍🏫</span> Send to Staff
-            </button>
-            <button onClick={() => { setMainView('chat'); setChatType('emergency'); }} className="w-full bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold text-sm py-3.5 rounded-xl transition-colors flex items-center justify-center">
-              <span className="mr-2">🚨</span> Emergency Notification
-            </button>
-          </div>
-        </div>
-      </div>
+            {/* إظهار هذه الخيارات فقط إذا كنا في قسم Smart */}
+            {chatType === 'smart' && (
+              <>
+                <label className="flex items-center cursor-pointer">
+                  <input type="checkbox" checked={selectedAudiences.students} onChange={() => handleAudienceChange('students')} className="w-4 h-4 text-blue-600 rounded border-gray-300" />
+                  <span className="ml-2 text-sm font-bold text-[#0A1128]">Students</span>
+                </label>
+                <label className="flex items-center cursor-pointer">
+                  <input type="checkbox" checked={selectedAudiences.parents} onChange={() => handleAudienceChange('parents')} className="w-4 h-4 text-blue-600 rounded border-gray-300" />
+                  <span className="ml-2 text-sm font-bold text-[#0A1128]">Parents</span>
+                </label>
+                <label className="flex items-center cursor-pointer">
+                  <input type="checkbox" checked={selectedAudiences.staff} onChange={() => handleAudienceChange('staff')} className="w-4 h-4 text-blue-600 rounded border-gray-300" />
+                  <span className="ml-2 text-sm font-bold text-[#0A1128]">Staff</span>
+                </label>
+              </>
+            )}
 
-      <div className="flex-1 flex flex-col min-h-0 bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-        <h4 className="font-bold text-[#0A1128] text-base mb-4 shrink-0">Recent Communications</h4>
-        <div className="overflow-y-auto custom-scrollbar flex-1">
-          <table className="w-full text-left text-sm">
-            <tbody className="divide-y divide-gray-100">
-              <tr className="hover:bg-gray-50 transition-colors">
-                <td className="py-4 px-2">
-                  <p className="font-bold text-[#0A1128]">Mid-term exam schedule (B1)</p>
-                  <p className="text-xs text-gray-500">Sent to Level B1 parents</p>
-                </td>
-                <td className="py-4 px-2 text-right text-xs text-gray-400 font-medium">2 hours ago</td>
-              </tr>
-              <tr className="hover:bg-gray-50 transition-colors">
-                <td className="py-4 px-2">
-                  <p className="font-bold text-[#0A1128]">Alex Mansouri - Attendance concern</p>
-                  <p className="text-xs text-gray-500">Individual message to Ahmed Al-Mansouri</p>
-                </td>
-                <td className="py-4 px-2 text-right text-xs text-gray-400 font-medium">1 day ago</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
+            {/* إظهار هذه الخيارات فقط إذا كنا في قسم Staff */}
+            {chatType === 'staff' && (
+              <>
+                <label className="flex items-center cursor-pointer">
+                  <input type="checkbox" checked={selectedAudiences.teacher} onChange={() => handleAudienceChange('teacher')} className="w-4 h-4 text-blue-600 rounded border-gray-300" />
+                  <span className="ml-2 text-sm font-bold text-[#0A1128]">Teachers</span>
+                </label>
+                <label className="flex items-center cursor-pointer">
+                  <input type="checkbox" checked={selectedAudiences.admin} onChange={() => handleAudienceChange('admin')} className="w-4 h-4 text-blue-600 rounded border-gray-300" />
+                  <span className="ml-2 text-sm font-bold text-[#0A1128]">Admins</span>
+                </label>
+              </>
+            )}
 
-  const FilterSection = () => (
-    <div className="bg-white border-b border-gray-200 p-6 shrink-0 shadow-sm z-10">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div>
-          <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Target Audience</label>
-          <div className="flex space-x-4 pt-1">
-            <label className="flex items-center cursor-pointer">
-              <input type="checkbox" checked={selectedAudiences.all} onChange={() => handleAudienceChange('all')} className="w-4 h-4 text-blue-600 rounded border-gray-300" />
-              <span className="ml-2 text-sm font-bold text-[#0A1128]">All</span>
-            </label>
+          </div>
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Language Level</label>
+          <select className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 outline-none text-sm font-bold text-[#0A1128] focus:border-blue-500 cursor-pointer">
+            <option>All Language</option>
+            <option>french</option>
+            <option>spanish</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Language Level</label>
+          <select className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 outline-none text-sm font-bold text-[#0A1128] focus:border-blue-500 cursor-pointer">
+            <option>All Levels</option>
+            <option>A1</option>
+            <option>B1</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Specific Group</label>
+          <select className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 outline-none text-sm font-bold text-[#0A1128] focus:border-blue-500 cursor-pointer">
+            <option>All Groups</option>
+            <option>Group 1</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  );
 
-            {/* إظهار هذه الخيارات فقط إذا كنا في قسم Smart */}
-            {chatType === 'smart' && (
-              <>
-                <label className="flex items-center cursor-pointer">
-                  <input type="checkbox" checked={selectedAudiences.students} onChange={() => handleAudienceChange('students')} className="w-4 h-4 text-blue-600 rounded border-gray-300" />
-                  <span className="ml-2 text-sm font-bold text-[#0A1128]">Students</span>
-                </label>
-                <label className="flex items-center cursor-pointer">
-                  <input type="checkbox" checked={selectedAudiences.parents} onChange={() => handleAudienceChange('parents')} className="w-4 h-4 text-blue-600 rounded border-gray-300" />
-                  <span className="ml-2 text-sm font-bold text-[#0A1128]">Parents</span>
-                </label>
-                <label className="flex items-center cursor-pointer">
-                  <input type="checkbox" checked={selectedAudiences.staff} onChange={() => handleAudienceChange('staff')} className="w-4 h-4 text-blue-600 rounded border-gray-300" />
-                  <span className="ml-2 text-sm font-bold text-[#0A1128]">Staff</span>
-                </label>
-              </>
-            )}
+  const renderChatView = () => {
+    let chatTitle = 'Chat View';
+    let isBulkChat = false;
+    let emergencyIcon = null;
 
-            {/* إظهار هذه الخيارات فقط إذا كنا في قسم Staff */}
-            {chatType === 'staff' && (
-              <>
-                <label className="flex items-center cursor-pointer">
-                  <input type="checkbox" checked={selectedAudiences.teacher} onChange={() => handleAudienceChange('teacher')} className="w-4 h-4 text-blue-600 rounded border-gray-300" />
-                  <span className="ml-2 text-sm font-bold text-[#0A1128]">Teachers</span>
-                </label>
-                <label className="flex items-center cursor-pointer">
-                  <input type="checkbox" checked={selectedAudiences.admin} onChange={() => handleAudienceChange('admin')} className="w-4 h-4 text-blue-600 rounded border-gray-300" />
-                  <span className="ml-2 text-sm font-bold text-[#0A1128]">Admins</span>
-                </label>
-              </>
-            )}
+    if (chatType === 'parent' || chatType === 'student' || chatType === 'staff_individual' || chatType === 'student_individual') {
+      chatTitle = selectedRecipient?.name || 'Ahmed Al-Mansouri';
+    } else if (chatType === 'smart') {
+      chatTitle = 'Send Smart Message';
+      isBulkChat = true;
+    } else if (chatType === 'staff') {
+      chatTitle = 'Sending to All School Staff';
+      isBulkChat = true;
+    } else if (chatType === 'emergency') {
+      chatTitle = 'CRITICAL: Urgent Emergency Notification';
+      emergencyIcon = <span className="text-red-600 mr-3 text-2xl">⚠️</span>;
+      isBulkChat = true;
+    }
 
-          </div>
-        </div>
-        <div>
-          <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Language Level</label>
-          <select className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 outline-none text-sm font-bold text-[#0A1128] focus:border-blue-500 cursor-pointer">
-            <option>All Language</option>
-            <option>french</option>
-            <option>spanish</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Language Level</label>
-          <select className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 outline-none text-sm font-bold text-[#0A1128] focus:border-blue-500 cursor-pointer">
-            <option>All Levels</option>
-            <option>A1</option>
-            <option>B1</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Specific Group</label>
-          <select className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 outline-none text-sm font-bold text-[#0A1128] focus:border-blue-500 cursor-pointer">
-            <option>All Groups</option>
-            <option>Group 1</option>
-          </select>
-        </div>
-      </div>
-    </div>
-  );
+    const handleSendMessage = async () => {
+      if (!newMessage.trim()) return;
+      
+      // 💡 هنا سقمنا الكود باش يبعث Emergency كي تكوني في قسم الطوارئ
+      const messageData = {
+        content: chatType === 'emergency' ? `🚨 EMERGENCY: ${newMessage}` : newMessage,
+        type: chatType, // staff_individual, parent, smart...
+        recipient_name: selectedRecipient?.name || 'Bulk Message',
+        recipient_id: selectedRecipient?.id || 'all'
+      };
+    
+      const { data, error } = await supabase
+        .from('communications')
+        .insert([messageData])
+        .select(); 
+    
+      if (!error) {
+        setNewMessage('');
+        if (data) setChatMessages([...chatMessages, data[0]]);
+      } else {
+        console.error("Error sending message:", error.message);
+      }
+    };
 
-  const renderChatView = () => {
-    let chatTitle = 'Chat View';
-    let isBulkChat = false;
-    let emergencyIcon = null;
+    const displayMessages = chatMessages.filter(msg => {
+      if (selectedRecipient) {
+        return msg.recipient_id === selectedRecipient.id;
+      }
+      return msg.type === chatType;
+    });
 
-    if (chatType === 'parent' || chatType === 'student') {
-      chatTitle = 'Ahmed Al-Mansouri';
-    } else if (chatType === 'smart') {
-      chatTitle = 'Send Smart Message';
-      isBulkChat = true;
-    } else if (chatType === 'staff') {
-      chatTitle = 'Sending to All School Staff';
-      isBulkChat = true;
-    } else if (chatType === 'emergency') {
-      chatTitle = 'CRITICAL: Urgent Emergency Notification';
-      emergencyIcon = <span className="text-red-600 mr-3 text-2xl">⚠️</span>;
-      isBulkChat = true;
-    }
+    return (
+      <div className="w-full h-full flex flex-col bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden animate-[slide-in-right_0.3s_ease-out]">
+        <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-gray-50/80 shrink-0">
+          <div className="flex items-center">
+            <button onClick={() => setMainView('portal')} className="mr-4 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200 text-gray-600 transition-colors">
+              ←
+            </button>
+            {!isBulkChat && (
+              <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mr-3 relative">
+                <img src="https://i.pravatar.cc/150?u=ahmed" alt="Ahmed" className="w-full h-full rounded-full object-cover" />
+                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white rounded-full"></span>
+              </div>
+            )}
+            {emergencyIcon}
+            <div>
+             <h3 className={`font-bold ${chatType === 'emergency' ? 'text-red-600' : 'text-[#0A1128]'} text-base`}>
+              {chatTitle}
+             </h3>
+              <p className="text-xs text-green-600 font-medium">System Ready</p>
+            </div>
+          </div>
+          <div className="flex space-x-3 text-gray-500">
+            <button className="hover:text-blue-600 p-2 rounded-full hover:bg-blue-50">📞</button>
+            <button className="hover:text-blue-600 p-2 rounded-full hover:bg-blue-50">📹</button>
+            <button className="hover:text-gray-800 p-2 rounded-full hover:bg-gray-200">⠇</button>
+          </div>
+        </div>
 
-    const handleSendMessage = async () => {
-      if (!newMessage.trim()) return;
+        <div className="flex flex-1 min-h-0 relative">
+          <div className={`flex-1 flex flex-col bg-[#f8fafc] relative ${isBulkChat ? 'col-span-2' : ''}`}>
+            
+            {(chatType === 'smart' || chatType === 'staff') && <FilterSection />}
 
-      let messageTypeToSave = chatType;
-      if (chatType === 'smart') {
-        if (selectedAudiences.all) messageTypeToSave = 'General';
-        else if (selectedAudiences.students) messageTypeToSave = 'student';
-        else if (selectedAudiences.parents) messageTypeToSave = 'parent';
-        else if (selectedAudiences.staff) messageTypeToSave = 'staff';
-      } else if (chatType === 'staff') {
-        if (selectedAudiences.all) messageTypeToSave = 'staff';
-        else if (selectedAudiences.teacher) messageTypeToSave = 'teacher';
-        else if (selectedAudiences.admin) messageTypeToSave = 'admin';
-      } else {
-        messageTypeToSave = chatType || 'General';
-      }
+            <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar flex flex-col">
+              {displayMessages.length > 0 ? (
+                displayMessages.map((msg) => (
+                  <div key={msg.id} className="flex items-end justify-end space-x-2">
+                    <div className="bg-[#2563eb] text-white p-4 rounded-2xl rounded-br-sm max-w-md shadow-sm">
+                      <p className="text-sm leading-relaxed">{msg.content}</p>
+                      <span className="text-[10px] text-blue-200 mt-2 block text-right">
+                        {new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full flex-1 text-gray-400 opacity-70">
+                  {chatType === 'smart' && (
+                    <>
+                      <span className="text-5xl mb-4">💬</span>
+                      <p className="text-sm font-bold text-gray-500">Select filters above and type your message to broadcast.</p>
+                    </>
+                  )}
+                  {chatType === 'staff' && (
+                    <>
+                      <span className="text-5xl mb-4">👨‍🏫</span>
+                      <p className="text-sm font-bold text-gray-500">Select audience above and type your message to send to staff.</p>
+                    </>
+                  )}
+                  {(chatType !== 'smart' && chatType !== 'staff' && chatType !== 'emergency') && (
+                    <p className="text-sm italic">No messages yet.</p>
+                  )}
+                </div>
+              )}
+            </div>
 
-      const { data, error } = await supabase
-        .from('communications')
-        .insert([{ content: newMessage, type: messageTypeToSave }])
-        .select();
+            {chatType === 'emergency' && (
+              <div className="flex items-end justify-end space-x-2 p-6">
+                <div className="bg-[#fee2e2] text-red-900 border border-red-200 p-4 rounded-2xl rounded-br-sm max-w-md shadow-sm relative">
+                  <span className="absolute -left-2 -top-2 bg-red-600 text-white w-6 h-6 flex items-center justify-center rounded-full font-bold">!</span>
+                  <p className="text-sm font-bold leading-relaxed mb-1">EMERGENCY NOTICE: FACILITY CLOSURE</p>
+                  <p className="text-sm leading-relaxed">To All: Due to extreme weather, the facility is closed today. All classes (all levels) are moved online.</p>
+                  <span className="text-[10px] text-red-700 mt-2 block text-right">5:12 PM ✓✓</span>
+                </div>
+              </div>
+            )}
 
-      if (error) {
-        console.error("Error:", error.message);
-      } else {
-        setNewMessage('');
-        if (data) setChatMessages([...chatMessages, data[0]]);
-      }
-    };
+            <div className="p-4 bg-white border-t border-gray-200 shrink-0 m-4 rounded-2xl shadow-sm flex items-center relative z-20">
+              <button className="text-gray-400 hover:text-gray-600 p-2 text-xl">+</button>
+              <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder={`Type your message here...`} className="flex-1 bg-transparent px-4 outline-none text-sm" />
+              <button onClick={handleSendMessage} className={`${chatType === 'emergency' ? 'bg-red-600 hover:bg-red-700' : 'bg-[#2563eb] hover:bg-blue-700'} text-white w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-colors`}>
+                ➤
+              </button>
+            </div>
+          </div>
 
-    const displayMessages = chatMessages.filter(msg => {
-      if (chatType === 'smart') {
-        if (selectedAudiences.all && msg.type === 'General') return true;
-        if (selectedAudiences.students && msg.type === 'student') return true;
-        if (selectedAudiences.parents && msg.type === 'parent') return true;
-        if (selectedAudiences.staff && msg.type === 'staff') return true;
-        return false;
-      } else if (chatType === 'staff') {
-        if (selectedAudiences.all && msg.type === 'staff') return true;
-        if (selectedAudiences.teacher && msg.type === 'teacher') return true;
-        if (selectedAudiences.admin && msg.type === 'admin') return true;
-        return false;
-      }
-      return msg.type === chatType || msg.type === 'General';
-    });
+          {/* 💡 السايدبار اللي رجعنالوا الشرط الصحيح */}
+          {selectedRecipient && (
+            <div className="w-80 bg-white border-l border-gray-100 flex flex-col p-6 overflow-y-auto custom-scrollbar shrink-0">
+              <div className="flex flex-col items-center justify-center mb-8 pt-4">
+                <div className="w-24 h-24 rounded-full bg-blue-100 flex items-center justify-center text-3xl mb-4 shadow-lg border-4 border-white">👤</div>
+                <h3 className="font-bold text-[#0A1128] text-lg text-center">{selectedRecipient.name}</h3>
+                <p className="text-sm text-gray-500 font-bold uppercase">{selectedRecipient.role}</p>
+              </div>
+              
+              <div className="space-y-6">
+                <div>
+                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center">📄 Contact Information</h4>
+                  <div className="space-y-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                    <div>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase">Phone Number</p>
+                      <p className="text-sm font-bold text-[#0A1128]">{selectedRecipient.phone || 'No phone provided'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase">Email Address</p>
+                      <p className="text-sm font-bold text-[#2563eb] break-all">{selectedRecipient.email || 'No email'}</p>
+                    </div>
+                    {selectedRecipient.dept && (
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase">Department</p>
+                        <p className="text-sm font-bold text-[#0A1128]">{selectedRecipient.dept}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                {selectedRecipient.level && (
+                  <div>
+                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center">🎓 Student Info</h4>
+  0                 <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                       <p className="text-sm font-bold text-blue-700">{selectedRecipient.level}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
-    return (
-      <div className="w-full h-full flex flex-col bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden animate-[slide-in-right_0.3s_ease-out]">
-        <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-gray-50/80 shrink-0">
-          <div className="flex items-center">
-            <button onClick={() => setMainView('portal')} className="mr-4 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200 text-gray-600 transition-colors">
-              ←
-            </button>
-            {!isBulkChat && (
-              <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mr-3 relative">
-                <img src="https://i.pravatar.cc/150?u=ahmed" alt="Ahmed" className="w-full h-full rounded-full object-cover" />
-                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white rounded-full"></span>
-              </div>
-            )}
-            {emergencyIcon}
-            <div>
-              <h3 className={`font-bold ${chatType === 'emergency' ? 'text-red-600' : 'text-[#0A1128]'} text-base`}>{chatTitle}</h3>
-              <p className="text-xs text-green-600 font-medium">System Ready</p>
-            </div>
-          </div>
-          <div className="flex space-x-3 text-gray-500">
-            <button className="hover:text-blue-600 p-2 rounded-full hover:bg-blue-50">📞</button>
-            <button className="hover:text-blue-600 p-2 rounded-full hover:bg-blue-50">📹</button>
-            <button className="hover:text-gray-800 p-2 rounded-full hover:bg-gray-200">⠇</button>
-          </div>
-        </div>
+  return (
+    <div className="animate-fade-in w-full h-full flex flex-col relative pt-12 text-[#0A1128]">
+      <NotificationToast />
+      {modalView === 'viewProfile' && selectedProfile && <ProfileModal data={selectedProfile} />}
+      {mainView === 'portal' && (
+        <div className="w-full h-full flex flex-col px-8">
+          <div className="mb-6 shrink-0 border-b border-gray-200 pb-4">
+            <h2 className="text-3xl font-bold text-[#0A1128] mb-1">Communication Portal</h2>
+            <p className="text-sm text-gray-500">Manage directories and student progress communication</p>
+          </div>
 
-        <div className="flex flex-1 min-h-0 relative">
-          <div className={`flex-1 flex flex-col bg-[#f8fafc] relative ${isBulkChat ? 'col-span-2' : ''}`}>
+          <div className="grid grid-cols-4 gap-6 mb-8 shrink-0">
+            <div className="bg-white border border-gray-200/60 rounded-2xl p-5 shadow-sm flex justify-between items-start">
+              <div>
+                <p className="text-gray-500 text-xs font-bold mb-1">Total Parents</p>
+                <p className="text-3xl font-bold text-[#0A1128] mb-1">345</p>
+                <p className="text-[10px] text-gray-400">Registered parents</p>
+              </div>
+              <span className="text-blue-500 text-lg">👥</span>
+          </div>
+            <div className="bg-white border border-gray-200/60 rounded-2xl p-5 shadow-sm flex justify-between items-start">
+              <div>
+                <p className="text-gray-500 text-xs font-bold mb-1">Emergency Contacts</p>
+                <p className="text-3xl font-bold text-[#0A1128] mb-1">340</p>
+                <p className="text-[10px] text-gray-400">Available contacts</p>
+              </div>
+              <span className="text-green-500 text-lg">📞</span>
+            </div>
+            <div className="bg-white border border-gray-200/60 rounded-2xl p-5 shadow-sm flex justify-between items-start">
+              <div>
+                <p className="text-gray-500 text-xs font-bold mb-1">Bulk Messages</p>
+                <p className="text-3xl font-bold text-[#0A1128] mb-1">1,240</p>
+                <p className="text-[10px] text-gray-400">This month</p>
+              </div>
+              <span className="text-purple-500 text-lg">💬</span>
+            </div>
+            <div className="bg-white border border-gray-200/60 rounded-2xl p-5 shadow-sm flex justify-between items-start">
+              <div>
+                <p className="text-gray-500 text-xs font-bold mb-1">Portal Active</p>
+                <p className="text-3xl font-bold text-[#0A1128] mb-1">89%</p>
+                <p className="text-[10px] text-gray-400">Parent engagement</p>
+              </div>
+              <span className="text-orange-500 text-lg">📱</span>
+            </div>
+          </div>
 
-            {(chatType === 'smart' || chatType === 'staff') && <FilterSection />}
+          <div className="flex space-x-2 bg-gray-100 p-1.5 rounded-xl w-max mb-8 shrink-0">
+            <button onClick={() => { setActiveTab('parents'); setSearchQuery(''); }} className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'parents' ? 'bg-white text-[#0A1128] shadow-sm' : 'text-gray-500 hover:text-[#0A1128]'}`}>
+              Parents
+            </button>
+            <button onClick={() => { setActiveTab('students'); setSearchQuery(''); }} className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'students' ? 'bg-white text-[#0A1128] shadow-sm' : 'text-gray-500 hover:text-[#0A1128]'}`}>
+              Students
+            </button>
+            <button onClick={() => { setActiveTab('staff'); setSearchQuery(''); }} className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'staff' ? 'bg-white text-[#0A1128] shadow-sm' : 'text-gray-500 hover:text-[#0A1128]'}`}>
+              Staff
+            </button>
+            <button onClick={() => setActiveTab('announcements')} className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'announcements' ? 'bg-white text-[#0A1128] shadow-sm' : 'text-gray-500 hover:text-[#0A1128]'}`}>
+              Announcements
+            </button>
+            <button onClick={() => setActiveTab('communications')} className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'communications' ? 'bg-white text-[#0A1128] shadow-sm' : 'text-gray-500 hover:text-[#0A1128]'}`}>
+              Communications
+            </button>
+          </div>
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar flex flex-col">
-              {displayMessages.length > 0 ? (
-                displayMessages.map((msg) => (
-                  <div key={msg.id} className="flex items-end justify-end space-x-2">
-                    <div className="bg-[#2563eb] text-white p-4 rounded-2xl rounded-br-sm max-w-md shadow-sm">
-                      <p className="text-sm leading-relaxed">{msg.content}</p>
-                      <span className="text-[10px] text-blue-200 mt-2 block text-right">
-                        {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="flex flex-col items-center justify-center h-full flex-1 text-gray-400 opacity-70">
-                  {chatType === 'smart' && (
-                    <>
-                      <span className="text-5xl mb-4">💬</span>
-                      <p className="text-sm font-bold text-gray-500">Select filters above and type your message to broadcast.</p>
-                    </>
-                  )}
-                  {chatType === 'staff' && (
-                    <>
-                      <span className="text-5xl mb-4">👨‍🏫</span>
-                      <p className="text-sm font-bold text-gray-500">Select audience above and type your message to send to staff.</p>
-                    </>
-                  )}
-                  {(chatType !== 'smart' && chatType !== 'staff' && chatType !== 'emergency') && (
-                    <p className="text-sm italic">No messages yet.</p>
-                  )}
-                </div>
-              )}
-            </div>
+          {activeTab === 'parents' && renderParentsTab()}
+          {activeTab === 'students' && renderStudentsTab()}
+          {activeTab === 'staff' && renderStaffTab()}
+          {activeTab === 'announcements' && renderAnnouncementsTab()}
+          {activeTab === 'communications' && renderCommunicationsTab()}
+        </div>
+      )}
 
-            {chatType === 'emergency' && (
-              <div className="flex items-end justify-end space-x-2 p-6">
-                <div className="bg-[#fee2e2] text-red-900 border border-red-200 p-4 rounded-2xl rounded-br-sm max-w-md shadow-sm relative">
-                  <span className="absolute -left-2 -top-2 bg-red-600 text-white w-6 h-6 flex items-center justify-center rounded-full font-bold">!</span>
-                  <p className="text-sm font-bold leading-relaxed mb-1">EMERGENCY NOTICE: FACILITY CLOSURE</p>
-                  <p className="text-sm leading-relaxed">To All: Due to extreme weather, the facility is closed today. All classes (all levels) are moved online.</p>
-                  <span className="text-[10px] text-red-700 mt-2 block text-right">5:12 PM ✓✓</span>
-                </div>
-              </div>
-            )}
+      {mainView === 'chat' && renderChatView()}
 
-            <div className="p-4 bg-white border-t border-gray-200 shrink-0 m-4 rounded-2xl shadow-sm flex items-center relative z-20">
-              <button className="text-gray-400 hover:text-gray-600 p-2 text-xl">+</button>
-              <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder={`Type your message here...`} className="flex-1 bg-transparent px-4 outline-none text-sm" />
-              <button onClick={handleSendMessage} className={`${chatType === 'emergency' ? 'bg-red-600 hover:bg-red-700' : 'bg-[#2563eb] hover:bg-blue-700'} text-white w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-colors`}>
-                ➤
-              </button>
-            </div>
-          </div>
+      {modalView === 'addParent' && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+          <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl animate-fade-in-up flex flex-col overflow-hidden border border-gray-100">
+            <div className="flex justify-between items-center p-6 border-b border-gray-100 bg-gray-50">
+              <div>
+                <h2 className="text-xl font-bold text-[#0A1128] mb-1">Add New Parent/Guardian</h2>
+                <p className="text-xs text-gray-500">Enter parent or guardian information for institute</p>
+              </div>
+              <button onClick={() => setModalView(null)} className="text-gray-400 hover:text-black text-xl">✕</button>
+            </div>
+            <div className="p-8 overflow-y-auto custom-scrollbar">
+              <form className="space-y-5">
+                <div className="grid grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">First Name</label>
+                    <input type="text" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none text-sm focus:border-blue-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Last Name</label>
+                    <input type="text" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none text-sm focus:border-blue-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Email</label>
+                    <input type="email" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none text-sm focus:border-blue-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Phone</label>
+                    <input type="tel" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none text-sm focus:border-blue-500" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Address</label>
+                  <input type="text" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none text-sm focus:border-blue-500" />
+                </div>
+                <div className="grid grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Occupation</label>
+                    <input type="text" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none text-sm focus:border-blue-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Relationship</label>
+                    <select className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none text-sm focus:border-blue-500 cursor-pointer">
+                      <option>Select relationship</option>
+                      <option>Father</option>
+                      <option>Mother</option>
+                      <option>Guardian</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex items-center pt-2">
+                  <input type="checkbox" id="emergency" className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer" />
+                  <label htmlFor="emergency" className="ml-3 text-sm font-bold text-[#0A1128] cursor-pointer">Emergency Contact</label>
+                </div>
+                <div className="pt-4">
+                  <button type="button" onClick={() => { showToast("✅ New Parent Added!"); setModalView(null); }} className="w-full bg-[#2563eb] hover:bg-blue-700 text-white py-3.5 rounded-xl font-bold text-sm shadow-sm transition-colors">
+                    Add Parent
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
 
-          {selectedRecipient && !isBulkChat && (
-            <div className="w-80 bg-white border-l border-gray-100 flex flex-col p-6 overflow-y-auto custom-scrollbar shrink-0">
-              <div className="flex flex-col items-center justify-center mb-8 pt-4">
-                <img src="https://i.pravatar.cc/150?u=ahmed" alt="Ahmed" className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-lg mb-4" />
-                <h3 className="font-bold text-[#0A1128] text-lg">{selectedRecipient.name || 'Ahmed Mansouri'}</h3>
-                <p className="text-sm text-gray-500">{selectedRecipient.role || 'Parent / Guardian'}</p>
-              </div>
-              <div className="space-y-6">
-                <div>
-                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center"><span className="mr-2">📄</span> Contact Information</h4>
-                  <div className="space-y-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
-                    <div>
-                      <p className="text-[10px] font-bold text-gray-400 uppercase">Phone Number</p>
-                      <p className="text-sm font-bold text-[#0A1128]">{selectedRecipient.phone || '+971 50 123 4567'}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-gray-400 uppercase">Email Address</p>
-                      <p className="text-sm font-bold text-[#2563eb] break-all">{selectedRecipient.email || 'ahmed.mansouri@email.com'}</p>
-                    </div>
-                    {selectedRecipient.dept && (
-                      <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase">Department</p>
-                        <p className="text-sm font-bold text-[#0A1128]">{selectedRecipient.dept}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                {selectedRecipient.level ? (
-                  <div>
-                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center"><span className="mr-2">🎓</span> Student Information</h4>
-                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex items-center">
-                      <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold mr-3">A</div>
-                      <div>
-                        <p className="text-sm font-bold text-[#0A1128]">{selectedRecipient.name}</p>
-                        <p className="text-[11px] text-gray-500">Level: {selectedRecipient.level}</p>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center"><span className="mr-2">🎓</span> Student Information</h4>
-                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex items-center">
-                      <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold mr-3">A</div>
-                      <div>
-                        <p className="text-sm font-bold text-[#0A1128]">Alex Mansouri</p>
-                        <p className="text-[11px] text-gray-500">Level: Intermediate (B1)</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  return (
-    <div className="animate-fade-in w-full h-full flex flex-col relative pt-12 text-[#0A1128]">
-      {mainView === 'portal' && (
-        <div className="w-full h-full flex flex-col">
-          <div className="mb-6 shrink-0 border-b border-gray-200 pb-4">
-            <h2 className="text-3xl font-bold text-[#0A1128] mb-1">Communication Portal</h2>
-            <p className="text-sm text-gray-500">Manage directories and student progress communication</p>
-          </div>
-
-          <div className="grid grid-cols-4 gap-6 mb-8 shrink-0">
-            <div className="bg-white border border-gray-200/60 rounded-2xl p-5 shadow-sm flex justify-between items-start">
-              <div>
-                <p className="text-gray-500 text-xs font-bold mb-1">Total Parents</p>
-                <p className="text-3xl font-bold text-[#0A1128] mb-1">345</p>
-                <p className="text-[10px] text-gray-400">Registered parents</p>
-              </div>
-              <span className="text-blue-500 text-lg">👥</span>
-            </div>
-            <div className="bg-white border border-gray-200/60 rounded-2xl p-5 shadow-sm flex justify-between items-start">
-              <div>
-                <p className="text-gray-500 text-xs font-bold mb-1">Emergency Contacts</p>
-                <p className="text-3xl font-bold text-[#0A1128] mb-1">340</p>
-                <p className="text-[10px] text-gray-400">Available contacts</p>
-              </div>
-              <span className="text-green-500 text-lg">📞</span>
-            </div>
-            <div className="bg-white border border-gray-200/60 rounded-2xl p-5 shadow-sm flex justify-between items-start">
-              <div>
-                <p className="text-gray-500 text-xs font-bold mb-1">Bulk Messages</p>
-                <p className="text-3xl font-bold text-[#0A1128] mb-1">1,240</p>
-                <p className="text-[10px] text-gray-400">This month</p>
-              </div>
-              <span className="text-purple-500 text-lg">💬</span>
-            </div>
-            <div className="bg-white border border-gray-200/60 rounded-2xl p-5 shadow-sm flex justify-between items-start">
-              <div>
-                <p className="text-gray-500 text-xs font-bold mb-1">Portal Active</p>
-                <p className="text-3xl font-bold text-[#0A1128] mb-1">89%</p>
-                <p className="text-[10px] text-gray-400">Parent engagement</p>
-              </div>
-              <span className="text-orange-500 text-lg">📱</span>
-            </div>
-          </div>
-
-          <div className="flex space-x-2 bg-gray-100 p-1.5 rounded-xl w-max mb-8 shrink-0">
-            <button onClick={() => setActiveTab('parents')} className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'parents' ? 'bg-white text-[#0A1128] shadow-sm' : 'text-gray-500 hover:text-[#0A1128]'}`}>
-              Parents
-            </button>
-            <button onClick={() => setActiveTab('students')} className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'students' ? 'bg-white text-[#0A1128] shadow-sm' : 'text-gray-500 hover:text-[#0A1128]'}`}>
-              Students
-            </button>
-            <button onClick={() => setActiveTab('staff')} className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'staff' ? 'bg-white text-[#0A1128] shadow-sm' : 'text-gray-500 hover:text-[#0A1128]'}`}>
-              Staff
-            </button>
-            <button onClick={() => setActiveTab('announcements')} className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'announcements' ? 'bg-white text-[#0A1128] shadow-sm' : 'text-gray-500 hover:text-[#0A1128]'}`}>
-              Announcements
-            </button>
-            <button onClick={() => setActiveTab('communications')} className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'communications' ? 'bg-white text-[#0A1128] shadow-sm' : 'text-gray-500 hover:text-[#0A1128]'}`}>
-              Communications
-            </button>
-          </div>
-
-          {activeTab === 'parents' && renderParentsTab()}
-          {activeTab === 'students' && renderStudentsTab()}
-          {activeTab === 'staff' && renderStaffTab()}
-          {activeTab === 'announcements' && renderAnnouncementsTab()}
-          {activeTab === 'communications' && renderCommunicationsTab()}
-        </div>
-      )}
-
-      {mainView === 'chat' && renderChatView()}
-
-      {modalView === 'addParent' && (
+      {modalView === 'addStaff' && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-          <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl animate-fade-in-up flex flex-col overflow-hidden border border-gray-100">
-            <div className="flex justify-between items-center p-6 border-b border-gray-100 bg-gray-50">
+          <div className="w-full max-w-xl bg-white rounded-[2.5rem] shadow-2xl animate-fade-in-up flex flex-col overflow-hidden border border-gray-100">
+            <div className="p-8 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
               <div>
-                <h2 className="text-xl font-bold text-[#0A1128] mb-1">Add New Parent/Guardian</h2>
-                <p className="text-xs text-gray-500">Enter parent or guardian information for institute</p>
+                <h2 className="text-2xl font-bold text-[#0A1128]">Add Staff Member</h2>
+                <p className="text-xs text-gray-400">Enter personal and role details</p>
               </div>
-              <button onClick={() => setModalView(null)} className="text-gray-400 hover:text-black text-xl">✕</button>
+              <button onClick={() => setModalView(null)} className="text-gray-400 hover:text-black text-2xl">✕</button>
             </div>
-            <div className="p-8 overflow-y-auto custom-scrollbar">
-              <form className="space-y-5">
-                <div className="grid grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">First Name</label>
-                    <input type="text" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none text-sm focus:border-blue-500" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Last Name</label>
-                    <input type="text" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none text-sm focus:border-blue-500" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Email</label>
-                    <input type="email" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none text-sm focus:border-blue-500" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Phone</label>
-                    <input type="tel" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none text-sm focus:border-blue-500" />
-                  </div>
+            <div className="p-10 space-y-6">
+              <div className="grid grid-cols-2 gap-5">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">First Name</label>
+                  <input type="text" placeholder="e.g. Maria" onChange={(e) => setNewStaffData({...newStaffData, first_name: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-4 text-sm focus:border-blue-500 outline-none transition-all" />
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Address</label>
-                  <input type="text" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none text-sm focus:border-blue-500" />
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Last Name</label>
+                  <input type="text" placeholder="e.g. Lopez" onChange={(e) => setNewStaffData({...newStaffData, last_name: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-4 text-sm focus:border-blue-500 outline-none transition-all" />
                 </div>
-                <div className="grid grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Occupation</label>
-                    <input type="text" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none text-sm focus:border-blue-500" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Relationship</label>
-                    <select className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none text-sm focus:border-blue-500 cursor-pointer">
-                      <option>Select relationship</option>
-                      <option>Father</option>
-                      <option>Mother</option>
-                      <option>Guardian</option>
-                    </select>
-                  </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Assign Role</label>
+                <select className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-4 text-sm font-bold text-[#0A1128] focus:border-blue-500 outline-none cursor-pointer" onChange={(e) => setNewStaffData({...newStaffData, role: e.target.value})}>
+                  <option value="Secretaire">Secretaire</option>
+                  <option value="Cleaning Lady">Cleaning Lady</option>
+                  <option value="Security Guy">Security Guy</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-5">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Email</label>
+                  <input type="email" placeholder="email@school.com" onChange={(e) => setNewStaffData({...newStaffData, email: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-4 text-sm outline-none" />
                 </div>
-                <div className="flex items-center pt-2">
-                  <input type="checkbox" id="emergency" className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer" />
-                  <label htmlFor="emergency" className="ml-3 text-sm font-bold text-[#0A1128] cursor-pointer">Emergency Contact</label>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Phone Number</label>
+                  <input type="tel" placeholder="+213 000 000" onChange={(e) => setNewStaffData({...newStaffData, phone: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-4 text-sm outline-none" />
                 </div>
-                <div className="pt-4">
-                  <button type="button" onClick={() => setModalView(null)} className="w-full bg-[#2563eb] hover:bg-blue-700 text-white py-3.5 rounded-xl font-bold text-sm shadow-sm transition-colors">
-                    Add Parent
-                  </button>
-                </div>
-              </form>
+              </div>
+              <button type="button" onClick={handleSaveStaff} className="w-full bg-[#2563eb] text-white py-5 rounded-2xl font-bold shadow-lg shadow-blue-500/30 hover:bg-blue-700 transition-all text-lg mt-4">Save Member</button>
             </div>
           </div>
         </div>
       )}
 
-      {modalView === 'newAnnouncement' && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-          <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl animate-fade-in-up flex flex-col overflow-hidden border border-gray-100">
-            <div className="flex justify-between items-center p-6 border-b border-gray-100 bg-gray-50">
-              <div>
-                <h2 className="text-xl font-bold text-[#0A1128] mb-1">Create New Announcement</h2>
-                <p className="text-xs text-gray-500">Share important information with school community</p>
-              </div>
-              <button onClick={() => setModalView(null)} className="text-gray-400 hover:text-black text-xl">✕</button>
-            </div>
-            <div className="p-8 overflow-y-auto custom-scrollbar">
-              <form className="space-y-6">
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Title</label>
-                  <input type="text" onChange={(e) => setAnnouncementForm({ ...announcementForm, title: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 outline-none text-sm focus:border-blue-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Content</label>
-                  <textarea rows="4" onChange={(e) => setAnnouncementForm({ ...announcementForm, content: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 outline-none text-sm focus:border-blue-500 resize-none"></textarea>
-                </div>
-                <div className="grid grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Priority</label>
-                    <select className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 outline-none text-sm focus:border-blue-500 cursor-pointer">
-                      <option>Medium</option>
-                      <option>High</option>
-                      <option>Low</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Expiry Date</label>
-                    <input type="date" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 outline-none text-sm focus:border-blue-500" />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Target Audience</label>
-                  <div className="flex space-x-6 bg-gray-50 p-4 rounded-xl border border-gray-100">
-                    <label className="flex items-center cursor-pointer">
-                      <input type="checkbox" className="w-4 h-4 text-blue-600 rounded" />
-                      <span className="ml-2 text-sm font-bold text-[#0A1128]">Students</span>
-                    </label>
-                    <label className="flex items-center cursor-pointer">
-                      <input type="checkbox" className="w-4 h-4 text-blue-600 rounded" />
-                      <span className="ml-2 text-sm font-bold text-[#0A1128]">Teachers</span>
-                    </label>
-                    <label className="flex items-center cursor-pointer">
-                      <input type="checkbox" className="w-4 h-4 text-blue-600 rounded" />
-                      <span className="ml-2 text-sm font-bold text-[#0A1128]">Parents</span>
-                    </label>
-                    <label className="flex items-center cursor-pointer">
-                      <input type="checkbox" className="w-4 h-4 text-blue-600 rounded" />
-                      <span className="ml-2 text-sm font-bold text-[#0A1128]">Staff</span>
-                    </label>
-                  </div>
-                </div>
-                <div className="pt-4">
-                  <button type="button" onClick={handlePublishAnnouncement} className="w-full bg-[#2563eb] hover:bg-blue-700 text-white py-3.5 rounded-xl font-bold text-sm shadow-sm transition-colors">
-                    Publish Announcement
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
-
-    </div>
-  );
+      {modalView === 'newAnnouncement' && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+          <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl animate-fade-in-up flex flex-col overflow-hidden border border-gray-100">
+            <div className="flex justify-between items-center p-6 border-b border-gray-100 bg-gray-50">
+              <div>
+                <h2 className="text-xl font-bold text-[#0A1128] mb-1">Create New Announcement</h2>
+                <p className="text-xs text-gray-500">Share important information with school community</p>
+              </div>
+              <button onClick={() => setModalView(null)} className="text-gray-400 hover:text-black text-xl">✕</button>
+            </div>
+            <div className="p-8 overflow-y-auto custom-scrollbar">
+              <form className="space-y-6">
+                {/* 💡 هنا ربطنا الانبوتس مع الـ State */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Title</label>
+                  <input type="text" onChange={(e) => setAnnouncementForm({...announcementForm, title: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 outline-none text-sm focus:border-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Content</label>
+                  <textarea rows="4" onChange={(e) => setAnnouncementForm({...announcementForm, content: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 outline-none text-sm focus:border-blue-500 resize-none"></textarea>
+                </div>
+                <div className="grid grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Priority</label>
+                    <select className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 outline-none text-sm focus:border-blue-500 cursor-pointer">
+                      <option>Medium</option>
+                      <option>High</option>
+                      <option>Low</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Expiry Date</label>
+                    <input type="date" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 outline-none text-sm focus:border-blue-500" />
+                  </div>
+                </div>
+                <div className="pt-4">
+                  <button type="button" onClick={handlePublishAnnouncement} className="w-full bg-[#2563eb] hover:bg-blue-700 text-white py-3.5 rounded-xl font-bold text-sm shadow-sm transition-colors">
+                    Publish Announcement
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 };
 
 export default ParentPortal;

@@ -1,32 +1,33 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../supabaseClient';
-import {
-  Plus, Settings, FileText, Calendar,
-  ChevronRight, MoreHorizontal, Download,
-  Printer, Eye, Edit2, Trash2, CheckCircle,
-  Clock, Search, Filter, ArrowLeft, Upload,
-  Layout, Users, BarChart3, Award, X, Bell,
-  BookOpen, Layers, Target, Info
-} from 'lucide-react';
+import { supabase } from '../../supabaseClient'; 
 
 const Exams = ({ examView, setExamView }) => {
   const [createStep, setCreateStep] = useState(1);
-  const [notification, setNotification] = useState(null);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [examsData, setExamsData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All Status');
+  const [classesData, setClassesData] = useState([]);
+  const [teachersData, setTeachersData] = useState([]);
+  const [toast, setToast] = useState({ visible: false, message: '' });
 
-  // --- Data State (Mock Database) ---
-  const [examData, setExamData] = useState([]);
-  const [resultsData, setResultsData] = useState([]);
-
-  // State لمعلومات الامتحان اللي رانا نكرييو فيه
   const [newExam, setNewExam] = useState({
     title: '',
-    subject: 'Mathematics',
-    class_name: '9 Niaz',
+    subject: 'English',
+    class_name: '',
+    teacher_id: '', 
     duration: 60,
     instructions: ''
   });
+
+  const [resultsData, setResultsData] = useState([]);
+  const [selectedResultExam, setSelectedResultExam] = useState('');
+  const [resultStats, setResultStats] = useState({ total: 0, completed: 0, avg: 0, passRate: 0 });
+
+  const showToast = (msg) => {
+    setToast({ visible: true, message: msg });
+    setTimeout(() => setToast({ visible: false, message: '' }), 3000);
+  };
 
   const fetchExams = async () => {
     setLoading(true);
@@ -36,66 +37,97 @@ const Exams = ({ examView, setExamView }) => {
       .order('created_at', { ascending: false });
 
     if (!error && data) {
-      const mapped = data.map(exam => ({
-        id: exam.id,
-        title: exam.title,
-        sub: exam.subject,
-        cls: exam.class_name,
-        status: exam.status || 'Draft',
-        dur: exam.duration_minutes + 'm',
-        part: "35",
-        prog: "28/35",
-        sColor: exam.status?.toLowerCase() === 'active' ? 'bg-[#0A1128]' :
-          exam.status?.toLowerCase() === 'scheduled' ? 'bg-orange-500' :
-            exam.status?.toLowerCase() === 'completed' ? 'bg-green-500' : 'bg-gray-400'
-      }));
-      setExamData(mapped);
+      setExamsData(data);
     }
     setLoading(false);
   };
 
+  const fetchClassesAndTeachers = async () => {
+    const { data: cData } = await supabase.from('classes').select('*');
+    if (cData) {
+      setClassesData(cData);
+      if (cData.length > 0) setNewExam(prev => ({ ...prev, class_name: cData[0].name }));
+    }
+
+    const { data: tData } = await supabase.from('staff').select('*');
+    if (tData) {
+      setTeachersData(tData);
+      if (tData.length > 0) setNewExam(prev => ({ ...prev, teacher_id: tData[0].id }));
+    }
+  };
+
   const fetchExamResults = async (examTitle) => {
+    if (!examTitle) return;
     try {
       const { data, error } = await supabase
         .from('grades')
-        .select('*, students(name, student_id)')
+        .select('*')
         .eq('exam_title', examTitle);
+        
+      if (error) return;
 
       if (data && data.length > 0) {
         setResultsData(data);
+        const total = data.length;
+        const completed = data.filter(d => d.score != null).length;
+        let sumScores = 0;
+        let passedCount = 0;
+        
+        data.forEach(d => {
+          const scoreNum = parseFloat(d.score) || 0;
+          sumScores += scoreNum;
+          if (scoreNum >= 50 || d.status === 'Passed') passedCount++;
+        });
+
+        setResultStats({
+          total,
+          completed,
+          avg: total ? (sumScores / total).toFixed(1) : 0,
+          passRate: total ? ((passedCount / total) * 100).toFixed(1) : 0
+        });
+      } else {
+        setResultsData([]);
+        setResultStats({ total: 0, completed: 0, avg: 0, passRate: 0 });
       }
     } catch (err) {
-      console.log("No grades found yet or table missing", err);
+      console.log("Error fetching grades", err);
     }
   };
 
   useEffect(() => {
     fetchExams();
+    fetchClassesAndTeachers();
+  }, []);
+
+  useEffect(() => {
     if (examView === 'results') {
-      fetchExamResults('Mathematics Mid-Term Exam');
+      const completedExams = examsData.filter(e => e.status?.toLowerCase() === 'completed');
+      if (completedExams.length > 0 && !selectedResultExam) {
+        setSelectedResultExam(completedExams[0].title);
+        fetchExamResults(completedExams[0].title);
+      } else if (selectedResultExam) {
+        fetchExamResults(selectedResultExam);
+      }
     }
-  }, [examView]);
+  }, [examView, selectedResultExam, examsData]);
 
   const handleSaveExam = async () => {
-    if (!newExam.title) {
-      triggerToast("Please enter the Exam Title!");
+    if (!newExam.title || !newExam.class_name || !newExam.teacher_id) {
+      showToast("Please fill all required fields!");
       return;
     }
-
+    
     setLoading(true);
     try {
       const todayDate = new Date().toISOString().split('T')[0];
-
-      const { data: existingExams, error: checkError } = await supabase
+      const { data: existingExams } = await supabase
         .from('exams')
         .select('*')
         .eq('class_name', newExam.class_name)
         .eq('exam_date', todayDate);
 
-      if (checkError) throw checkError;
-
       if (existingExams && existingExams.length > 0) {
-        triggerToast(`Conflict! The class "${newExam.class_name}" already has an exam scheduled on this date.`);
+        showToast("Conflict! This class already has an exam today.");
         setLoading(false);
         return;
       }
@@ -104,434 +136,570 @@ const Exams = ({ examView, setExamView }) => {
         title: newExam.title,
         subject: newExam.subject,
         class_name: newExam.class_name,
+        teacher_id: newExam.teacher_id,
         duration_minutes: parseInt(newExam.duration),
-        status: 'Active',
-        exam_date: todayDate
+        status: 'Active', 
+        exam_date: todayDate,
+        instructions: newExam.instructions
       }]);
 
       if (error) throw error;
-
-      triggerToast("✅ Exam Created Successfully!", "system");
-      setNewExam({ title: '', subject: 'Mathematics', class_name: '9 Niaz', duration: 60, instructions: '' });
+      
+      showToast("Exam Created Successfully!");
+      setNewExam({ title: '', subject: 'English', class_name: classesData[0]?.name || '', teacher_id: teachersData[0]?.id || '', duration: 60, instructions: '' });
       setCreateStep(1);
-      setExamView('manage');
-      fetchExams();
+      setExamView('manage'); 
+      fetchExams(); 
     } catch (err) {
-      triggerToast("Error: " + err.message, "system");
+      showToast("Error creating exam");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDeleteExam = async (id) => {
-    if (window.confirm("Are you sure you want to delete this exam?")) {
-      const { error } = await supabase.from('exams').delete().eq('id', id);
-      if (!error) {
-        setExamData(examData.filter(exam => exam.id !== id));
-        triggerToast("Exam deleted successfully", "system");
-      } else {
-        triggerToast("Error deleting exam: " + error.message, "system");
-      }
+  const handleMarkAsCompleted = async (id) => {
+    const { error } = await supabase.from('exams').update({ status: 'Completed' }).eq('id', id);
+    if(!error) {
+      setExamsData(examsData.map(exam => exam.id === id ? { ...exam, status: 'Completed' } : exam));
+      showToast("Exam marked as completed");
+    } else {
+      showToast("Error updating exam");
     }
   };
 
-  // --- Utility: Show Modern Notification ---
-  const triggerToast = (msg, type = 'system') => {
-    setNotification({ msg, type });
-    setTimeout(() => setNotification(null), 4000);
+  const handleDeleteExam = async (id) => {
+    const { error } = await supabase.from('exams').delete().eq('id', id);
+    if(!error) {
+      setExamsData(examsData.filter(exam => exam.id !== id));
+      showToast("Exam deleted successfully");
+    } else {
+      showToast("Error deleting exam");
+    }
   };
 
-  // =======================================
-  // 1. DASHBOARD VIEW
-  // =======================================
+  const totalExams = examsData.length;
+  const activeExams = examsData.filter(e => e.status?.toLowerCase() === 'active').length;
+  const scheduledExams = examsData.filter(e => e.status?.toLowerCase() === 'scheduled').length;
+  const completedExams = examsData.filter(e => e.status?.toLowerCase() === 'completed').length;
+
+  const filteredExams = examsData.filter(exam => {
+    const matchesSearch = (exam.title?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || 
+                          (exam.subject?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || 
+                          (exam.class_name?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === 'All Status' || (exam.status?.toLowerCase() || 'draft') === statusFilter.toLowerCase();
+    return matchesSearch && matchesStatus;
+  });
+
+  const PageHeader = ({ title }) => (
+    <div className="flex items-center space-x-4 mb-6">
+      <button 
+        onClick={() => setExamView('home')}
+        className="w-10 h-10 flex items-center justify-center bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 transition-colors cursor-pointer"
+      >
+        <span className="text-[#0A1128] text-xl">←</span>
+      </button>
+      <h2 className="text-2xl font-bold text-[#0A1128]">{title}</h2>
+    </div>
+  );
+
+  const ModernToast = () => (
+    <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 transform ${toast.visible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0 pointer-events-none'}`}>
+      <div className="bg-[#0A1128] text-white px-6 py-3 rounded-full shadow-2xl flex items-center space-x-3 min-w-[300px]">
+        <div className="bg-blue-500 p-1.5 rounded-lg shadow-[0_0_10px_rgba(59,130,246,0.5)]">
+          <span className="text-xs">✨</span>
+        </div>
+        <div className="flex-1">
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest leading-none mb-1">Update</p>
+          <p className="text-sm font-bold">{toast.message}</p>
+        </div>
+      </div>
+    </div>
+  );
+
   const renderHome = () => (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 pb-10">
+    <div className="animate-fade-in pb-10">
       <div className="flex justify-between items-center mb-8">
         <h2 className="text-3xl font-bold text-[#0A1128]">Exam Management</h2>
-        {/* Creative Navbar Idea: Mini Dynamic Status */}
-        <div className="hidden md:flex bg-white/50 backdrop-blur-md border border-gray-100 rounded-2xl p-2 gap-2 shadow-sm">
-          <div className="flex items-center gap-2 px-4 py-2 bg-indigo-50 rounded-xl text-indigo-600 font-bold text-xs">
-            <div className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse"></div>
-            System Live
-          </div>
-          <div className="px-4 py-2 text-gray-500 font-bold text-xs flex items-center gap-2">
-            <Calendar size={14} /> {new Date().toLocaleDateString()}
-          </div>
+        <button onClick={fetchExams} className="bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-lg text-sm font-bold transition-colors cursor-pointer">
+          🔄 Refresh
+        </button>
+      </div>
+      
+      <div className="flex justify-between items-center bg-white p-6 rounded-2xl border border-gray-200 shadow-sm mb-10">
+        <div className="text-center px-6">
+          <p className="text-gray-500 text-sm font-bold mb-2">Total Exams</p>
+          <p className="text-4xl font-bold text-[#0A1128]">{loading ? '...' : totalExams}</p>
+        </div>
+        <div className="w-px h-12 bg-gray-200"></div>
+        <div className="text-center px-6">
+          <p className="text-gray-500 text-sm font-bold mb-2">Active Exams</p>
+          <p className="text-4xl font-bold text-[#0A1128]">{loading ? '...' : activeExams}</p>
+        </div>
+        <div className="w-px h-12 bg-gray-200"></div>
+        <div className="text-center px-6">
+          <p className="text-gray-500 text-sm font-bold mb-2">Scheduled</p>
+          <p className="text-4xl font-bold text-[#0A1128]">{loading ? '...' : scheduledExams}</p>
+        </div>
+        <div className="w-px h-12 bg-gray-200"></div>
+        <div className="text-center px-6">
+          <p className="text-gray-500 text-sm font-bold mb-2">Completed</p>
+          <p className="text-4xl font-bold text-[#0A1128]">{loading ? '...' : completedExams}</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-10">
-        {[
-          { label: 'Total Exams', val: examData.length, color: 'text-[#0A1128]' },
-          { label: 'Active', val: '3', color: 'text-indigo-600' },
-          { label: 'Scheduled', val: '5', color: 'text-[#0A1128]' },
-          { label: 'Completed', val: '4', color: 'text-green-500' }
-        ].map((stat, i) => (
-          <div key={i} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm text-center">
-            <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest mb-2">{stat.label}</p>
-            <p className={`text-4xl font-black ${stat.color}`}>{stat.val}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-        <div className="lg:col-span-2 space-y-6">
-          <div className="flex justify-between items-center">
-            <h3 className="text-xl font-bold text-[#0A1128]">Recent Exams</h3>
-            <button onClick={() => setExamView('manage')} className="text-sm font-bold text-indigo-600 hover:underline">View All</button>
-          </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2">
+          <h3 className="text-xl font-bold text-[#0A1128] mb-6">Recent Exams</h3>
           <div className="space-y-4">
-            {examData.map((exam, idx) => (
-              <div key={idx} className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm hover:shadow-xl hover:scale-[1.01] transition-all cursor-pointer flex justify-between items-center group">
-                <div className="flex items-center gap-5">
-                  <div className="p-4 rounded-xl bg-indigo-50 text-indigo-600"><FileText size={24} /></div>
+            {loading ? (
+              <p className="text-gray-400 font-bold italic">Loading...</p>
+            ) : examsData.length === 0 ? (
+              <div className="bg-gray-50 border border-dashed border-gray-300 rounded-xl p-8 text-center">
+                <p className="text-gray-500 font-bold mb-2">No exams created yet.</p>
+              </div>
+            ) : (
+              examsData.slice(0, 5).map((exam) => (
+                <div 
+                  key={exam.id} 
+                  onClick={() => exam.status?.toLowerCase() === 'completed' ? setExamView('results') : setExamView('manage')}
+                  className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow flex justify-between items-center cursor-pointer"
+                >
                   <div>
-                    <div className="flex items-center mb-1">
-                      <h4 className="font-bold text-[#0A1128] text-lg mr-3 group-hover:text-indigo-600 transition-colors">{exam.title}</h4>
-                      <span className="text-[10px] px-2 py-1 rounded-lg bg-gray-100 text-gray-500 font-black uppercase">{exam.status}</span>
+                    <div className="flex items-center mb-2">
+                      <h4 className="font-bold text-[#0A1128] text-base mr-3">{exam.title}</h4>
+                      <span className={`text-[10px] px-2.5 py-1 rounded font-bold capitalize tracking-wider ${
+                        exam.status?.toLowerCase() === 'active' ? 'bg-[#0A1128] text-white' : 
+                        exam.status?.toLowerCase() === 'scheduled' ? 'bg-orange-50 text-orange-600 border border-orange-200' : 'bg-gray-100 text-gray-500'
+                      }`}>{exam.status || 'Draft'}</span>
                     </div>
-                    <p className="text-sm text-gray-400 font-medium">{exam.sub} • {exam.cls} • {exam.prog} students</p>
+                    <p className="text-sm text-gray-500">{exam.subject} • {exam.class_name}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-gray-400 capitalize mb-1">Date</p>
+                    <p className="text-sm font-medium text-gray-700">{exam.exam_date || 'TBD'}</p>
                   </div>
                 </div>
-                <ChevronRight size={18} className="text-gray-300 group-hover:text-indigo-600 transition-colors" />
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 
-        <div className="space-y-6">
-          <h3 className="text-xl font-bold text-[#0A1128]">Quick Actions</h3>
-          <div className="bg-white rounded-3xl border border-gray-100 p-4 shadow-sm space-y-2">
-            {[
-              { label: 'Create New Exam', icon: Plus, view: 'create', color: 'bg-indigo-50 text-indigo-600' },
-              { label: 'Manage Exams', icon: Settings, view: 'manage', color: 'bg-slate-50 text-slate-600' },
-              { label: 'View Exam Results', icon: BarChart3, view: 'results', color: 'bg-green-50 text-green-600' },
-              { label: 'Schedule Exam', icon: Calendar, view: 'schedule', color: 'bg-orange-50 text-orange-600' },
-            ].map((action, i) => (
-              <button key={i} onClick={() => setExamView(action.view)} className="w-full text-left px-4 py-4 rounded-2xl hover:bg-gray-50 transition-all flex items-center group">
-                <div className={`mr-4 p-2.5 rounded-xl ${action.color}`}><action.icon size={20} /></div>
-                <span className="text-base font-bold text-gray-700 group-hover:text-black">{action.label}</span>
-                <ChevronRight size={16} className="ml-auto text-gray-300 group-hover:translate-x-1 transition-transform" />
-              </button>
-            ))}
+        <div>
+          <h3 className="text-xl font-bold text-[#0A1128] mb-6">Quick Actions</h3>
+          <div className="bg-transparent space-y-3">
+            <button onClick={() => {setExamView('create'); setCreateStep(1);}} className="w-full text-left px-4 py-4 rounded-xl hover:bg-gray-100 text-base font-medium text-gray-700 transition-colors flex items-center cursor-pointer">
+              <span className="mr-3 text-gray-500 text-xl">+</span> Create New Exam
+            </button>
+            <button onClick={() => setExamView('manage')} className="w-full text-left px-4 py-4 rounded-xl hover:bg-gray-100 text-base font-medium text-gray-700 transition-colors flex items-center cursor-pointer">
+              <span className="mr-3 text-gray-500 text-xl">⚙️</span> Manage Exams
+            </button>
+            <button onClick={() => setExamView('results')} className="w-full text-left px-4 py-4 rounded-xl hover:bg-gray-100 text-base font-medium text-gray-700 transition-colors flex items-center cursor-pointer">
+              <span className="mr-3 text-gray-500 text-xl">📊</span> View Exam Results
+            </button>
+            <button onClick={() => setExamView('schedule')} className="w-full text-left px-4 py-4 rounded-xl hover:bg-gray-100 text-base font-medium text-gray-700 transition-colors flex items-center cursor-pointer">
+              <span className="mr-3 text-gray-500 text-xl">📅</span> Schedule Exam
+            </button>
           </div>
         </div>
       </div>
     </div>
   );
 
-  // =======================================
-  // 2. MANAGE EXAMS VIEW (Functioning Actions & Search)
-  // =======================================
   const renderManageExams = () => (
-    <div className="animate-in slide-in-from-right-8 duration-500 pb-10">
-      <div className="flex justify-between items-end mb-8">
-        <div>
-          <h2 className="text-3xl font-bold text-[#0A1128] mb-1">Exam Management</h2>
-          <p className="text-sm text-gray-500 font-medium">Manage and monitor school-wide exam progress</p>
+    <div className="animate-fade-in pb-10 max-w-7xl mx-auto">
+      <PageHeader title="Exam Management" />
+
+      <div className="grid grid-cols-4 gap-4 mb-8">
+        <div className="bg-gray-100/80 rounded-2xl p-5 flex justify-between items-start border border-gray-200/50">
+          <div><p className="text-gray-500 text-[11px] font-medium mb-1">Total Exams</p><p className="text-2xl font-bold text-[#0A1128]">{loading ? '-' : totalExams}</p></div>
+          <span className="text-blue-500 text-xl">📄</span>
         </div>
-        <div className="flex gap-4">
-          <button onClick={() => setExamView('home')} className="bg-white border border-gray-200 text-[#0A1128] px-6 py-3 rounded-xl font-bold hover:bg-gray-50 transition-all flex items-center gap-2">
-            <ArrowLeft size={18} /> Back
-          </button>
-          <button onClick={() => setExamView('create')} className="bg-[#0A1128] text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-900 transition-all">
-            <Plus size={18} /> Create New Exam
-          </button>
+        <div className="bg-gray-100/80 rounded-2xl p-5 flex justify-between items-start border border-gray-200/50">
+          <div><p className="text-gray-500 text-[11px] font-medium mb-1">Active Exams</p><p className="text-2xl font-bold text-[#0A1128]">{loading ? '-' : activeExams}</p></div>
+          <span className="text-green-500 text-xl">▶</span>
+        </div>
+        <div className="bg-gray-100/80 rounded-2xl p-5 flex justify-between items-start border border-gray-200/50">
+          <div><p className="text-gray-500 text-[11px] font-medium mb-1">Scheduled</p><p className="text-2xl font-bold text-[#0A1128]">{loading ? '-' : scheduledExams}</p></div>
+          <span className="text-orange-500 text-xl">📅</span>
+        </div>
+        <div className="bg-gray-100/80 rounded-2xl p-5 flex justify-between items-start border border-gray-200/50">
+          <div><p className="text-gray-500 text-[11px] font-medium mb-1">Completed</p><p className="text-2xl font-bold text-[#0A1128]">{loading ? '-' : completedExams}</p></div>
+          <span className="text-purple-500 text-xl">📋</span>
         </div>
       </div>
 
-      <div className="bg-gray-100/80 rounded-2xl p-3 flex justify-between items-center border border-gray-200/50 mb-8">
-        <div className="relative flex-1 max-w-xl">
-          <Search size={18} className="absolute inset-y-0 left-4 top-3 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search exams by title, subject, or class..."
-            className="w-full bg-transparent border-none py-3 pl-12 pr-4 text-sm font-medium outline-none text-gray-600"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+      <div className="bg-gray-100/80 rounded-xl p-3 flex justify-between items-center border border-gray-200/50 mb-10">
+        <div className="relative flex-1 max-w-lg">
+          <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 text-sm">🔍</span>
+          <input 
+            type="text" 
+            placeholder="Search exams by title, subject, or class..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full bg-transparent border-none py-2 pl-10 pr-4 text-sm outline-none text-gray-600" 
           />
         </div>
-        <div className="bg-white rounded-xl px-4 py-2 shadow-sm border border-gray-200/50 flex items-center gap-2">
-          <Filter size={14} className="text-gray-400" />
-          <select className="bg-transparent border-none text-xs font-bold text-gray-600 outline-none"><option>All Status</option></select>
+        <div className="bg-gray-200/50 rounded-lg px-3 py-1.5 flex items-center">
+          <select 
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="bg-transparent border-none text-sm font-medium text-gray-600 outline-none cursor-pointer pr-2"
+          >
+            <option>All Status</option>
+            <option>Active</option>
+            <option>Scheduled</option>
+            <option>Completed</option>
+            <option>Draft</option>
+          </select>
         </div>
       </div>
 
-      <div className="bg-white rounded-3xl border border-gray-100 shadow-xl overflow-hidden">
-        <table className="w-full text-left">
-          <thead className="bg-gray-50/50 text-[#0A1128] font-black uppercase text-[10px] tracking-widest border-b border-gray-100">
+      <div className="overflow-x-auto bg-white border border-gray-200 rounded-2xl shadow-sm">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-gray-50 border-b border-gray-200 text-[#0A1128] font-bold">
             <tr>
-              <th className="py-5 px-8">Exam Info</th>
-              <th className="py-5 px-4">Subject/Class</th>
-              <th className="py-5 px-4">Status</th>
-              <th className="py-5 px-4">Duration</th>
-              <th className="py-5 px-4">Participants</th>
-              <th className="py-5 px-4">Progress</th>
-              <th className="py-5 px-8 text-right">Actions</th>
+              <th className="py-4 px-4">Title</th>
+              <th className="py-4 px-4">Subject</th>
+              <th className="py-4 px-4">Class</th>
+              <th className="py-4 px-4">Status</th>
+              <th className="py-4 px-4">Duration</th>
+              <th className="py-4 px-4">Date</th>
+              <th className="py-4 px-4 text-center">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-50 font-medium text-sm">
-            {filteredExams.map((row, i) => (
-              <tr key={i} className="hover:bg-slate-50/50">
-                <td className="py-6 px-8 font-bold text-[#0A1128]">{row.title}</td>
-                <td className="py-6 px-4">
-                  <p className="text-gray-600">{row.sub}</p>
-                  <p className="text-[10px] font-black text-indigo-500 uppercase">{row.cls}</p>
-                </td>
-                <td className="py-6 px-4">
-                  <span className={`px-3 py-1.5 rounded-lg text-[10px] font-black text-white uppercase tracking-tight ${row.sColor}`}>{row.status}</span>
-                </td>
-                <td className="py-6 px-4 text-gray-400 flex items-center gap-2"><Clock size={14} /> {row.dur}</td>
-                <td className="py-6 px-4 text-gray-400 flex items-center gap-2"><Users size={14} /> {row.part}</td>
-                <td className="py-6 px-4">
-                  <div className="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-indigo-600" style={{ width: '75%' }}></div>
-                  </div>
-                  <p className="text-[10px] font-black mt-1">{row.prog}</p>
-                </td>
-                <td className="py-6 px-8 text-right">
-                  <div className="flex justify-end gap-2">
-                    <button onClick={() => setExamView('results')} className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-white rounded-lg transition-all"><Eye size={18} /></button>
-                    <button onClick={() => triggerToast(`Opening Edit Mode for ${row.title}`)} className="p-2 text-gray-400 hover:text-orange-500 hover:bg-white rounded-lg transition-all"><Edit2 size={18} /></button>
-                    <button onClick={(e) => { e.stopPropagation(); handleDeleteExam(row.id); }} className="p-2 text-gray-400 hover:text-red-500 hover:bg-white rounded-lg transition-all"><Trash2 size={18} /></button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+          <tbody className="divide-y divide-gray-100">
+            {filteredExams.length === 0 ? ( 
+              <tr><td colSpan="7" className="text-center py-10 text-gray-400 font-bold">No exams found.</td></tr>
+            ) : (
+              filteredExams.map((row) => (
+                <tr key={row.id} className="hover:bg-gray-50/50 transition-colors">
+                  <td className="py-4 px-4">
+                    <p className="font-bold text-[#0A1128] text-[13px]">{row.title}</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">Created: {new Date(row.created_at).toLocaleDateString()}</p>
+                  </td>
+                  <td className="py-4 px-4 text-gray-700 text-xs font-medium">{row.subject}</td>
+                  <td className="py-4 px-4 text-gray-700 text-xs font-medium">{row.class_name}</td>
+                  <td className="py-4 px-4">
+                    {row.status?.toLowerCase() === 'active' && <span className="bg-[#0A1128] text-white px-2.5 py-1 rounded text-[10px] font-bold flex items-center w-max">▶ Active</span>}
+                    {row.status?.toLowerCase() === 'scheduled' && <span className="text-gray-600 border border-gray-200 px-2.5 py-1 rounded text-[10px] font-bold flex items-center w-max">📅 Scheduled</span>}
+                    {row.status?.toLowerCase() === 'completed' && <span className="text-green-600 border border-green-200 bg-green-50 px-2.5 py-1 rounded text-[10px] font-bold flex items-center w-max">📋 Completed</span>}
+                    {(!row.status || row.status?.toLowerCase() === 'draft') && <span className="text-gray-500 px-2.5 py-1 rounded text-[10px] font-bold flex items-center w-max">⚙️ Draft</span>}
+                  </td>
+                  <td className="py-4 px-4 text-gray-500 text-xs"><span className="mr-1.5 opacity-50">⏱</span> {row.duration_minutes}m</td>
+                  <td className="py-4 px-4">
+                     <p className="text-xs text-gray-600 font-bold">{row.exam_date || 'TBD'}</p>
+                  </td>
+                  <td className="py-4 px-4 text-gray-400 space-x-3 text-sm text-center">
+                     {row.status?.toLowerCase() === 'active' && (
+                       <span className="hover:text-green-500 cursor-pointer mr-2" title="Mark as Completed" onClick={(e) => { e.stopPropagation(); handleMarkAsCompleted(row.id); }}>✅</span>
+                     )}
+                     <span className="hover:text-blue-600 cursor-pointer">✏️</span>
+                     <span className="hover:text-red-500 cursor-pointer" onClick={(e) => { e.stopPropagation(); handleDeleteExam(row.id); }}>🗑</span>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
-        {filteredExams.length === 0 && (
-          <div className="p-20 text-center text-gray-400 font-bold">No exams found matching "{searchQuery}"</div>
+      </div>
+    </div>
+  );
+
+  const renderCreateExam = () => (
+    <div className="animate-fade-in max-w-4xl mx-auto pb-10">
+      <PageHeader title="Create New Exam" />
+
+      <div className="flex items-center justify-center mb-12 space-x-6">
+        <div className="flex items-center text-blue-600 font-bold text-base">
+          <span className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center mr-3 text-sm">1</span>
+          Exam Details
+        </div>
+        <div className={`w-20 h-0.5 ${createStep === 2 ? 'bg-blue-600' : 'bg-gray-200'}`}></div>
+        <div className={`flex items-center text-base font-bold ${createStep === 2 ? 'text-blue-600' : 'text-gray-400'}`}>
+          <span className={`w-8 h-8 rounded-full flex items-center justify-center mr-3 text-sm ${createStep === 2 ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}>2</span>
+          Upload PDF
+        </div>
+      </div>
+
+      <div className="bg-gray-50/50 border border-gray-100 rounded-3xl p-10 shadow-sm">
+        {createStep === 1 ? (
+          <div className="animate-fade-in">
+            <h3 className="text-xl font-bold text-[#0A1128] mb-2">Step 1: Exam Information</h3>
+            <p className="text-sm text-gray-500 mb-8">Provide basic information about your exam</p>
+
+            <div className="grid grid-cols-2 gap-x-10 gap-y-6 mb-8">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Exam Title <span className="text-red-500">*</span></label>
+                <input type="text" value={newExam.title} onChange={e=>setNewExam({...newExam, title: e.target.value})} placeholder="e.g. English Mid-Term" className="w-full bg-gray-100 border border-gray-200 rounded-xl px-5 py-3 outline-none focus:border-blue-500 text-sm font-bold" required/>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Subject</label>
+                <select value={newExam.subject} onChange={e=>setNewExam({...newExam, subject: e.target.value})} className="w-full bg-gray-100 border border-gray-200 rounded-xl px-5 py-3 outline-none focus:border-blue-500 text-sm font-bold cursor-pointer">
+                  <option>English</option><option>French</option><option>German</option><option>Spanish</option><option>Physics</option><option>Mathematics</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Class / Group <span className="text-red-500">*</span></label>
+                <select value={newExam.class_name} onChange={e=>setNewExam({...newExam, class_name: e.target.value})} className="w-full bg-gray-100 border border-gray-200 rounded-xl px-5 py-3 outline-none focus:border-blue-500 text-sm font-bold cursor-pointer">
+                  <option value="">-- Select Class --</option>
+                  {classesData.map(c => (
+                    <option key={c.id} value={c.name}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Assign Teacher <span className="text-red-500">*</span></label>
+                <select value={newExam.teacher_id} onChange={e=>setNewExam({...newExam, teacher_id: e.target.value})} className="w-full bg-gray-100 border border-gray-200 rounded-xl px-5 py-3 outline-none focus:border-blue-500 text-sm font-bold cursor-pointer">
+                  <option value="">-- Select Teacher --</option>
+                  {teachersData.map(t => (
+                    <option key={t.id} value={t.id}>{t.first_name} {t.last_name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="col-span-2">
+                <label className="block text-sm font-bold text-gray-700 mb-2">Duration (minutes)</label>
+                <input type="number" value={newExam.duration} onChange={e=>setNewExam({...newExam, duration: e.target.value})} placeholder="60" className="w-full bg-gray-100 border border-gray-200 rounded-xl px-5 py-3 outline-none focus:border-blue-500 text-sm font-bold" />
+              </div>
+            </div>
+            
+            <div className="mb-10">
+              <label className="block text-sm font-bold text-gray-700 mb-2">Exam Instructions</label>
+              <textarea value={newExam.instructions} onChange={e=>setNewExam({...newExam, instructions: e.target.value})} rows="4" placeholder="Instructions here..." className="w-full bg-gray-100 border border-gray-200 rounded-xl px-5 py-3 outline-none focus:border-blue-500 text-sm font-bold resize-none"></textarea>
+            </div>
+            <div className="flex justify-between border-t border-gray-200 pt-8">
+              <span className="text-gray-300 font-medium text-sm">Step 1 of 2</span>
+              <button onClick={() => {
+                if(!newExam.title || !newExam.class_name || !newExam.teacher_id) { showToast("Required fields missing"); return; }
+                setCreateStep(2);
+              }} className="bg-[#0A1128] text-white px-8 py-3 rounded-xl text-sm font-bold hover:bg-blue-900 transition-colors cursor-pointer">Next Step</button>
+            </div>
+          </div>
+        ) : (
+          <div className="animate-fade-in py-6">
+            <h3 className="text-xl font-bold text-[#0A1128] mb-2">Step 2: Upload Exam PDF</h3>
+            <p className="text-sm text-gray-500 mb-8">Upload the PDF containing your exam questions</p>
+            
+            <div className="border-2 border-dashed border-blue-200 rounded-2xl p-20 mb-10 bg-blue-50/30 hover:bg-blue-50 transition-colors cursor-pointer flex flex-col items-center">
+               <span className="text-5xl text-blue-400 mb-6">📤</span>
+               <p className="font-bold text-[#0A1128] text-lg mb-2">Upload Exam PDF</p>
+               <p className="text-sm text-gray-500 mb-6">Max File Size: 5MB</p>
+               <button className="bg-white text-blue-600 px-6 py-2.5 rounded-xl text-sm font-bold border border-blue-200 flex items-center shadow-sm">
+                 <span className="mr-2 text-lg">↑</span> Choose PDF File
+               </button>
+            </div>
+
+            <div className="flex justify-between border-t border-gray-200 pt-8">
+              <button onClick={() => setCreateStep(1)} className="text-gray-600 font-bold text-sm hover:text-black cursor-pointer">Previous</button>
+              <button onClick={handleSaveExam} disabled={loading} className="bg-[#2563eb] text-white px-10 py-3 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors cursor-pointer shadow-lg active:scale-95">
+                {loading ? 'Saving...' : 'Finish & Save Exam'}
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </div>
   );
 
-  // =======================================
-  // 3. EXAM RESULTS VIEW
-  // =======================================
   const renderResults = () => {
-    const dataToDisplay = resultsData.length > 0 ? resultsData.map((s, i) => ({
-      rank: `#0${i + 1}`,
-      name: s.students?.name || s.name || `Student ${i + 1}`,
-      score: s.score || 'N/A',
-      grade: s.grade || 'N/A',
-      gCol: s.grade === 'F' ? "text-red-500" : "text-green-500",
-      status: s.status?.toUpperCase() || (s.grade === 'F' ? 'FAILED' : 'PASSED'),
-      sCol: s.grade === 'F' ? "bg-red-100 text-red-600" : "bg-green-100 text-green-700"
-    })) : [
-      { rank: "#01", name: "Fatima Khan", score: "92/100", grade: "A+", gCol: "text-green-500", status: "PASSED", sCol: "bg-green-100 text-green-700" },
-      { rank: "#02", name: "Ahmad Ali", score: "85/100", grade: "A", gCol: "text-green-500", status: "PASSED", sCol: "bg-green-100 text-green-700" },
-      { rank: "#03", name: "Hassan Ahmed", score: "68/100", grade: "B", gCol: "text-indigo-600", status: "PASSED", sCol: "bg-green-100 text-green-700" },
-      { rank: "#04", name: "Aisha Malik", score: "45/100", grade: "F", gCol: "text-red-500", status: "FAILED", sCol: "bg-red-100 text-red-600" },
-    ];
+    const completedExamsList = examsData.filter(e => e.status?.toLowerCase() === 'completed');
+    const currentExamDetails = completedExamsList.find(e => e.title === selectedResultExam);
 
     return (
-      <div className="animate-in fade-in zoom-in-95 duration-500">
-        <div className="flex justify-between items-center border-b border-gray-100 pb-8 mb-8">
-          <div>
-            <h2 className="text-3xl font-black text-[#0A1128]">Exam Results</h2>
-            <p className="text-sm text-gray-500 font-medium">Analyze performance and student rankings</p>
+      <div className="animate-fade-in pb-10">
+        <PageHeader title="Exam Results" />
+
+        <div className="flex justify-between items-center mb-8">
+          <select 
+            value={selectedResultExam}
+            onChange={(e) => setSelectedResultExam(e.target.value)}
+            className="bg-transparent text-[#0A1128] font-bold text-base outline-none cursor-pointer w-80"
+          >
+            {completedExamsList.length === 0 ? (
+               <option value="">No completed exams yet</option>
+            ) : (
+               completedExamsList.map(exam => (
+                 <option key={exam.id} value={exam.title}>{exam.title} - {exam.class_name}</option>
+               ))
+            )}
+          </select>
+          <div className="flex space-x-6">
+            <button className="text-sm font-bold text-gray-600 hover:text-black flex items-center cursor-pointer transition-colors">
+              <span className="mr-2 text-lg">📥</span> Export CSV
+            </button>
+            <button className="text-sm font-bold text-gray-600 hover:text-black flex items-center cursor-pointer transition-colors">
+              <span className="mr-2 text-lg">📥</span> Export PDF
+            </button>
           </div>
-          <button onClick={() => setExamView('home')} className="flex items-center gap-2 text-sm font-bold text-indigo-600 hover:bg-indigo-50 px-4 py-2 rounded-xl transition-all">
-            <ArrowLeft size={18} /> Back to Dashboard
-          </button>
         </div>
 
-        <div className="flex justify-between items-center mb-10">
-          <div className="bg-white border border-gray-100 rounded-2xl px-6 py-4 shadow-sm flex items-center gap-4">
-            <FileText className="text-indigo-600" size={20} />
-            <p className="text-[#0A1128] font-black text-lg">Mathematics Mid-Term Exam - 9 Niaz</p>
+        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-6 mb-10 flex divide-x divide-gray-100">
+          <div className="flex-1 px-6 flex justify-between items-center">
+            <div>
+              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Total Students</p>
+              <p className="text-4xl font-bold text-[#0A1128] leading-none">{resultStats.total}</p>
+            </div>
+            <span className="text-blue-500 text-3xl opacity-90">👥</span>
           </div>
-          <div className="flex gap-4">
-            <button onClick={() => triggerToast("Downloading CSV Report...", "system")} className="bg-white px-5 py-3 rounded-xl shadow-sm border border-gray-100 text-sm font-bold text-gray-600 hover:bg-gray-50 flex items-center gap-2">
-              <Download size={16} className="text-indigo-600" /> Export CSV
-            </button>
-            <button onClick={() => triggerToast("Generating PDF Document...", "system")} className="bg-white px-5 py-3 rounded-xl shadow-sm border border-gray-100 text-sm font-bold text-gray-600 hover:bg-gray-50 flex items-center gap-2">
-              <Printer size={16} className="text-red-500" /> Export PDF
-            </button>
+          <div className="flex-1 px-8 flex justify-between items-center">
+            <div>
+              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Completed</p>
+              <p className="text-4xl font-bold text-[#0A1128] leading-none">{resultStats.completed}</p>
+            </div>
+            <span className="text-blue-400 text-3xl opacity-90">📄</span>
+          </div>
+          <div className="flex-1 px-8 flex justify-between items-center">
+            <div>
+              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Average Score</p>
+              <p className="text-4xl font-bold text-[#0A1128] leading-none">{resultStats.avg}%</p>
+            </div>
+            <span className="text-green-500 text-3xl opacity-90">📊</span>
+          </div>
+          <div className="flex-1 px-8 flex justify-between items-center">
+            <div>
+              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Pass Rate</p>
+              <p className="text-4xl font-bold text-[#0A1128] leading-none">{resultStats.passRate}%</p>
+            </div>
+            <span className="text-orange-500 text-3xl opacity-90">🏅</span>
           </div>
         </div>
 
-        <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-10">
-          <h3 className="text-xl font-bold text-[#0A1128] mb-8">Student Ranking</h3>
-          <table className="w-full text-left">
-            <thead>
-              <tr className="border-b border-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                <th className="py-4 px-4 w-20">Rank</th>
-                <th className="py-4 px-4">Student Name</th>
-                <th className="py-4 px-4">Score</th>
-                <th className="py-4 px-4">Grade</th>
-                <th className="py-4 px-4">Status</th>
-                <th className="py-4 px-4 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {dataToDisplay.map((s, i) => (
-                <tr key={i} className="hover:bg-gray-50/50 transition-all group">
-                  <td className="py-6 px-4 font-black text-gray-300 group-hover:text-indigo-600 transition-colors">{s.rank}</td>
-                  <td className="py-6 px-4 font-bold text-[#0A1128]">{s.name}</td>
-                  <td className="py-6 px-4 font-black text-gray-700">{s.score}</td>
-                  <td className={`py-6 px-4 font-black ${s.gCol}`}>{s.grade}</td>
-                  <td className="py-6 px-4">
-                    <span className={`px-3 py-1 text-[10px] font-black rounded-lg uppercase ${s.sCol}`}>{s.status}</span>
-                  </td>
-                  <td className="py-6 px-4 text-right">
-                    <button onClick={() => triggerToast(`Viewing ${s.name}'s Paper...`)} className="p-2 text-gray-300 hover:text-[#0A1128]"><Eye size={18} /></button>
-                  </td>
+        {currentExamDetails && (
+          <div className="mb-12 pl-2">
+            <h3 className="font-bold text-[#0A1128] text-xl mb-2">{currentExamDetails.title}</h3>
+            <p className="text-sm text-gray-500 mb-8">{currentExamDetails.subject} • {currentExamDetails.class_name} • Conducted on {currentExamDetails.exam_date}</p>
+            
+            <div className="grid grid-cols-3 gap-6 text-base max-w-3xl">
+              <div>
+                <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-2">Duration</p>
+                <p className="font-bold text-[#0A1128] text-lg">{currentExamDetails.duration_minutes} minutes</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-2">Passing Score</p>
+                <p className="font-bold text-[#0A1128] text-lg">50%</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-2">Completion Rate</p>
+                <p className="font-bold text-[#0A1128] text-lg">
+                    {resultStats.total > 0 ? Math.round((resultStats.completed / resultStats.total) * 100) : 0}%
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="mb-6 bg-white/50 rounded-2xl p-5 border border-gray-100">
+          <div className="mb-6 border-b border-gray-200 pb-4">
+            <h3 className="font-bold text-[#0A1128] text-lg mb-1">Student Results</h3>
+            <p className="text-sm text-gray-500">Detailed results for each student</p>
+          </div>
+          
+          <div className="flex justify-between items-center mb-6">
+              <div className="relative w-80 bg-gray-50 rounded-lg">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-400 text-sm">🔍</span>
+                <input type="text" placeholder="Search students..." className="w-full bg-transparent py-2.5 pl-10 pr-4 text-sm outline-none text-gray-600" />
+              </div>
+              <select className="bg-transparent border-none py-2 text-sm font-bold text-gray-600 outline-none cursor-pointer">
+                <option>All Grades</option>
+              </select>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-gray-200 text-[#0A1128] font-bold">
+                <tr>
+                  <th className="py-4 px-3">Student</th>
+                  <th className="py-4 px-3">Score</th>
+                  <th className="py-4 px-3">Percentage</th>
+                  <th className="py-4 px-3">Grade</th>
+                  <th className="py-4 px-3">Status</th>
+                  <th className="py-4 px-3 text-center">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {resultsData.length === 0 ? (
+                    <tr><td colSpan="6" className="text-center py-8 text-gray-400 font-bold">No results recorded yet.</td></tr>
+                ) : (
+                  resultsData.map((s, i) => {
+                    const studentName = s.student_name || 'Unknown Student';
+                    const scoreNum = parseFloat(s.score) || 0;
+                    return (
+                      <tr key={i} className="hover:bg-gray-50/80 transition-colors">
+                        <td className="py-4 px-3">
+                          <p className="font-bold text-[#0A1128] text-base">{studentName}</p>
+                          <p className="text-xs text-gray-500 mt-1">{s.student_id || '-'}</p>
+                        </td>
+                        <td className="py-4 px-3 font-medium text-[#0A1128]">{s.score != null ? `${s.score}/100` : '-'}</td>
+                        <td className="py-4 px-3">
+                          <div className="flex items-center">
+                            <span className="font-bold text-[#0A1128] w-10">{scoreNum}%</span>
+                            <div className="w-10 h-2 bg-blue-600 rounded-full ml-2"></div>
+                          </div>
+                        </td>
+                        <td className={`py-4 px-3 font-bold ${s.grade === 'F' ? 'text-red-500' : 'text-green-500'}`}>{s.grade || '-'}</td>
+                        <td className="py-4 px-3">
+                          <span className={`px-3 py-1 text-xs font-bold uppercase rounded ${s.status === 'Failed' || scoreNum < 50 ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
+                            {s.status || (scoreNum >= 50 ? 'Passed' : 'Failed')}
+                          </span>
+                        </td>
+                        <td className="py-4 px-3 text-center">
+                          <button className="text-gray-400 hover:text-[#0A1128] cursor-pointer text-lg">👁</button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     );
   };
 
-  // =======================================
-  // 4. CREATE EXAM VIEW (Extra Details Saisir)
-  // =======================================
-  const renderCreateExam = () => (
-    <div className="animate-in slide-in-from-bottom-8 duration-700 max-w-4xl mx-auto">
-      <div className="flex justify-between items-center mb-10">
-        <div>
-          <h2 className="text-4xl font-black text-[#0A1128] mb-2">Create New Exam</h2>
-          <p className="text-gray-400 font-bold">Configure and deploy a new examination</p>
-        </div>
-        <button onClick={() => setExamView('home')} className="text-gray-400 hover:text-red-500 font-bold flex items-center gap-2">
-          <X size={18} /> Cancel
-        </button>
-      </div>
-
-      <div className="flex items-center justify-center mb-16 gap-8">
-        <div className={`flex items-center gap-3 ${createStep === 1 ? 'text-indigo-600' : 'text-gray-300'}`}>
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black transition-all ${createStep === 1 ? 'bg-indigo-600 text-white shadow-lg' : 'bg-gray-100'}`}>1</div>
-          <span className="font-bold text-sm">Exam Details</span>
-        </div>
-        <div className="w-16 h-0.5 bg-gray-100"></div>
-        <div className={`flex items-center gap-3 ${createStep === 2 ? 'text-indigo-600' : 'text-gray-300'}`}>
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black transition-all ${createStep === 2 ? 'bg-indigo-600 text-white shadow-lg' : 'bg-gray-100'}`}>2</div>
-          <span className="font-bold text-sm">Deployment</span>
-        </div>
-      </div>
-
-      <div className="bg-white border border-gray-100 rounded-[32px] p-12 shadow-2xl shadow-slate-200/50">
-        {createStep === 1 ? (
-          <div className="space-y-10 animate-in fade-in">
-            <div className="grid grid-cols-2 gap-10">
-              <div className="space-y-3">
-                <label className="text-xs font-black text-[#0A1128] uppercase ml-1 flex items-center gap-2"><Target size={14} /> Exam Title *</label>
-                <input type="text" value={newExam.title} onChange={e => setNewExam({ ...newExam, title: e.target.value })} placeholder="e.g. Physics Quarter 1" className="w-full bg-gray-50 border-none rounded-2xl px-6 py-4 outline-none font-bold text-[#0A1128] focus:ring-2 ring-indigo-100" />
-              </div>
-              <div className="space-y-3">
-                <label className="text-xs font-black text-[#0A1128] uppercase ml-1 flex items-center gap-2"><BookOpen size={14} /> Subject</label>
-                <select value={newExam.subject} onChange={e => setNewExam({ ...newExam, subject: e.target.value })} className="w-full bg-gray-50 border-none rounded-2xl px-6 py-4 outline-none font-bold text-[#0A1128] appearance-none">
-                  <option>Mathematics</option>
-                  <option>Physics</option>
-                  <option>Computer Science</option>
-                  <option>English</option>
-                  <option>French</option>
-                </select>
-              </div>
-              <div className="space-y-3">
-                <label className="text-xs font-black text-[#0A1128] uppercase ml-1 flex items-center gap-2"><Layers size={14} /> Target Class</label>
-                <select value={newExam.class_name} onChange={e => setNewExam({ ...newExam, class_name: e.target.value })} className="w-full bg-gray-50 border-none rounded-2xl px-6 py-4 outline-none font-bold text-[#0A1128] appearance-none">
-                  <option>9 Niaz</option>
-                  <option>10 Niaz</option>
-                  <option>8 Liaqat</option>
-                  <option>A1 Group</option>
-                </select>
-              </div>
-              <div className="space-y-3">
-                <label className="text-xs font-black text-[#0A1128] uppercase ml-1 flex items-center gap-2"><Clock size={14} /> Duration (min)</label>
-                <input type="number" value={newExam.duration} onChange={e => setNewExam({ ...newExam, duration: e.target.value })} placeholder="60" className="w-full bg-gray-50 border-none rounded-2xl px-6 py-4 outline-none font-bold text-[#0A1128]" />
-              </div>
-              <div className="col-span-2 space-y-3">
-                <label className="text-xs font-black text-[#0A1128] uppercase ml-1 flex items-center gap-2"><Info size={14} /> Exam Instructions</label>
-                <textarea value={newExam.instructions} onChange={e => setNewExam({ ...newExam, instructions: e.target.value })} rows="3" placeholder="Enter special rules or instructions for students..." className="w-full bg-gray-50 border-none rounded-2xl px-6 py-4 outline-none font-bold text-[#0A1128] resize-none"></textarea>
-              </div>
-            </div>
-            <div className="flex justify-between items-center pt-10 border-t border-gray-50">
-              <button onClick={() => setExamView('home')} className="text-gray-400 font-bold">Exit</button>
-              <button onClick={() => {
-                if (!newExam.title) { triggerToast("Title is required!", "system"); return; }
-                setCreateStep(2);
-              }} className="bg-[#0A1128] text-white px-10 py-4 rounded-2xl font-black text-sm hover:bg-indigo-950 transition-all shadow-xl shadow-indigo-100">Proceed to Upload</button>
-            </div>
-          </div>
-        ) : (
-          <div className="animate-in fade-in text-center py-10">
-            <div className="border-4 border-dashed border-gray-50 rounded-[40px] p-20 mb-10 hover:border-indigo-100 transition-all cursor-pointer bg-gray-50/30 group">
-              <div className="w-20 h-20 bg-white rounded-3xl shadow-xl mx-auto flex items-center justify-center text-gray-200 group-hover:text-indigo-600 transition-all mb-6">
-                <Upload size={40} />
-              </div>
-              <p className="font-black text-[#0A1128] text-xl">Upload Paper Template (PDF)</p>
-              <p className="text-gray-400 font-medium mt-2">Maximum file size: 10MB</p>
-            </div>
-            <div className="flex justify-between items-center pt-10 border-t border-gray-50">
-              <button onClick={() => setCreateStep(1)} className="text-gray-400 font-bold">Back to Details</button>
-              <button onClick={handleSaveExam} disabled={loading} className="bg-green-600 text-white px-10 py-4 rounded-2xl font-black text-sm shadow-xl shadow-green-100 hover:bg-green-700 transition-all">{loading ? 'Saving...' : 'Finalize & Schedule'}</button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-
-  // =======================================
-  // 5. EXAM SCHEDULE VIEW (Synced Navigation)
-  // =======================================
   const renderSchedule = () => (
-    <div className="animate-in fade-in slide-in-from-top-4 duration-500">
-      <div className="flex justify-between items-center mb-10">
-        <h2 className="text-4xl font-black text-[#0A1128]">Exam Schedule</h2>
-        <div className="flex gap-4">
-          <button className="p-3 bg-white border border-gray-100 rounded-xl text-gray-400 hover:text-indigo-600 shadow-sm"><ChevronRight className="rotate-180" size={20} /></button>
-          <button className="px-6 py-3 bg-white border border-gray-100 rounded-xl font-bold text-[#0A1128] shadow-sm">October 2026</button>
-          <button className="p-3 bg-white border border-gray-100 rounded-xl text-gray-400 hover:text-indigo-600 shadow-sm"><ChevronRight size={20} /></button>
-          <button onClick={() => setExamView('home')} className="ml-4 bg-gray-100 p-3 rounded-xl text-gray-500 hover:bg-gray-200 transition-all">
-            <X size={20} />
-          </button>
-        </div>
-      </div>
-
-      <div className="bg-white border border-gray-100 rounded-[40px] p-12 shadow-xl overflow-x-auto">
+    <div className="animate-fade-in pb-10">
+      <PageHeader title="Exam Schedule" />
+      <div className="bg-white border border-gray-200 rounded-2xl p-8 shadow-sm overflow-x-auto">
         <div className="min-w-[900px]">
-          <div className="grid grid-cols-6 gap-8 mb-12 text-center border-b border-gray-50 pb-8">
-            <div className="flex items-center justify-center font-black text-gray-200 uppercase text-[10px] tracking-widest">Time Slot</div>
-            {['MON 23', 'TUE 24', 'WED 25', 'THU 26', 'FRI 27'].map((d, i) => (
-              <div key={i} className="text-[#0A1128] font-black">
-                <p className="text-3xl tracking-tighter">{d.split(' ')[1]}</p>
-                <p className="text-[10px] opacity-40 uppercase tracking-widest">{d.split(' ')[0]}</p>
-              </div>
-            ))}
+          <div className="grid grid-cols-6 gap-4 mb-6 text-center border-b border-gray-100 pb-6">
+            <div className="text-gray-400 font-bold text-sm">🕒 Time</div>
+            <div><p className="text-blue-600 font-bold text-sm uppercase mb-1">Mon</p><p className="text-xl font-black text-[#0A1128]">Oct 23</p></div>
+            <div><p className="text-gray-500 font-bold text-sm uppercase mb-1">Tue</p><p className="text-xl font-black text-[#0A1128]">Oct 24</p></div>
+            <div><p className="text-gray-500 font-bold text-sm uppercase mb-1">Wed</p><p className="text-xl font-black text-[#0A1128]">Oct 25</p></div>
+            <div><p className="text-gray-500 font-bold text-sm uppercase mb-1">Thu</p><p className="text-xl font-black text-[#0A1128]">Oct 26</p></div>
+            <div><p className="text-gray-500 font-bold text-sm uppercase mb-1">Fri</p><p className="text-xl font-black text-[#0A1128]">Oct 27</p></div>
           </div>
-
-          <div className="grid grid-cols-6 gap-8 relative min-h-[400px]">
-            <div className="space-y-24 text-gray-300 font-black text-[10px] uppercase text-center pt-6">
-              <div>09:00 AM</div>
-              <div>11:00 AM</div>
-              <div>01:00 PM</div>
+          <div className="grid grid-cols-6 gap-4 text-base relative h-[400px]">
+            <div className="space-y-20 text-gray-400 font-bold text-sm text-center pt-6">
+              <div>10:00 AM</div>
+              <div>12:00 PM</div>
+              <div>02:00 PM</div>
+              <div>04:00 PM</div>
             </div>
-
-            <div className="relative border-r border-gray-50 px-2 space-y-6">
-              <div onClick={() => triggerToast("Viewing Math Mid-Term Entry")} className="bg-indigo-600 p-6 rounded-[24px] shadow-2xl shadow-indigo-200 text-white transform hover:scale-[1.02] transition-all cursor-pointer">
-                <p className="text-[10px] font-black uppercase opacity-60 mb-2">9 NIAZ</p>
-                <p className="font-bold text-xl mb-3">Math Mid-Term</p>
-                <div className="flex items-center gap-2 text-[10px] font-bold"><Layout size={12} /> Room 12 • Mr. Adil</div>
-              </div>
-              <div onClick={() => triggerToast("Viewing English Quiz Entry")} className="bg-[#0A1128] p-6 rounded-[24px] text-white transform hover:scale-[1.02] transition-all cursor-pointer">
-                <p className="text-[10px] font-black uppercase opacity-40 mb-2">8 LIAQAT</p>
-                <p className="font-bold text-xl mb-3 text-white">English Quiz</p>
-                <div className="flex items-center gap-2 text-[10px] font-bold opacity-60"><Layout size={12} /> Room 04 • Ms. Sara</div>
+            <div className="relative">
+              <div className="absolute top-4 w-full bg-green-50 border-l-4 border-green-500 p-4 rounded-r-xl shadow-sm">
+                <p className="text-xs font-bold text-green-600 mb-1 uppercase">Level A1</p>
+                <p className="font-bold text-[#0A1128] text-sm">German Quiz</p>
               </div>
             </div>
-
-            {[1, 2, 3, 4].map((col) => (
-              <div key={col} className="border-r last:border-0 border-gray-50 px-2 flex flex-col justify-center">
-                <div className="h-24 w-full border-2 border-dashed border-gray-50 rounded-[24px] flex items-center justify-center text-[10px] font-black text-gray-200 uppercase tracking-widest">No Exams</div>
+            <div className="relative">
+              <div className="absolute top-12 w-full bg-orange-50 border-l-4 border-orange-500 p-4 rounded-r-xl shadow-sm">
+                <p className="text-xs font-bold text-orange-600 mb-1 uppercase">Level C1</p>
+                <p className="font-bold text-[#0A1128] text-sm">Spanish Oral</p>
               </div>
-            ))}
+            </div>
+            <div className="relative">
+               <div className="absolute top-32 w-full bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-xl shadow-sm">
+                <p className="text-xs font-bold text-blue-600 mb-1 uppercase">Level B2</p>
+                <p className="font-bold text-[#0A1128] text-sm">English Final</p>
+              </div>
+            </div>
+            <div className="relative">
+              <div className="absolute top-10 w-full bg-purple-50 border-l-4 border-purple-500 p-4 rounded-r-xl shadow-sm">
+                <p className="text-xs font-bold text-purple-600 mb-1 uppercase">Level B1</p>
+                <p className="font-bold text-[#0A1128] text-sm">French Written</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -539,29 +707,13 @@ const Exams = ({ examView, setExamView }) => {
   );
 
   return (
-    <div className="p-10 h-full overflow-y-auto bg-transparent relative">
-
-      {/* --- MODERN NOTIFICATION COMPONENT --- */}
-      {notification && (
-        <div className="fixed top-10 right-10 z-[100] animate-in slide-in-from-right duration-500">
-          <div className="bg-[#0A1128] border-l-4 border-pink-500 rounded-2xl p-5 shadow-2xl flex items-center gap-4 min-w-[300px]">
-            <div className="w-10 h-10 rounded-xl bg-pink-500/20 flex items-center justify-center text-pink-500">
-              <Bell size={20} className="animate-pulse" />
-            </div>
-            <div className="flex-1">
-              <p className="text-pink-500 text-[10px] font-black uppercase tracking-widest mb-1">System Notification</p>
-              <p className="text-white font-bold italic text-sm">{notification.msg}</p>
-            </div>
-            <button onClick={() => setNotification(null)} className="text-gray-500 hover:text-white"><X size={16} /></button>
-          </div>
-        </div>
-      )}
-
+    <div className="p-8 h-full overflow-y-auto bg-transparent custom-scrollbar relative">
       {examView === 'home' && renderHome()}
       {examView === 'manage' && renderManageExams()}
       {examView === 'results' && renderResults()}
       {examView === 'create' && renderCreateExam()}
       {examView === 'schedule' && renderSchedule()}
+      <ModernToast />
     </div>
   );
 };
