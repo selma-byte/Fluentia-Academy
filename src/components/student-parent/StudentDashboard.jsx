@@ -2,116 +2,247 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../supabaseClient';
 
-// Import sub-components
+// Import sub-components — UNCHANGED
 import StudentCourses from './StudentCourses';
-import StudentAnnouncements from './StudentAnnouncements'; 
+import StudentAnnouncements from './StudentAnnouncements';
 import StudentHomeworks from './StudentHomeworks';
-import ExamBoard from './ExamBoard'; 
+import ExamBoard from './ExamBoard';
 import StudentGradeReport from './StudentGradeReport';
 import StudentSchedule from './StudentSchedule';
-import AccountSettings from './AccountSettings'; 
-import StudentPayment from './StudentPayment'; 
+import AccountSettings from './AccountSettings';
+import StudentPayment from './StudentPayment';
 import StudentMessages from './StudentMessages';
 import StudentAttendance from './StudentAttendance';
 import StudentLibraries from './StudentLibraries';
 
+// ─── SVG Icon System ───────────────────────────────────────────────────────────
 const Icons = {
-  Dashboard: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>,
-  Learning: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>,
-  Tasks: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>,
-  Messages: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>,
-  Payment: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>,
-  Settings: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>,
-  Logout: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>,
-  Search: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>,
-  Bell: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>,
+  Dashboard: () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+      <rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>
+    </svg>
+  ),
+  Learning: () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+    </svg>
+  ),
+  Tasks: () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+    </svg>
+  ),
+  Messages: () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+    </svg>
+  ),
+  Payment: () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/>
+    </svg>
+  ),
+  Settings: () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+    </svg>
+  ),
+  Logout: () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+      <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+    </svg>
+  ),
+  Search: () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+  ),
+  Bell: () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+      <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+    </svg>
+  ),
+  ChevronRight: () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="9 18 15 12 9 6"/>
+    </svg>
+  ),
+  Globe: () => (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="2" y1="12" x2="22" y2="12"/>
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+    </svg>
+  ),
+  BookOpen: () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+    </svg>
+  ),
+  Calendar: () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
+      <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+    </svg>
+  ),
+  Clock: () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+    </svg>
+  ),
+  Users: () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+      <circle cx="9" cy="7" r="4"/>
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+    </svg>
+  ),
+  Award: () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="8" r="7"/>
+      <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/>
+    </svg>
+  ),
 };
 
+// ─── School Logo ───────────────────────────────────────────────────────────────
+const SchoolLogo = () => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+    <div style={{
+      width: 36, height: 36,
+      background: 'linear-gradient(135deg, #4318FF 0%, #6B47FF 100%)',
+      borderRadius: 10,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      boxShadow: '0 4px 12px rgba(67,24,255,0.4)',
+      flexShrink: 0,
+    }}>
+      <Icons.Globe />
+      {/* White globe icon inside */}
+      <svg style={{ position: 'absolute' }} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="2" y1="12" x2="22" y2="12"/>
+        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+      </svg>
+    </div>
+    <div>
+      <p style={{ color: '#fff', fontSize: 13, fontWeight: 800, letterSpacing: '0.04em', lineHeight: 1.1 }}>POLYGLOT</p>
+      <p style={{ color: '#818cf8', fontSize: 9, fontWeight: 700, letterSpacing: '0.12em' }}>ACADEMY</p>
+    </div>
+  </div>
+);
+
+// ─── Nav config ───────────────────────────────────────────────────────────────
 const navLinks = [
-  { id: 'Dashboard', icon: Icons.Dashboard },
-  { id: 'My Learning', icon: Icons.Learning },
-  { id: 'Classroom Tasks', icon: Icons.Tasks },
-  { id: 'Messages', icon: Icons.Messages },
-  { id: 'Payment', icon: Icons.Payment },
-  { id: 'Settings', icon: Icons.Settings },
+  { id: 'Dashboard',       icon: Icons.Dashboard },
+  { id: 'My Learning',     icon: Icons.Learning  },
+  { id: 'Classroom Tasks', icon: Icons.Tasks     },
+  { id: 'Messages',        icon: Icons.Messages  },
+  { id: 'Payment',         icon: Icons.Payment   },
+  { id: 'Settings',        icon: Icons.Settings  },
 ];
 
+// ─── Stat Card ────────────────────────────────────────────────────────────────
+const StatCard = ({ label, value, badge, badgeColor, icon: Icon, iconBg }) => (
+  <div style={{
+    background: '#fff',
+    borderRadius: 16,
+    padding: '20px 24px',
+    border: '1px solid #f1f5f9',
+    boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+    display: 'flex', flexDirection: 'column', gap: 8,
+    flex: 1, minWidth: 0,
+  }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <div style={{
+        width: 40, height: 40, borderRadius: 12,
+        background: iconBg || '#EEF2FF',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: '#4318FF',
+      }}>
+        <Icon />
+      </div>
+      {badge && (
+        <span style={{
+          fontSize: 11, fontWeight: 700,
+          color: badgeColor === 'green' ? '#059669' : badgeColor === 'blue' ? '#4318FF' : '#f59e0b',
+          background: badgeColor === 'green' ? '#ecfdf5' : badgeColor === 'blue' ? '#eef2ff' : '#fffbeb',
+          padding: '2px 8px', borderRadius: 20,
+        }}>{badge}</span>
+      )}
+    </div>
+    <p style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</p>
+    <p style={{ fontSize: 26, fontWeight: 800, color: '#1e293b', lineHeight: 1 }}>{value}</p>
+  </div>
+);
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 const StudentDashboard = () => {
-  const [activeTab, setActiveTab] = useState('Dashboard');
+  const [activeTab, setActiveTab]           = useState('Dashboard');
   const [learningSubTab, setLearningSubTab] = useState('Courses');
-  const [tasksSubTab, setTasksSubTab] = useState('Attendance');
+  const [tasksSubTab, setTasksSubTab]       = useState('Attendance');
   const navigate = useNavigate();
 
-  // 💡 States الحقيقية
-  const [studentInfo, setStudentInfo] = useState({ full_name: 'Loading...', role: 'Student Account', level: '' });
-  const [currentUser, setCurrentUser] = useState(null);
-  const [myClasses, setMyClasses] = useState([]);
-  const [examBoardData, setExamBoardData] = useState([]); 
-  
-  // 💡 الإشعارات
+  // ── All original state — UNTOUCHED ────────────────────────────────────────
+  const [studentInfo, setStudentInfo]         = useState({ full_name: 'Loading...', role: 'Student Account', level: '' });
+  const [currentUser, setCurrentUser]         = useState(null);
+  const [myClasses, setMyClasses]             = useState([]);
+  const [examBoardData, setExamBoardData]     = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadCount, setUnreadCount]         = useState(0);
   const [notificationsList, setNotificationsList] = useState([]);
-  
   const notificationRef = useRef(null);
 
-  // Homeworks (ستاتيك مؤقتاً)
   const homeworkData = [
-    { title: "Course Assignment", desc: "Project Presentation", due: "Feb 10, 2026", status: "Pending", color: "border-[#C1B2DA]" },
-    { title: "Written Exercise", desc: "Grammar Essay", due: "Mar 5, 2026", status: "Submitted", color: "border-[#F3E5AB]" },
+    { title: "Course Assignment", desc: "Project Presentation",  due: "Feb 10, 2026", status: "Pending",   color: "#6366f1" },
+    { title: "Written Exercise",  desc: "Grammar Essay",         due: "Mar 5, 2026",  status: "Submitted", color: "#f59e0b" },
   ];
 
-  // ==========================================
-  // 💡 Fetch dynamic data from Supabase
-  // ==========================================
+  // ── All original Supabase logic — UNTOUCHED ───────────────────────────────
   useEffect(() => {
     const fetchStudentData = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
-
         if (user && user.email) {
-          // 1. جلب بيانات الطالب
           const { data: studentData } = await supabase
-            .from('students')
-            .select('*')
-            .eq('email', user.email)
-            .single();
+            .from('students').select('*').eq('email', user.email).single();
 
           if (studentData) {
             setCurrentUser(studentData);
-            setStudentInfo({ 
-              full_name: `${studentData.first_name || ''} ${studentData.last_name || ''}`.trim(), 
+            setStudentInfo({
+              full_name: `${studentData.first_name || ''} ${studentData.last_name || ''}`.trim(),
               role: 'Student Account',
               level: studentData.level || 'Enrolled Student'
             });
 
-            // 💡 2. جلب قسم الطالب بالضبط (حسب group_name)
             if (studentData.group_name) {
               const { data: classData } = await supabase
-                .from('classes')
-                .select('*')
-                .eq('name', studentData.group_name); // الفلترة باسم الڨروب حصراً
+                .from('classes').select('*').eq('name', studentData.group_name);
 
               if (classData && classData.length > 0) {
-                const colors = ['bg-[#C1B2DA]', 'bg-[#F3E5AB]', 'bg-[#A6C9E2]', 'bg-[#B4D9B0]'];
+                const colors = ['#EEF2FF', '#FFF7ED', '#ECFDF5', '#F0F9FF'];
+                const accents = ['#4318FF', '#f59e0b', '#059669', '#0284c7'];
                 const formattedClasses = classData.map((cls, index) => ({
                   id: cls.id,
                   name: cls.name || cls.class_name || studentData.group_name,
                   instructor: cls.teacher_name || "Assigned Teacher",
                   color: colors[index % colors.length],
+                  accent: accents[index % accents.length],
                   students: cls.capacity || 20,
-                  time: cls.schedule || "Mon & Wed 09:00", 
+                  time: cls.schedule || "Mon & Wed 09:00",
                   platform: "In-Person Learning"
                 }));
                 setMyClasses(formattedClasses);
               }
             }
 
-            // 💡 3. جلب الامتحانات (حسب اللغة والمستوى)
             if (studentData.language && studentData.level) {
               const { data: examData } = await supabase
-                .from('exams')
-                .select('*')
+                .from('exams').select('*')
                 .ilike('language', `%${studentData.language}%`)
                 .eq('level', studentData.level);
 
@@ -122,17 +253,15 @@ const StudentDashboard = () => {
                   course: `Level ${ex.level || studentData.level}`,
                   date: new Date(ex.date || ex.created_at).toLocaleDateString(),
                   status: ex.status || "Pending",
-                  statusCol: ex.status === 'Completed' ? "text-green-500 bg-green-50" : "text-orange-500 bg-orange-50"
+                  statusCol: ex.status === 'Completed' ? "completed" : "pending"
                 }));
                 setExamBoardData(formattedExams);
               }
             }
           }
 
-          // 4. جلب الإشعارات (فلترة للطلاب فقط)
           const { data: commsData } = await supabase
-            .from('communications')
-            .select('*')
+            .from('communications').select('*')
             .in('type', ['announcement', 'notification', 'emergency'])
             .order('created_at', { ascending: false });
 
@@ -142,18 +271,16 @@ const StudentDashboard = () => {
               return target.includes('students') || target.includes('all community');
             });
             setNotificationsList(myNotifs);
-            setUnreadCount(myNotifs.length); 
+            setUnreadCount(myNotifs.length);
           }
         }
       } catch (error) {
         console.error('Error fetching data:', error);
       }
     };
-
     fetchStudentData();
   }, []);
 
-  // Click outside close
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (notificationRef.current && !notificationRef.current.contains(event.target)) {
@@ -169,115 +296,184 @@ const StudentDashboard = () => {
     navigate('/login');
   };
 
+  // ── Calendar helper ───────────────────────────────────────────────────────
+  const today     = new Date();
+  const todayDate = today.getDate();
+  const monthName = today.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  const firstDay  = new Date(today.getFullYear(), today.getMonth(), 1).getDay();
+  const offset    = firstDay === 0 ? 6 : firstDay - 1;
+  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+
+  // ── Render sub-sections ───────────────────────────────────────────────────
   const renderMainContent = () => {
     if (activeTab === 'My Learning') {
       return (
-        <div className="flex-1 flex flex-col space-y-6 min-w-0">
-          <div className="flex items-center space-x-8 border-b border-gray-100 mb-2">
-            {['Courses', 'Libraries', 'Schedule'].map((tab) => (
-              <button key={tab} onClick={() => setLearningSubTab(tab)} className={`pb-4 text-sm font-bold transition-all relative ${learningSubTab === tab ? 'text-[#4318FF]' : 'text-[#A3AED0] hover:text-[#1B254B]'}`}>
-                {tab}
-                {learningSubTab === tab && <div className="absolute bottom-0 left-0 right-0 h-1 bg-[#4318FF] rounded-t-full shadow-md"></div>}
-              </button>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 0 }}>
+          <div style={{ display: 'flex', gap: 28, borderBottom: '1px solid #f1f5f9', marginBottom: 28 }}>
+            {['Courses', 'Libraries', 'Schedule'].map(tab => (
+              <button key={tab} onClick={() => setLearningSubTab(tab)} style={{
+                paddingBottom: 14, fontSize: 13, fontWeight: 700,
+                color: learningSubTab === tab ? '#4318FF' : '#94a3b8',
+                background: 'none', border: 'none', cursor: 'pointer',
+                borderBottom: learningSubTab === tab ? '2px solid #4318FF' : '2px solid transparent',
+                marginBottom: -1, transition: 'all .2s',
+              }}>{tab}</button>
             ))}
           </div>
-          {learningSubTab === 'Courses' && <StudentCourses />}
+          {learningSubTab === 'Courses'   && <StudentCourses />}
           {learningSubTab === 'Libraries' && <StudentLibraries />}
-          {learningSubTab === 'Schedule' && <StudentSchedule />}
+          {learningSubTab === 'Schedule'  && <StudentSchedule />}
         </div>
       );
     }
 
     if (activeTab === 'Classroom Tasks') {
       return (
-        <div className="flex-1 flex flex-col space-y-6 min-w-0">
-          <div className="flex items-center space-x-8 border-b border-gray-100 mb-2 overflow-x-auto custom-scrollbar shrink-0">
-            {['Attendance', 'Homeworks', 'Grade Report', 'Exam Board', 'Announcements'].map((tab) => (
-              <button key={tab} onClick={() => setTasksSubTab(tab)} className={`pb-4 text-sm font-bold transition-all relative whitespace-nowrap ${tasksSubTab === tab ? 'text-[#4318FF]' : 'text-[#A3AED0] hover:text-[#1B254B]'}`}>
-                {tab}
-                {tasksSubTab === tab && <div className="absolute bottom-0 left-0 right-0 h-1 bg-[#4318FF] rounded-t-full"></div>}
-              </button>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 0 }}>
+          <div style={{ display: 'flex', gap: 24, borderBottom: '1px solid #f1f5f9', marginBottom: 28, overflowX: 'auto' }}>
+            {['Attendance', 'Homeworks', 'Grade Report', 'Exam Board', 'Announcements'].map(tab => (
+              <button key={tab} onClick={() => setTasksSubTab(tab)} style={{
+                paddingBottom: 14, fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap',
+                color: tasksSubTab === tab ? '#4318FF' : '#94a3b8',
+                background: 'none', border: 'none', cursor: 'pointer',
+                borderBottom: tasksSubTab === tab ? '2px solid #4318FF' : '2px solid transparent',
+                marginBottom: -1, transition: 'all .2s',
+              }}>{tab}</button>
             ))}
           </div>
-          {tasksSubTab === 'Attendance' && <StudentAttendance />}
-          {tasksSubTab === 'Homeworks' && <StudentHomeworks />}
+          {tasksSubTab === 'Attendance'   && <StudentAttendance />}
+          {tasksSubTab === 'Homeworks'    && <StudentHomeworks />}
           {tasksSubTab === 'Grade Report' && <StudentGradeReport />}
-          {tasksSubTab === 'Exam Board' && <ExamBoard />}
-          {tasksSubTab === 'Announcements' && <StudentAnnouncements />}
+          {tasksSubTab === 'Exam Board'   && <ExamBoard />}
+          {tasksSubTab === 'Announcements'&& <StudentAnnouncements />}
         </div>
       );
     }
 
     if (activeTab === 'Messages') return <StudentMessages />;
-    if (activeTab === 'Payment') return <StudentPayment />;
+    if (activeTab === 'Payment')  return <StudentPayment />;
     if (activeTab === 'Settings') return <AccountSettings />;
 
-    // Dashboard View
+    // ── Dashboard View ──────────────────────────────────────────────────────
     return (
-      <div className="flex-1 flex flex-col space-y-10 animate-fadeIn pr-2">
-        <div className="flex flex-col space-y-1">
-          <p className="text-[#A3AED0] text-sm font-black tracking-widest uppercase opacity-60">Overview</p>
-          <h1 className="text-3xl font-black text-[#1B254B] uppercase tracking-tighter italic">Welcome, {studentInfo.full_name}</h1>
-        </div>
-        
-        <div className="bg-[#EBE9F1] rounded-[45px] px-12 py-14 flex justify-between items-center relative overflow-hidden shadow-sm">
-          <div className="z-10 w-full md:w-3/5">
-            <h2 className="text-4xl font-black text-[#1B254B] mb-5 leading-tight uppercase tracking-tighter">Elevate Your Language Path</h2>
-            <p className="text-[#1B254B]/60 text-base mb-10 leading-relaxed max-w-md font-bold uppercase tracking-widest opacity-80">Access synchronized modules, download academic assets, and track your global proficiency level.</p>
-            <button className="bg-[#111C44] text-white px-10 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-black transition-all active:scale-95">Explore Curriculum</button>
-          </div>
-          <div className="absolute right-[-20px] bottom-[-20px] opacity-10 text-[260px] font-black pointer-events-none select-none italic">F</div>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 28 }}>
+
+        {/* Header row */}
+        <div>
+          <p style={{ fontSize: 13, color: '#94a3b8', marginBottom: 4 }}>
+            {today.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+          </p>
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: '#1e293b', margin: 0 }}>
+            Welcome back, {studentInfo.full_name}
+          </h1>
+          <p style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>
+            Here's a snapshot of your academic progress today.
+          </p>
         </div>
 
-        <div className="space-y-6">
-          <div className="flex justify-between items-end">
-            <h3 className="text-xl font-black text-[#1B254B] uppercase tracking-widest italic">My Enrolled Classes</h3>
-            <button onClick={() => { setActiveTab('My Learning'); setLearningSubTab('Courses'); }} className="text-[#4318FF] text-[11px] font-black hover:underline uppercase tracking-widest">Browse catalog</button>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-            {myClasses.length > 0 ? myClasses.map((cls) => (
-              <div key={cls.id} className="bg-white rounded-[40px] shadow-sm border border-gray-100 flex flex-col overflow-hidden hover:shadow-2xl transition-all duration-500 group">
-                <div className={`${cls.color} p-10 h-32 flex flex-col justify-center`}>
-                  <h4 className="font-black text-[18px] text-[#1B254B] leading-tight line-clamp-1 uppercase italic">{cls.name}</h4>
-                  <div className="text-[10px] font-black text-[#1B254B]/50 mt-2 uppercase">{cls.instructor}</div>
-                </div>
-                <div className="p-10 space-y-6">
-                  <div className="flex items-center text-[12px] text-[#A3AED0] font-black uppercase tracking-widest"><span className="w-10 h-10 rounded-2xl bg-gray-50 flex items-center justify-center mr-5 text-[#1B254B] italic">#</span> {cls.students} Enrolled</div>
-                  <div className="flex items-center text-[12px] text-[#A3AED0] font-black uppercase tracking-widest"><span className="w-10 h-10 rounded-2xl bg-gray-50 flex items-center justify-center mr-5 text-[#1B254B] italic">@</span> {cls.time}</div>
-                  <button className="w-full mt-4 py-5 bg-[#F4F7FE] text-[#4318FF] text-[11px] font-black rounded-2xl group-hover:bg-[#4318FF] group-hover:text-white transition-all uppercase tracking-widest shadow-sm">View Materials</button>
-                </div>
-              </div>
-            )) : (
-               <div className="col-span-2 bg-white rounded-[40px] p-10 text-center text-gray-400 border border-dashed">No classes found for your group.</div>
-            )}
-          </div>
+        {/* Stat cards row */}
+        <div style={{ display: 'flex', gap: 16 }}>
+          <StatCard
+            label="My Classes"
+            value={myClasses.length || 0}
+            badge="+Active"
+            badgeColor="blue"
+            icon={Icons.BookOpen}
+            iconBg="#EEF2FF"
+          />
+          <StatCard
+            label="Exams Scheduled"
+            value={examBoardData.length || 0}
+            badge="View All"
+            badgeColor="green"
+            icon={Icons.Award}
+            iconBg="#ECFDF5"
+          />
+          <StatCard
+            label="Pending Tasks"
+            value={homeworkData.filter(h => h.status === 'Pending').length}
+            badge="Due Soon"
+            badgeColor="orange"
+            icon={Icons.Tasks}
+            iconBg="#FFF7ED"
+          />
         </div>
 
-        <div className="bg-white rounded-[45px] p-10 shadow-sm border border-gray-100">
-          <div className="flex justify-between items-center mb-10">
-            <h3 className="text-xl font-black text-[#1B254B] uppercase tracking-widest">My Exams Schedule</h3>
-            <button onClick={() => { setActiveTab('Classroom Tasks'); setTasksSubTab('Exam Board'); }} className="text-[#4318FF] text-[11px] font-black hover:underline uppercase">Full Schedule</button>
+        {/* Enrolled Classes */}
+        <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #f1f5f9', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', padding: 24 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <h2 style={{ fontSize: 15, fontWeight: 800, color: '#1e293b', margin: 0 }}>My Enrolled Classes</h2>
+            <button onClick={() => { setActiveTab('My Learning'); setLearningSubTab('Courses'); }}
+              style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700, color: '#4318FF', background: 'none', border: 'none', cursor: 'pointer' }}>
+              Browse Catalog <Icons.ChevronRight />
+            </button>
           </div>
+
+          {myClasses.length > 0 ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16 }}>
+              {myClasses.map(cls => (
+                <div key={cls.id} style={{
+                  border: '1px solid #f1f5f9', borderRadius: 14, overflow: 'hidden',
+                  transition: 'box-shadow .2s', cursor: 'pointer',
+                }}>
+                  <div style={{ background: cls.color, padding: '16px 20px', borderBottom: '1px solid #f1f5f9' }}>
+                    <p style={{ fontSize: 13, fontWeight: 800, color: '#1e293b', margin: 0 }}>{cls.name}</p>
+                    <p style={{ fontSize: 11, color: '#64748b', margin: '4px 0 0' }}>{cls.instructor}</p>
+                  </div>
+                  <div style={{ padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#64748b', fontSize: 12 }}>
+                      <Icons.Users /> <span>{cls.students} students enrolled</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#64748b', fontSize: 12 }}>
+                      <Icons.Clock /> <span>{cls.time}</span>
+                    </div>
+                    <button style={{
+                      marginTop: 8, padding: '8px 0', borderRadius: 8, border: '1px solid #e0e7ff',
+                      background: '#f5f3ff', color: '#4318FF', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                    }}>View Materials</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ padding: '32px 0', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
+              No classes found for your group.
+            </div>
+          )}
+        </div>
+
+        {/* Exam Schedule */}
+        <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #f1f5f9', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', padding: 24 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <h2 style={{ fontSize: 15, fontWeight: 800, color: '#1e293b', margin: 0 }}>Exam Schedule</h2>
+            <button onClick={() => { setActiveTab('Classroom Tasks'); setTasksSubTab('Exam Board'); }}
+              style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700, color: '#4318FF', background: 'none', border: 'none', cursor: 'pointer' }}>
+              Full Schedule <Icons.ChevronRight />
+            </button>
+          </div>
+
           {examBoardData.length > 0 ? (
-            <div className="overflow-x-auto custom-scrollbar">
-              <table className="w-full text-left table-fixed min-w-[700px]">
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
-                  <tr className="text-[#A3AED0] text-[10px] font-black uppercase border-b border-gray-100">
-                    <th className="pb-6 pl-4 w-[40%]">Evaluation Profile</th>
-                    <th className="pb-6 w-[25%]">Certified Path</th>
-                    <th className="pb-6 w-[20%]">Deadline</th>
-                    <th className="pb-6 w-[15%] text-center">Status</th>
+                  <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    {['Exam', 'Course', 'Date', 'Status'].map(h => (
+                      <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
+                    ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
+                <tbody>
                   {examBoardData.map((exam, idx) => (
-                    <tr key={idx} className="hover:bg-gray-50/50 transition-all">
-                      <td className="py-7 pl-4 font-black text-[#1B254B] text-[15px] uppercase">{exam.name}</td>
-                      <td className="py-7 text-[#707EAE] text-xs font-black uppercase">{exam.course}</td>
-                      <td className="py-7 text-[#707EAE] text-xs font-black uppercase italic">{exam.date}</td>
-                      <td className="py-7 text-center">
-                        <span className={`px-5 py-2 rounded-xl text-[9px] font-black uppercase border shadow-sm ${exam.statusCol}`}>{exam.status}</span>
+                    <tr key={idx} style={{ borderBottom: '1px solid #f8fafc' }}>
+                      <td style={{ padding: '12px', fontWeight: 700, color: '#1e293b' }}>{exam.name}</td>
+                      <td style={{ padding: '12px', color: '#64748b' }}>{exam.course}</td>
+                      <td style={{ padding: '12px', color: '#64748b' }}>{exam.date}</td>
+                      <td style={{ padding: '12px' }}>
+                        <span style={{
+                          padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+                          background: exam.statusCol === 'completed' ? '#ecfdf5' : '#fff7ed',
+                          color:      exam.statusCol === 'completed' ? '#059669' : '#f59e0b',
+                        }}>{exam.status}</span>
                       </td>
                     </tr>
                   ))}
@@ -285,112 +481,260 @@ const StudentDashboard = () => {
               </table>
             </div>
           ) : (
-            <div className="text-center py-6 text-gray-400 font-bold uppercase text-xs">No exams scheduled for your level.</div>
+            <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, padding: '24px 0' }}>No exams scheduled for your level.</p>
           )}
         </div>
       </div>
     );
   };
 
+  // ── Full layout ────────────────────────────────────────────────────────────
   return (
-    <div className="flex h-screen bg-[#F4F7FE] font-sans text-[#1B254B] overflow-hidden">
-      <aside className="w-[300px] bg-[#0B132B] text-[#A3AED0] flex flex-col shrink-0 z-20 shadow-2xl h-full">
-        <div className="p-10 flex items-center space-x-4 shrink-0">
-          <div className="w-11 h-11 bg-[#4318FF] text-white rounded-2xl flex items-center justify-center font-black text-2xl shadow-xl italic">F</div>
-          <span className="text-xl font-black tracking-tighter text-white uppercase italic">FLUENTIA</span>
+    <div style={{ display: 'flex', height: '100vh', background: '#f8fafc', fontFamily: "'Inter', 'Segoe UI', sans-serif", overflow: 'hidden' }}>
+
+      {/* ── Sidebar ── */}
+      <aside style={{
+        width: 240, background: '#0f172a', display: 'flex', flexDirection: 'column',
+        flexShrink: 0, height: '100%', zIndex: 20,
+      }}>
+        {/* Logo */}
+        <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          <SchoolLogo />
         </div>
-        <nav className="px-6 space-y-2 mt-6 overflow-y-auto custom-scrollbar flex-1 pb-10">
-          {navLinks.map(item => (
-            <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center px-6 py-4.5 rounded-[22px] text-[13px] font-black uppercase transition-all ${activeTab === item.id ? 'bg-[#4318FF] text-white shadow-2xl' : 'hover:bg-white/5 hover:text-white opacity-60'}`}>
-              <span className="mr-5"><item.icon /></span> {item.id}
-            </button>
-          ))}
+
+        {/* Nav */}
+        <nav style={{ flex: 1, padding: '12px 12px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {navLinks.map(item => {
+            const isActive = activeTab === item.id;
+            return (
+              <button key={item.id} onClick={() => setActiveTab(item.id)} style={{
+                width: '100%', display: 'flex', alignItems: 'center', gap: 12,
+                padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                fontSize: 13, fontWeight: 600, textAlign: 'left', transition: 'all .15s',
+                background: isActive ? '#4318FF' : 'transparent',
+                color: isActive ? '#fff' : '#94a3b8',
+              }}
+              onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#e2e8f0'; }}
+              onMouseLeave={e => { if (!isActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#94a3b8'; } }}>
+                <span style={{ flexShrink: 0 }}><item.icon /></span>
+                {item.id}
+              </button>
+            );
+          })}
         </nav>
-        <div className="p-8 border-t border-white/5 shrink-0">
-          <button onClick={handleLogout} className="w-full flex items-center px-6 py-5 text-red-400 font-black text-[11px] uppercase rounded-2xl hover:bg-red-500/10 transition-colors">
-            <span className="mr-5"><Icons.Logout /></span> Exit Portal
+
+        {/* Logout */}
+        <div style={{ padding: '12px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+          <button onClick={handleLogout} style={{
+            width: '100%', display: 'flex', alignItems: 'center', gap: 12,
+            padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer',
+            fontSize: 13, fontWeight: 600, color: '#f87171', background: 'transparent', transition: 'all .15s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(248,113,113,0.08)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>
+            <Icons.Logout /> Log Out
           </button>
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col h-full overflow-hidden">
-        <header className="h-24 px-12 flex justify-between items-center bg-white/80 backdrop-blur-md border-b border-gray-100 shrink-0 z-10">
-          <div className="relative w-full max-w-lg">
-            <span className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 font-black uppercase tracking-widest text-[9px]">Search</span>
-            <input type="text" placeholder="Access Academic Archives..." className="w-full bg-[#F4F7FE] border-none rounded-2xl py-3.5 pl-20 pr-6 text-sm font-bold outline-none" />
+      {/* ── Main ── */}
+      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+
+        {/* Top bar */}
+        <header style={{
+          height: 64, padding: '0 28px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          background: '#fff', borderBottom: '1px solid #f1f5f9', flexShrink: 0, zIndex: 10,
+        }}>
+          {/* Search */}
+          <div style={{ position: 'relative', width: '100%', maxWidth: 400 }}>
+            <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }}>
+              <Icons.Search />
+            </span>
+            <input type="text" placeholder="Search students, classes, or resources..."
+              style={{
+                width: '100%', background: '#f8fafc', border: '1px solid #f1f5f9',
+                borderRadius: 10, padding: '9px 14px 9px 40px', fontSize: 13, color: '#1e293b',
+                outline: 'none', boxSizing: 'border-box',
+              }} />
           </div>
-          
-          <div className="flex items-center gap-6">
-            <div className="relative" ref={notificationRef}>
-              <button onClick={() => { setShowNotifications(!showNotifications); setUnreadCount(0); }} className={`relative z-50 w-12 h-12 flex items-center justify-center rounded-2xl transition-all shadow-sm border border-gray-50 ${showNotifications ? 'bg-[#4318FF] text-white' : 'bg-[#F4F7FE] text-gray-600 hover:bg-white'}`}>
+
+          {/* Right side */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+
+            {/* Bell */}
+            <div style={{ position: 'relative' }} ref={notificationRef}>
+              <button onClick={() => { setShowNotifications(!showNotifications); setUnreadCount(0); }}
+                style={{
+                  width: 38, height: 38, borderRadius: 10, border: '1px solid #f1f5f9',
+                  background: showNotifications ? '#4318FF' : '#f8fafc',
+                  color: showNotifications ? '#fff' : '#64748b',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                  position: 'relative', transition: 'all .15s',
+                }}>
                 <Icons.Bell />
-                {unreadCount > 0 && <span className="absolute top-3 right-3 min-w-[10px] h-[10px] bg-[#E31A1A] rounded-full border-2 border-white animate-pulse"></span>}
+                {unreadCount > 0 && (
+                  <span style={{
+                    position: 'absolute', top: 8, right: 8,
+                    width: 8, height: 8, background: '#ef4444', borderRadius: '50%',
+                    border: '2px solid #fff',
+                  }} />
+                )}
               </button>
 
+              {/* Dropdown */}
               {showNotifications && (
-                <div className="absolute right-0 mt-4 w-[380px] bg-white rounded-[35px] shadow-2xl border border-gray-100 p-6 z-50 animate-fadeInUp">
-                  <div className="flex justify-between items-center mb-6">
-                      <h4 className="text-sm font-black text-[#1B254B] uppercase tracking-widest">Inbox Alerts</h4>
-                      <span onClick={() => setShowNotifications(false)} className="text-[10px] font-black text-[#4318FF] uppercase cursor-pointer hover:underline">Close</span>
+                <div style={{
+                  position: 'absolute', right: 0, top: 'calc(100% + 10px)',
+                  width: 340, background: '#fff', borderRadius: 16,
+                  border: '1px solid #f1f5f9', boxShadow: '0 8px 32px rgba(0,0,0,0.10)',
+                  padding: 20, zIndex: 50,
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                    <h4 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#1e293b' }}>Inbox Alerts</h4>
+                    <span onClick={() => setShowNotifications(false)}
+                      style={{ fontSize: 12, fontWeight: 700, color: '#4318FF', cursor: 'pointer' }}>Clear All</span>
                   </div>
-                  <div className="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar">
-                      {notificationsList.length > 0 ? notificationsList.map(n => (
-                        <div key={n.id} className="p-5 rounded-3xl border bg-white hover:bg-gray-50 transition-all cursor-pointer">
-                            <p className="text-[12px] font-black text-[#1B254B] uppercase tracking-tight">{n.subject || 'Announcement'}</p>
-                            <p className="text-[10px] text-gray-500 mb-2 line-clamp-2">{n.content}</p>
-                            <p className="text-[9px] font-black text-[#A3AED0] uppercase">{new Date(n.created_at).toLocaleDateString()}</p>
-                        </div>
-                      )) : (
-                        <div className="p-8 text-center text-gray-400 font-bold uppercase tracking-widest">No new alerts</div>
-                      )}
+                  <div style={{ maxHeight: 320, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {notificationsList.length > 0 ? notificationsList.map(n => (
+                      <div key={n.id} style={{
+                        padding: '12px 14px', borderRadius: 10, border: '1px solid #f1f5f9',
+                        cursor: 'pointer', transition: 'background .15s',
+                      }}>
+                        <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{n.subject || 'Announcement'}</p>
+                        <p style={{ margin: '4px 0 0', fontSize: 12, color: '#64748b', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{n.content}</p>
+                        <p style={{ margin: '6px 0 0', fontSize: 11, color: '#94a3b8' }}>{new Date(n.created_at).toLocaleDateString()}</p>
+                      </div>
+                    )) : (
+                      <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, padding: '20px 0' }}>No new alerts</p>
+                    )}
                   </div>
-                  <button onClick={() => { setActiveTab('Classroom Tasks'); setTasksSubTab('Announcements'); setShowNotifications(false); }} className="w-full mt-6 py-4 bg-[#F4F7FE] text-[#4318FF] text-[10px] font-black rounded-2xl uppercase hover:bg-[#4318FF] hover:text-white transition-all">View All Activity</button>
+                  <button onClick={() => { setActiveTab('Classroom Tasks'); setTasksSubTab('Announcements'); setShowNotifications(false); }}
+                    style={{
+                      width: '100%', marginTop: 14, padding: '10px 0', borderRadius: 10,
+                      border: '1px solid #e0e7ff', background: '#f5f3ff', color: '#4318FF',
+                      fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                    }}>View All Announcements</button>
                 </div>
               )}
             </div>
 
-            <div className="flex items-center pl-6 border-l border-gray-200 group cursor-pointer" onClick={() => setActiveTab('Settings')}>
-              <div className="mr-5 text-right">
-                <p className="text-sm font-black text-[#1B254B] uppercase italic leading-none">{studentInfo.full_name}</p>
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1 opacity-70">{studentInfo.level}</p>
+            {/* Divider */}
+            <div style={{ width: 1, height: 32, background: '#f1f5f9' }} />
+
+            {/* User */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
+              onClick={() => setActiveTab('Settings')}>
+              <div style={{ textAlign: 'right' }}>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{studentInfo.full_name}</p>
+                <p style={{ margin: 0, fontSize: 11, color: '#94a3b8' }}>{studentInfo.level || 'Student'}</p>
               </div>
-              <div className="relative">
-                <img src="https://i.pravatar.cc/150?img=32" alt="Profile" className="w-14 h-14 rounded-2xl border-4 border-white shadow-xl" />
-                <div className="absolute bottom-[-2px] right-[-2px] w-4 h-4 bg-[#01B574] rounded-full border-2 border-white shadow-sm"></div>
+              <div style={{ position: 'relative' }}>
+                <img src="https://i.pravatar.cc/150?img=32" alt="Profile"
+                  style={{ width: 38, height: 38, borderRadius: 10, objectFit: 'cover', display: 'block' }} />
+                <div style={{
+                  position: 'absolute', bottom: -2, right: -2,
+                  width: 10, height: 10, background: '#22c55e', borderRadius: '50%', border: '2px solid #fff',
+                }} />
               </div>
             </div>
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto px-12 py-12 custom-scrollbar flex flex-col xl:flex-row gap-12">
-          <div className="flex-1 min-w-0">{renderMainContent()}</div>
+        {/* Content area */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: 28, display: 'flex', gap: 24 }}>
 
+          {/* Main content */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {renderMainContent()}
+          </div>
+
+          {/* Right sidebar — Dashboard only */}
           {activeTab === 'Dashboard' && (
-            <aside className="w-full xl:w-[350px] shrink-0 flex flex-col space-y-10">
+            <aside style={{ width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 20 }}>
+
               {/* Calendar */}
-              <div className="bg-white p-8 rounded-[40px] shadow-sm border border-gray-50 flex flex-col items-center">
-                <h4 className="font-black text-[#1B254B] text-[14px] uppercase italic mb-8">{new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' })}</h4>
-                <div className="w-full grid grid-cols-7 gap-y-3 text-center text-[12px] font-bold text-[#1B254B]">
-                  {['M','T','W','T','F','S','S'].map(d => <div key={d} className="text-[#A3AED0] text-[10px] font-black">{d}</div>)}
-                  {[...Array(30)].map((_, i) => (
-                    <div key={i} className={`flex items-center justify-center h-8 w-full ${i+1 === new Date().getDate() ? 'bg-[#4318FF] text-white rounded-xl shadow-lg' : 'opacity-40'}`}>{i+1}</div>
+              <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #f1f5f9', padding: 20 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                  <h4 style={{ margin: 0, fontSize: 13, fontWeight: 800, color: '#1e293b' }}>{monthName}</h4>
+                  <Icons.Calendar />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2, textAlign: 'center' }}>
+                  {['M','T','W','T','F','S','S'].map((d, i) => (
+                    <div key={i} style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', paddingBottom: 8 }}>{d}</div>
                   ))}
+                  {Array.from({ length: offset }).map((_, i) => <div key={'e'+i} />)}
+                  {Array.from({ length: daysInMonth }).map((_, i) => {
+                    const day = i + 1;
+                    const isToday = day === todayDate;
+                    return (
+                      <div key={day} style={{
+                        height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 12, fontWeight: isToday ? 800 : 500,
+                        borderRadius: 6,
+                        background: isToday ? '#4318FF' : 'transparent',
+                        color: isToday ? '#fff' : '#1e293b',
+                        opacity: isToday ? 1 : 0.7,
+                        cursor: 'default',
+                      }}>{day}</div>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Task Snip */}
-              <div className="space-y-8">
-                <h3 className="text-xl font-black text-[#1B254B] uppercase italic px-4">Task Hub</h3>
-                <div className="space-y-5">
+              {/* Task Hub */}
+              <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #f1f5f9', padding: 20 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                  <h4 style={{ margin: 0, fontSize: 13, fontWeight: 800, color: '#1e293b' }}>Task Hub</h4>
+                  <button onClick={() => { setActiveTab('Classroom Tasks'); setTasksSubTab('Homeworks'); }}
+                    style={{ fontSize: 11, fontWeight: 700, color: '#4318FF', background: 'none', border: 'none', cursor: 'pointer' }}>
+                    View All
+                  </button>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {homeworkData.map((hw, idx) => (
-                    <div key={idx} className={`p-8 bg-white rounded-[40px] border-l-[10px] shadow-sm ${hw.color}`}>
-                      <h4 className="text-[14px] font-black text-[#1B254B] uppercase mb-4">{hw.title}</h4>
-                      <p className="text-[12px] font-bold text-[#A3AED0] mb-6 uppercase leading-relaxed">{hw.desc}</p>
-                      <div className="text-[10px] font-black text-[#1B254B] uppercase tracking-widest bg-gray-50 px-4 py-2 rounded-xl inline-block">Due: {hw.due}</div>
+                    <div key={idx} style={{
+                      padding: '12px 14px', borderRadius: 12, border: '1px solid #f1f5f9',
+                      borderLeft: `3px solid ${hw.color}`,
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                        <p style={{ margin: 0, fontSize: 12, fontWeight: 800, color: '#1e293b' }}>{hw.title}</p>
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20,
+                          background: hw.status === 'Pending' ? '#fff7ed' : '#ecfdf5',
+                          color:      hw.status === 'Pending' ? '#f59e0b'  : '#059669',
+                        }}>{hw.status}</span>
+                      </div>
+                      <p style={{ margin: 0, fontSize: 11, color: '#64748b' }}>{hw.desc}</p>
+                      <p style={{ margin: '8px 0 0', fontSize: 11, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Icons.Clock /> Due: {hw.due}
+                      </p>
                     </div>
                   ))}
                 </div>
               </div>
+
+              {/* Quick Actions */}
+              <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #f1f5f9', padding: 20 }}>
+                <h4 style={{ margin: '0 0 14px', fontSize: 13, fontWeight: 800, color: '#1e293b' }}>Quick Actions</h4>
+                {[
+                  { label: 'View Schedule',    tab: 'My Learning',     sub: null,       subKey: 'learningSubTab',  subVal: 'Schedule' },
+                  { label: 'Submit Homework',   tab: 'Classroom Tasks', subKey: 'tasksSubTab', subVal: 'Homeworks' },
+                  { label: 'Check Grades',      tab: 'Classroom Tasks', subKey: 'tasksSubTab', subVal: 'Grade Report' },
+                  { label: 'Make Payment',      tab: 'Payment',         subKey: null },
+                ].map((action, idx) => (
+                  <button key={idx} onClick={() => {
+                    setActiveTab(action.tab);
+                    if (action.subKey === 'tasksSubTab')   setTasksSubTab(action.subVal);
+                    if (action.subKey === 'learningSubTab') setLearningSubTab(action.subVal);
+                  }} style={{
+                    width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    padding: '10px 14px', borderRadius: 10, border: '1px solid #f1f5f9',
+                    background: '#f8fafc', fontSize: 12, fontWeight: 700, color: '#1e293b',
+                    cursor: 'pointer', marginBottom: 8, transition: 'all .15s',
+                  }}>{action.label} <Icons.ChevronRight /></button>
+                ))}
+              </div>
+
             </aside>
           )}
         </div>
