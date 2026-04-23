@@ -1,8 +1,10 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { supabase } from '../../supabaseClient';
 
 const Settings = () => {
   const [isEditMode, setIsEditMode] = useState(false);
-  const [notification, setNotification] = useState({ show: false, message: '' }); // New state for notification
+  const [notification, setNotification] = useState({ show: false, message: '' }); 
+  const [loading, setLoading] = useState(true);
   const logoInputRef = useRef(null);
   const stampInputRef = useRef(null);
 
@@ -23,6 +25,45 @@ const Settings = () => {
   // Local state for the form inputs while editing
   const [tempData, setTempData] = useState({ ...schoolData });
 
+  // ==========================================
+  // 💡 FETCH SETTINGS FROM DB ON LOAD
+  // ==========================================
+  useEffect(() => {
+    const fetchSettings = async () => {
+      setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('school_settings')
+          .select('*')
+          .eq('id', 1)
+          .single();
+
+        if (data && !error) {
+          const fetchedData = {
+            name: data.name || '',
+            phone: data.phone || '',
+            email: data.email || '',
+            website: data.website || '',
+            address: data.address || '',
+            facebook: data.facebook || '',
+            instagram: data.instagram || '',
+            whatsapp: data.whatsapp || '',
+            logo: data.logo || null,
+            stamp: data.stamp || null
+          };
+          setSchoolData(fetchedData);
+          setTempData(fetchedData);
+        }
+      } catch (err) {
+        console.error("Error fetching settings:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSettings();
+  }, []);
+
   const handleInputChange = (key, value) => {
     setTempData(prev => ({ ...prev, [key]: value }));
   };
@@ -38,13 +79,32 @@ const Settings = () => {
     }
   };
 
-  const handlePublish = () => {
-    setSchoolData({ ...tempData });
-    setIsEditMode(false);
-    
-    // Trigger modern notification
-    setNotification({ show: true, message: `School identity updated for ${tempData.name}` });
-    setTimeout(() => setNotification({ show: false, message: '' }), 4000);
+  // ==========================================
+  // 💡 SAVE SETTINGS TO DB
+  // ==========================================
+  const handlePublish = async () => {
+    try {
+      // 1. Update the database (Upsert ensures it updates row id=1)
+      const { error } = await supabase
+        .from('school_settings')
+        .upsert({ 
+          id: 1, 
+          ...tempData 
+        });
+
+      if (error) throw error;
+
+      // 2. Update local state
+      setSchoolData({ ...tempData });
+      setIsEditMode(false);
+      
+      // 3. Trigger modern notification
+      setNotification({ show: true, message: `School identity updated for ${tempData.name}` });
+      setTimeout(() => setNotification({ show: false, message: '' }), 4000);
+      
+    } catch (err) {
+      alert("❌ Error saving settings: " + err.message);
+    }
   };
 
   // Modern Blue Notification Component
@@ -58,10 +118,14 @@ const Settings = () => {
           <p className="font-bold text-base tracking-tight italic">System Update</p>
           <p className="text-xs text-blue-200/70 font-medium">{notification.message} 💸</p>
         </div>
-        <button onClick={() => setNotification({show: false})} className="ml-4 text-gray-500 hover:text-white text-xl">✕</button>
+        <button onClick={() => setNotification({show: false})} className="ml-4 text-gray-500 hover:text-white text-xl cursor-pointer">✕</button>
       </div>
     </div>
   );
+
+  if (loading) {
+    return <div className="p-10 text-center font-bold text-gray-400">Loading Settings...</div>;
+  }
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-8 duration-1000 pb-20 p-4 font-sans relative">
@@ -225,11 +289,11 @@ const InputGroup = ({ label, value, icon, isEdit, onChange }) => (
           className="w-full bg-gray-50 border-none rounded-2xl px-8 py-4 font-bold italic text-[#1A2252] focus:ring-2 ring-blue-100 outline-none transition-all"
         />
       ) : (
-        <div className="w-full bg-gray-50/50 rounded-2xl px-8 py-4 font-bold italic text-[#1A2252] flex items-center">
+        <div className="w-full bg-gray-50/50 rounded-2xl px-8 py-4 font-bold italic text-[#1A2252] flex items-center min-h-[56px] overflow-hidden break-words">
           {value}
         </div>
       )}
-      <span className="absolute right-6 top-1/2 -translate-y-1/2 opacity-20 text-lg">{icon}</span>
+      <span className="absolute right-6 top-1/2 -translate-y-1/2 opacity-20 text-lg pointer-events-none">{icon}</span>
     </div>
   </div>
 );
@@ -242,7 +306,7 @@ const SocialInput = ({ icon, color, value, isEdit, onChange }) => (
         type="text" 
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="bg-transparent border-none outline-none text-[10px] font-bold w-full italic"
+        className="bg-transparent border-none outline-none text-[10px] font-bold w-full italic text-[#1A2252]"
       />
     ) : (
       <span className="text-[10px] font-bold italic text-[#1A2252] truncate">{value}</span>

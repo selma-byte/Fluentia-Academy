@@ -111,31 +111,80 @@ const Icons = {
 };
 
 // ─── School Logo ───────────────────────────────────────────────────────────────
-const SchoolLogo = () => (
-  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-    <div style={{
-      width: 36, height: 36,
-      background: 'linear-gradient(135deg, #4318FF 0%, #6B47FF 100%)',
-      borderRadius: 10,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      boxShadow: '0 4px 12px rgba(67,24,255,0.4)',
-      flexShrink: 0,
-    }}>
-      <Icons.Globe />
-      {/* White globe icon inside */}
-      <svg style={{ position: 'absolute' }} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10"/>
-        <line x1="2" y1="12" x2="22" y2="12"/>
-        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-      </svg>
-    </div>
-    <div>
-      <p style={{ color: '#fff', fontSize: 13, fontWeight: 800, letterSpacing: '0.04em', lineHeight: 1.1 }}>POLYGLOT</p>
-      <p style={{ color: '#818cf8', fontSize: 9, fontWeight: 700, letterSpacing: '0.12em' }}>ACADEMY</p>
-    </div>
-  </div>
-);
+const SchoolLogo = () => {
+  const [branding, setBranding] = useState({ logo: null, name: 'POLYGLOT ACADEMY' });
 
+  useEffect(() => {
+    const fetchBranding = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('school_settings')
+          .select('logo, name')
+          .eq('id', 1)
+          .single();
+
+        if (data && !error) {
+          setBranding({
+            logo: data.logo,
+            name: data.name || 'POLYGLOT ACADEMY'
+          });
+        }
+      } catch (err) {
+        console.error("Error fetching school branding:", err);
+      }
+    };
+    fetchBranding();
+  }, []);
+
+  const nameParts = branding.name.split(' ');
+  const topName = nameParts[0] || 'POLYGLOT';
+  const bottomName = nameParts.slice(1).join(' ') || 'ACADEMY';
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+      
+      {branding.logo ? (
+        <img 
+          src={branding.logo} 
+          alt="School Logo" 
+          style={{
+            width: 36, height: 36,
+            borderRadius: 10,
+            objectFit: 'contain',
+            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+            boxShadow: '0 4px 12px rgba(67,24,255,0.4)',
+            flexShrink: 0
+          }} 
+        />
+      ) : (
+        <div style={{
+          width: 36, height: 36,
+          background: 'linear-gradient(135deg, #4318FF 0%, #6B47FF 100%)',
+          borderRadius: 10,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 4px 12px rgba(67,24,255,0.4)',
+          flexShrink: 0,
+          position: 'relative' 
+        }}>
+          <svg style={{ position: 'absolute' }} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="2" y1="12" x2="22" y2="12"/>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+          </svg>
+        </div>
+      )}
+
+      <div>
+        <p style={{ color: '#fff', fontSize: 13, fontWeight: 800, letterSpacing: '0.04em', lineHeight: 1.1, textTransform: 'uppercase' }}>
+          {topName}
+        </p>
+        <p style={{ color: '#818cf8', fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+          {bottomName}
+        </p>
+      </div>
+    </div>
+  );
+};
 // ─── Nav config ───────────────────────────────────────────────────────────────
 const navLinks = [
   { id: 'Dashboard',       icon: Icons.Dashboard },

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+// 💡 زدتلك useEffect هنا الفوق
+import React, { useState, useEffect } from 'react';
 import Payment from './payment';
 import Topbar from './Topbar';
 import Exams from './exams';
@@ -33,6 +34,27 @@ const SecretaryDashboard = ({ onLogout }) => {
     { icon: "📝", text: "Exams" },
     { icon: "💳", text: "Payment" },
   ];
+  // 1. State باش نخبوا فيه اللوغو واسم المدرسة
+  const [schoolBranding, setSchoolBranding] = useState({ logo: null, name: 'Smansys' });
+
+  // 2. جلب اللوغو والاسم من الداتا باز كي تفتح الباجة تاع السكريتيرة
+  useEffect(() => {
+    const fetchBranding = async () => {
+      const { data, error } = await supabase
+        .from('school_settings')
+        .select('logo, name')
+        .eq('id', 1)
+        .single();
+
+      if (data && !error) {
+        setSchoolBranding({
+          logo: data.logo,
+          name: data.name || 'Smansys'
+        });
+      }
+    };
+    fetchBranding();
+  }, []);
 
   return (
     <div className="flex h-screen bg-gray-50 font-sans">
@@ -42,10 +64,23 @@ const SecretaryDashboard = ({ onLogout }) => {
           ======================= */}
       <aside className="w-64 bg-[#0A1128] text-white flex flex-col justify-between shrink-0">
         <div>
-          <div className="p-6 flex items-center space-x-3 cursor-pointer" onClick={() => setActiveTab('Dashboard')}>
-            <div className="w-8 h-8 bg-white/20 rounded-md flex items-center justify-center font-bold">S</div>
-            <span className="text-xl font-bold tracking-wide">Smansys</span>
-          </div>
+          {/* 💡 اللوغو المربوط بالداتا باز */}
+        <div className="p-6 flex items-center space-x-3 cursor-pointer" onClick={() => setActiveTab('Dashboard')}>
+          {schoolBranding.logo ? (
+            <img 
+              src={schoolBranding.logo} 
+              alt="School Logo" 
+              className="w-8 h-8 rounded-lg object-contain bg-white/10 border border-white/10" 
+            />
+          ) : (
+            <div className="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center font-bold text-sm border border-white/10">
+              {schoolBranding.name.charAt(0).toUpperCase()}
+            </div>
+          )}
+          <span className="text-xl font-bold tracking-tight truncate max-w-[140px]">
+            {schoolBranding.name}
+          </span>
+        </div>
 
           <nav className="mt-2 space-y-1 px-4 overflow-y-auto max-h-[70vh] custom-scrollbar">
             {menuItems.map((item, idx) => (

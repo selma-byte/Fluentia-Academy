@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { supabase } from '../../supabaseClient';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, AreaChart, Area, LineChart, Line 
@@ -15,7 +16,7 @@ const Toast = ({ message, onClose }) => (
         <p className="text-md font-black italic tracking-tight leading-none mb-1">Update</p>
         <p className="text-xs font-medium text-blue-200/70 italic">{message}</p>
       </div>
-      <button onClick={onClose} className="ml-4 text-white/40 hover:text-white transition-colors text-xl">✕</button>
+      <button onClick={onClose} className="ml-4 text-white/40 hover:text-white transition-colors text-xl cursor-pointer">✕</button>
     </div>
   </div>
 );
@@ -23,52 +24,142 @@ const Toast = ({ message, onClose }) => (
 const Reports = () => {
   const [reportView, setReportView] = useState('main');
   const [toast, setToast] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  // --- Dynamic Data States ---
+  const [attendanceMonthly, setAttendanceMonthly] = useState([]);
+  const [genderData, setGenderData] = useState([]);
+  const [ageGroups, setAgeGroups] = useState([]);
+  const [teacherLanguageData, setTeacherLanguageData] = useState([]);
+  const [studentFlowData, setStudentFlowData] = useState([]);
+  const [financeData, setFinanceData] = useState([]);
 
   const showToast = (msg) => {
     setToast(msg);
     setTimeout(() => setToast(null), 4000);
   };
 
-  // --- Data Sets ---
-  const attendanceMonthly = [
-    { month: 'Jan', present: 420, absent: 30 },
-    { month: 'Feb', present: 450, absent: 20 },
-    { month: 'Mar', present: 380, absent: 65 },
-    { month: 'Apr', present: 490, absent: 15 },
-  ];
+  // ==========================================
+  // 🚀 FETCH & PROCESS DATA FROM SUPABASE
+  // ==========================================
+  useEffect(() => {
+    const fetchReportData = async () => {
+      setLoading(true);
+      try {
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        const currentYear = new Date().getFullYear();
 
-  const genderData = [
-    { name: 'Girls', value: 55 },
-    { name: 'Boys', value: 45 },
-  ];
+        // 1. Fetch Students (For Demographics & Flow)
+        const { data: students } = await supabase.from('students').select('*');
+        if (students) {
+          // --- Demographics (Gender) ---
+          let boys = 0, girls = 0;
+          let a6_12 = 0, a13_18 = 0, a19_25 = 0, a26_plus = 0;
+          
+          // Flow tracking
+          let flowMap = { 'Jan':{a:0,d:0}, 'Feb':{a:0,d:0}, 'Mar':{a:0,d:0}, 'Apr':{a:0,d:0}, 'May':{a:0,d:0}, 'Jun':{a:0,d:0} };
 
-  const ageGroups = [
-    { group: '6-12 Years', count: 120 },
-    { group: '13-18 Years', count: 200 },
-    { group: '19-25 Years', count: 150 },
-    { group: '26+ Years', count: 80 },
-  ];
+          students.forEach(s => {
+            // Gender calculation
+            if (s.gender?.toLowerCase() === 'female' || s.gender?.toLowerCase() === 'girl') girls++;
+            else boys++; // Defaulting empty to boys for chart balancing
 
-  const teacherLanguageData = [
-    { lang: 'English', count: 12 },
-    { lang: 'French', count: 8 },
-    { lang: 'German', count: 4 },
-    { lang: 'Spanish', count: 3 },
-  ];
+            // Age calculation
+            let age = 15; // Default age if no dob
+            if (s.date_of_birth) {
+              const diff = Date.now() - new Date(s.date_of_birth).getTime();
+              age = Math.abs(new Date(diff).getUTCFullYear() - 1970);
+            }
+            if (age <= 12) a6_12++;
+            else if (age <= 18) a13_18++;
+            else if (age <= 25) a19_25++;
+            else a26_plus++;
 
-  const studentFlowData = [
-    { month: 'Jan', applicants: 80, drops: 5 },
-    { month: 'Feb', applicants: 95, drops: 12 },
-    { month: 'Mar', applicants: 110, drops: 8 },
-    { month: 'Apr', applicants: 130, drops: 15 },
-  ];
+            // Flow Calculation (Applicants)
+            if (s.enrollment_date) {
+              const d = new Date(s.enrollment_date);
+              if (d.getFullYear() === currentYear) {
+                const mName = monthNames[d.getMonth()];
+                if (flowMap[mName]) flowMap[mName].a++;
+              }
+            }
+          });
 
-  const financeData = [
-    { month: 'Jan', revenue: 45000, expenses: 32000 },
-    { month: 'Feb', revenue: 52000, expenses: 31000 },
-    { month: 'Mar', revenue: 48000, expenses: 34000 },
-    { month: 'Apr', revenue: 61000, expenses: 30000 }
-  ];
+          setGenderData([ { name: 'Girls', value: girls }, { name: 'Boys', value: boys } ]);
+          setAgeGroups([
+            { group: '6-12 Years', count: a6_12 }, { group: '13-18 Years', count: a13_18 },
+            { group: '19-25 Years', count: a19_25 }, { group: '26+ Years', count: a26_plus }
+          ]);
+
+          // Student Flow Formatting
+          const finalFlow = Object.keys(flowMap).map(k => ({ month: k, applicants: flowMap[k].a, drops: flowMap[k].d }));
+          setStudentFlowData(finalFlow);
+        }
+
+        // 2. Fetch Staff (For Teacher Languages)
+        const { data: staff } = await supabase.from('staff').select('*').ilike('role', 'Teacher');
+        if (staff) {
+          const langCounts = {};
+          staff.forEach(t => {
+            const dept = t.department || 'General';
+            langCounts[dept] = (langCounts[dept] || 0) + 1;
+          });
+          const facultyData = Object.keys(langCounts).map(k => ({ lang: k, count: langCounts[k] }));
+          setTeacherLanguageData(facultyData.length > 0 ? facultyData : [{ lang: 'No Data', count: 0 }]);
+        }
+
+        // 3. Fetch Financials (Payments vs Expenses)
+        const { data: payments } = await supabase.from('payments').select('amount, created_at, status').eq('status', 'Paid');
+        const { data: expenses } = await supabase.from('expenses').select('amount, expense_date');
+        
+        let finMap = { 'Jan':{r:0,e:0}, 'Feb':{r:0,e:0}, 'Mar':{r:0,e:0}, 'Apr':{r:0,e:0}, 'May':{r:0,e:0}, 'Jun':{r:0,e:0} };
+        
+        if (payments) {
+          payments.forEach(p => {
+            const d = new Date(p.created_at);
+            if (d.getFullYear() === currentYear) {
+              const mName = monthNames[d.getMonth()];
+              if(finMap[mName]) finMap[mName].r += Number(p.amount);
+            }
+          });
+        }
+        if (expenses) {
+          expenses.forEach(x => {
+            const d = new Date(x.expense_date);
+            if (d.getFullYear() === currentYear) {
+              const mName = monthNames[d.getMonth()];
+              if(finMap[mName]) finMap[mName].e += Number(x.amount);
+            }
+          });
+        }
+        setFinanceData(Object.keys(finMap).map(k => ({ month: k, revenue: finMap[k].r, expenses: finMap[k].e })));
+
+        // 4. Fetch Attendance
+        const { data: attData } = await supabase.from('attendance').select('*');
+        let attMap = { 'Jan':{p:0,a:0}, 'Feb':{p:0,a:0}, 'Mar':{p:0,a:0}, 'Apr':{p:0,a:0} };
+        if (attData) {
+          attData.forEach(a => {
+            const d = new Date(a.date);
+            if (d.getFullYear() === currentYear) {
+              const mName = monthNames[d.getMonth()];
+              if(attMap[mName]) {
+                if(a.status === 'present') attMap[mName].p++;
+                else if(a.status === 'absent') attMap[mName].a++;
+              }
+            }
+          });
+        }
+        setAttendanceMonthly(Object.keys(attMap).map(k => ({ month: k, present: attMap[k].p, absent: attMap[k].a })));
+
+      } catch (error) {
+        console.error("Error fetching reports:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchReportData();
+  }, []);
 
   // Colors matching Navbar and Pink design
   const THEME_PINK = '#EC4899';
@@ -266,12 +357,21 @@ const Reports = () => {
   return (
     <div className="h-full pb-10 p-6 relative font-sans">
       {toast && <Toast message={toast} onClose={() => setToast(null)} />}
-      {reportView === 'main' && renderMainMenu()}
-      {reportView === 'attendance' && renderAttendanceDetail()}
-      {reportView === 'finance' && renderFinanceDetail()}
-      {reportView === 'teachers' && renderStudentDemographics()}
-      {reportView === 'exams' && renderLanguageFaculty()}
-      {reportView === 'growth' && renderStudentFlow()}
+      
+      {loading ? (
+        <div className="h-full flex items-center justify-center">
+          <div className="animate-spin text-4xl">⏳</div>
+        </div>
+      ) : (
+        <>
+          {reportView === 'main' && renderMainMenu()}
+          {reportView === 'attendance' && renderAttendanceDetail()}
+          {reportView === 'finance' && renderFinanceDetail()}
+          {reportView === 'teachers' && renderStudentDemographics()}
+          {reportView === 'exams' && renderLanguageFaculty()}
+          {reportView === 'growth' && renderStudentFlow()}
+        </>
+      )}
     </div>
   );
 };

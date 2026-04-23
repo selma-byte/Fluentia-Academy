@@ -57,44 +57,70 @@ const Payment = () => {
   };
 
   // =======================================
-  // 1. Fetching Data
+  // 1. Fetching Data from Supabase
   // =======================================
   const fetchData = async () => {
     setLoading(true);
     try {
+      // جلب التلاميذ
       const { data: studentsData } = await supabase.from('students').select('*');
-      if (studentsData) {
-        setMembers(studentsData.map(s => ({
-          id: s.id,
-          name: `${s.first_name || ''} ${s.last_name || ''}`.trim(),
-          language: s.language || 'English',
-          group: s.level || s.group || 'Standard',
-          status: s.status === 'Paid' ? 'Paid' : (s.status === 'Overdue' ? 'Overdue' : 'Due Soon'),
-          balance: s.status === 'Paid' ? 0 : 3000,
-          dueDate: "End of Month",
-          overdueText: s.status === 'Overdue' ? "Needs attention" : ""
-        })));
-      }
+      
+      // جلب كل الدفعات (تلاميذ + أساتذة)
+      const { data: paymentsData } = await supabase
+        .from('payments')
+        .select('*, students(first_name, last_name)')
+        .order('payment_date', { ascending: false });
 
-      const { data: paymentsData } = await supabase.from('payments').select('*, students(first_name, last_name)').order('payment_date', { ascending: false });
-      if (paymentsData) {
-        setPaymentHistory(paymentsData.map(p => ({
-          id: p.id,
-          date: new Date(p.payment_date).toLocaleDateString('en-GB'),
-          member: p.students ? `${p.students.first_name} ${p.students.last_name}` : p.member_name,
-          amount: `${p.amount} DZD`,
-          status: p.status,
-          method: p.payment_method || 'Cash'
-        })));
-      }
+      const sData = studentsData || [];
+      const pData = paymentsData || [];
 
+      // فصل دفعات التلاميذ عن دفعات الأساتذة
+      const studentPayments = pData.filter(p => p.student_id != null || (p.notes && !p.notes.includes('Payroll')));
+      const staffPayments = pData.filter(p => p.notes && p.notes.includes('Payroll'));
+
+      // مابينغ للتلاميذ
+      setMembers(sData.map(s => ({
+        id: s.id,
+        name: `${s.first_name || ''} ${s.last_name || ''}`.trim(),
+        language: s.language || 'English',
+        group: s.level || s.group_name || 'Standard',
+        status: s.status === 'Paid' ? 'Paid' : (s.status === 'Overdue' ? 'Overdue' : 'Due Soon'),
+        balance: s.status === 'Paid' ? 0 : 3000,
+        dueDate: "End of Month",
+        overdueText: s.status === 'Overdue' ? "Needs attention" : ""
+      })));
+
+      // مابينغ لسجل دفعات التلاميذ
+      setPaymentHistory(studentPayments.map(p => ({
+        id: p.id,
+        date: new Date(p.payment_date || p.created_at).toLocaleDateString('en-GB'),
+        member: p.students ? `${p.students.first_name} ${p.students.last_name}` : p.member_name,
+        amount: `${p.amount} DZD`,
+        status: p.status,
+        method: p.payment_method || 'Cash'
+      })));
+
+      // جلب الأساتذة
       const { data: staffData } = await supabase.from('staff').select('*');
       if (staffData) {
         setStaffList(staffData.map(s => ({
-          id: s.id, name: `${s.first_name} ${s.last_name}`, role: s.role || 'Staff',
-          salary: s.salary || 35000, status: 'Pending'
+          id: s.id, 
+          name: `${s.first_name} ${s.last_name}`, 
+          role: s.role || 'Staff',
+          salary: s.salary || 35000
         })));
       }
+
+      // مابينغ لسجل رواتب الأساتذة
+      setStaffHistory(staffPayments.map(p => ({
+        id: p.id,
+        date: new Date(p.payment_date || p.created_at).toLocaleDateString('en-GB'),
+        name: p.member_name,
+        month: p.notes.replace('Payroll for ', ''),
+        amount: `${p.amount} DZD`,
+        method: p.payment_method || 'Cash'
+      })));
+
     } catch (err) { showNotification("Sync Error: " + err.message); }
     setLoading(false);
   };
@@ -102,16 +128,21 @@ const Payment = () => {
   useEffect(() => { fetchData(); }, []);
 
   // =======================================
-  // 2. Logic Functions
+  // 2. Logic Functions (Write to Database)
   // =======================================
   const processStudentPayment = async () => {
     try {
+      if (!selectedId) return showNotification("⚠️ Please select a student!");
       const student = members.find(m => m.id.toString() === selectedId.toString());
       if (!student) return;
 
       const { error: payError } = await supabase.from('payments').insert([{
-        student_id: selectedId, member_name: student.name, amount: parseFloat(payAmount),
-        status: 'Paid', payment_method: payMethod, notes: payNotes
+        student_id: selectedId, 
+        member_name: student.name, 
+        amount: parseFloat(payAmount),
+        status: 'Paid', 
+        payment_method: payMethod, 
+        notes: payNotes
       }]);
       if (payError) throw payError;
 
@@ -123,33 +154,40 @@ const Payment = () => {
     } catch (err) { showNotification("Payment Error: " + err.message); }
   };
 
-  const processStaffPayment = (id, amount, method, month) => {
+  const processStaffPayment = async (id, amount, method, month) => {
     const staff = staffList.find(s => s.id === id);
     if (!staff) return;
 
-    const newEntry = {
-      date: new Date().toLocaleDateString('en-GB'),
-      name: staff.name,
-      amount: `${amount} DZD`,
-      month: month,
-      method: method
-    };
-    setStaffHistory([newEntry, ...staffHistory]);
-    setStaffList(prev => prev.map(s => s.id === id ? { ...s, status: 'Paid' } : s));
-    
-    setReceiptData({ name: staff.name, amount, method, date: new Date().toLocaleString('en-GB'), txn: `TXN-${Math.floor(Math.random() * 90000) + 10000}` });
-    setShowAddPaymentModal(false); setShowReceiptModal(true);
-    showNotification(`Salary disbursed to ${staff.name} for ${month}`);
+    try {
+      const { error } = await supabase.from('payments').insert([{
+        member_name: staff.name,
+        amount: parseFloat(amount),
+        status: 'Paid',
+        payment_method: method,
+        notes: `Payroll for ${month}`
+      }]);
+
+      if (error) throw error;
+
+      setReceiptData({ name: staff.name, amount, method, date: new Date().toLocaleString('en-GB'), txn: `TXN-${Math.floor(Math.random() * 90000) + 10000}` });
+      setShowAddPaymentModal(false); setShowReceiptModal(true);
+      showNotification(`Salary disbursed to ${staff.name} for ${month}`);
+      
+      fetchData(); // تحديث القوائم باش يولي 'Paid'
+    } catch (err) {
+      showNotification("Payroll Error: " + err.message);
+    }
   };
 
   const notifyStudent = (name) => showNotification(`✅ Reminder sent successfully to: ${name}`);
 
-  // Stats
+  // =======================================
+  // 3. Dynamic Filters & Stats
+  // =======================================
   const totalIncome = paymentHistory.reduce((sum, p) => sum + parseInt(p.amount.replace(/\D/g,'') || 0), 0);
   const unpaidCount = members.filter(m => m.status !== 'Paid').length;
   const overdueCount = members.filter(m => m.status === 'Overdue').length;
 
-  // Filters
   const filteredMembers = members.filter(m => {
     return m.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
            (statusFilter === 'All' || m.status === statusFilter) &&
@@ -157,7 +195,13 @@ const Payment = () => {
            (groupFilter === 'All' || m.group === groupFilter);
   });
 
-  const filteredStaff = staffList.filter(s => {
+  // 💡 اللوجيك السحري: تفقد حالة دفع الأستاذ حسب الشهر المختار!
+  const staffWithStatus = staffList.map(s => {
+    const isPaid = staffHistory.some(h => h.name === s.name && h.month === monthFilter);
+    return { ...s, status: isPaid ? 'Paid' : 'Pending' };
+  });
+
+  const filteredStaff = staffWithStatus.filter(s => {
     const matchesSearch = s.name.toLowerCase().includes(staffSearchTerm.toLowerCase());
     const matchesRole = roleFilter === 'All' || s.role.toLowerCase() === roleFilter.toLowerCase();
     return matchesSearch && matchesRole;
@@ -226,11 +270,11 @@ const Payment = () => {
                 </div>
                 {m.status !== 'Paid' ? (
                   <div className="flex gap-2 mt-6">
-                    <button onClick={() => { setSelectedId(m.id); setPayAmount(m.balance); setShowAddPaymentModal(true); }} className="flex-1 bg-green-500 text-white py-3.5 rounded-2xl text-[10px] font-black shadow-lg">✓ MARK PAID</button>
+                    <button onClick={() => { setSelectedId(m.id); setPayAmount(m.balance); setShowAddPaymentModal(true); }} className="flex-1 bg-green-500 text-white py-3.5 rounded-2xl text-[10px] font-black shadow-lg cursor-pointer">✓ MARK PAID</button>
                     <button onClick={() => notifyStudent(m.name)} className="bg-[#0A1128] text-white px-5 rounded-2xl shadow-lg hover:bg-slate-800 transition-all cursor-pointer flex items-center justify-center">🔔</button>
                   </div>
                 ) : (
-                  <button onClick={() => { setReceiptData({ name: m.name, amount: "3000", method: "Cash", date: new Date().toLocaleString(), txn: "TXN-AUTO" }); setShowReceiptModal(true); }} className="w-full mt-6 bg-gray-50 text-gray-500 py-3 rounded-2xl text-[10px] font-black italic">VIEW RECEIPT</button>
+                  <button onClick={() => { setReceiptData({ name: m.name, amount: "3000", method: "Cash", date: new Date().toLocaleString(), txn: `TXN-${m.id}` }); setShowReceiptModal(true); }} className="w-full mt-6 bg-gray-50 text-gray-500 py-3 rounded-2xl text-[10px] font-black italic hover:bg-gray-100 cursor-pointer">VIEW RECEIPT</button>
                 )}
               </div>
             ))}
@@ -263,7 +307,7 @@ const Payment = () => {
           <div className="mb-8 flex justify-between items-center">
              <div className="flex items-center space-x-3">
                 <h3 className="text-xl font-bold text-[#0A1128]">Staff Payroll</h3>
-                <select value={monthFilter} onChange={e=>setMonthFilter(e.target.value)} className="bg-white border border-gray-200 rounded-xl px-4 py-2 text-xs font-bold shadow-sm">
+                <select value={monthFilter} onChange={e=>setMonthFilter(e.target.value)} className="bg-white border border-gray-200 rounded-xl px-4 py-2 text-xs font-bold shadow-sm cursor-pointer outline-none">
                    {monthsList.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
              </div>
@@ -272,18 +316,18 @@ const Payment = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
              <div className="bg-white p-6 rounded-[1.5rem] border border-gray-100 shadow-sm">
                 <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-4">Paid This Month</p>
-                <p className="text-2xl font-black text-[#0A1128]">{staffList.filter(s=>s.status==='Paid').reduce((sum,s)=>sum+s.salary,0).toLocaleString()} DZD</p>
+                <p className="text-2xl font-black text-[#0A1128]">{staffWithStatus.filter(s=>s.status==='Paid').reduce((sum,s)=>sum+Number(s.salary),0).toLocaleString()} DZD</p>
              </div>
              <div className="bg-white p-6 rounded-[1.5rem] border border-gray-100 shadow-sm">
                 <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-4">Pending Staff</p>
-                <p className="text-2xl font-black text-red-600">{staffList.filter(s=>s.status==='Pending').length}</p>
+                <p className="text-2xl font-black text-red-600">{staffWithStatus.filter(s=>s.status==='Pending').length}</p>
              </div>
           </div>
 
           <div className="mb-8 flex flex-col space-y-6 bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-50">
              <div className="flex items-center space-x-3 overflow-x-auto pb-2">
                 {['All', 'Secretary', 'Teacher', 'Body Guard', 'Cleaning Lady'].map((role) => (
-                    <button key={role} onClick={() => setRoleFilter(role)} className={`px-6 py-2.5 rounded-xl text-[10px] font-black italic uppercase tracking-widest transition-all ${roleFilter === role ? 'bg-[#0A1128] text-white shadow-lg' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`}>{role}</button>
+                    <button key={role} onClick={() => setRoleFilter(role)} className={`px-6 py-2.5 rounded-xl text-[10px] font-black italic uppercase tracking-widest transition-all cursor-pointer ${roleFilter === role ? 'bg-[#0A1128] text-white shadow-lg' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`}>{role}</button>
                 ))}
              </div>
              <input type="text" placeholder="Search staff name..." value={staffSearchTerm} onChange={e => setStaffSearchTerm(e.target.value)} className="w-full bg-gray-50 border-none rounded-2xl py-4 px-6 text-sm font-bold outline-none" />
@@ -292,15 +336,15 @@ const Payment = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
              {filteredStaff.map((staff) => (
                <div key={staff.id} className="bg-white rounded-[2.5rem] p-8 border border-gray-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
-                 <span className={`absolute top-6 right-8 text-[9px] font-black px-3 py-1 rounded-lg italic border tracking-widest uppercase ${staff.status === 'Paid' ? 'bg-green-50 text-green-600' : 'bg-orange-50 text-orange-600'}`}>{staff.status}</span>
+                 <span className={`absolute top-6 right-8 text-[9px] font-black px-3 py-1 rounded-lg italic border tracking-widest uppercase ${staff.status === 'Paid' ? 'bg-green-50 text-green-600 border-green-100' : 'bg-orange-50 text-orange-600 border-orange-100'}`}>{staff.status}</span>
                  <h4 className="font-black text-[#0A1128] italic text-xl mb-1">{staff.name}</h4>
                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-6">{staff.role}</p>
                  <div className="flex justify-between items-end border-t border-gray-50 pt-4 mt-4">
                     <p className="text-sm font-black text-[#0A1128]">Monthly Salary</p>
-                    <p className="text-2xl font-black text-red-600">{staff.salary.toLocaleString()} DZD</p>
+                    <p className="text-2xl font-black text-red-600">{Number(staff.salary).toLocaleString()} DZD</p>
                  </div>
                  {staff.status === 'Pending' ? (
-                   <button onClick={() => processStaffPayment(staff.id, staff.salary, 'Cash', monthFilter)} className="w-full mt-6 bg-green-500 text-white py-4 rounded-2xl text-[10px] font-black shadow-lg">✓ DISBURSE SALARY</button>
+                   <button onClick={() => processStaffPayment(staff.id, staff.salary, 'Cash', monthFilter)} className="w-full mt-6 bg-green-500 text-white py-4 rounded-2xl text-[10px] font-black shadow-lg cursor-pointer hover:bg-green-600 transition-colors">✓ DISBURSE SALARY</button>
                  ) : (
                    <div className="w-full mt-6 bg-green-50 text-green-600 py-4 rounded-2xl text-[10px] font-black text-center uppercase border border-green-100">Paid for {monthFilter} ✓</div>
                  )}
@@ -355,7 +399,7 @@ const Payment = () => {
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">Payment Amount (DZD)</label>
                 <input type="number" value={payAmount} onChange={e=>setPayAmount(e.target.value)} className="w-full bg-gray-50 border border-gray-200 text-[#0A1128] rounded-lg p-3 outline-none text-sm font-bold" />
-                <button type="button" onClick={()=>setPayAmount(currentView === 'student' ? '3000' : '35000')} className="mt-2 bg-gray-200 text-gray-700 text-xs font-bold py-1.5 px-3 rounded-lg hover:bg-gray-300">Standard Fee ({currentView === 'student' ? '3000' : '35000'} DZD)</button>
+                <button type="button" onClick={()=>setPayAmount(currentView === 'student' ? '3000' : '35000')} className="mt-2 bg-gray-200 text-gray-700 text-xs font-bold py-1.5 px-3 rounded-lg hover:bg-gray-300 cursor-pointer">Standard Fee ({currentView === 'student' ? '3000' : '35000'} DZD)</button>
               </div>
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">Payment Method</label>
@@ -371,8 +415,8 @@ const Payment = () => {
                 </div>
               </div>
               <div className="pt-2 flex justify-end gap-3">
-                <button onClick={() => setShowAddPaymentModal(false)} className="px-5 py-2.5 rounded-lg text-sm font-bold text-gray-500 hover:bg-gray-100">Cancel</button>
-                <button onClick={currentView === 'student' ? processStudentPayment : () => processStaffPayment(selectedId, payAmount, payMethod, monthFilter)} className="px-6 py-2.5 rounded-lg text-sm font-bold bg-[#0A1128] text-white hover:bg-slate-800 shadow-md">Record Payment</button>
+                <button onClick={() => setShowAddPaymentModal(false)} className="px-5 py-2.5 rounded-lg text-sm font-bold text-gray-500 hover:bg-gray-100 cursor-pointer">Cancel</button>
+                <button onClick={currentView === 'student' ? processStudentPayment : () => processStaffPayment(selectedId, payAmount, payMethod, monthFilter)} className="px-6 py-2.5 rounded-lg text-sm font-bold bg-[#0A1128] text-white hover:bg-slate-800 shadow-md cursor-pointer">Record Payment</button>
               </div>
             </div>
           </div>
@@ -412,7 +456,7 @@ const Payment = () => {
                  <p className="text-xs font-bold text-[#0A1128]">Admin Desk</p>
                </div>
             </div>
-            <button onClick={() => showNotification("Generating PDF Dossier...")} className="flex items-center justify-center w-full py-4 rounded-xl bg-gray-50 text-[#0A1128] font-bold text-sm hover:bg-gray-100 border border-gray-200 shadow-sm transition-all active:scale-95">
+            <button onClick={() => showNotification("Generating PDF Dossier...")} className="flex items-center justify-center w-full py-4 rounded-xl bg-gray-50 text-[#0A1128] font-bold text-sm hover:bg-gray-100 border border-gray-200 shadow-sm transition-all active:scale-95 cursor-pointer">
               <span className="mr-2 text-lg">📥</span> Get PDF Receipt
             </button>
           </div>

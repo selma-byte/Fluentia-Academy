@@ -260,16 +260,50 @@ const Dashboardt = () => {
       </div>
     );
   };
+ // 1. State باش نخبوا فيه اللوغو واسم المدرسة
+ const [schoolBranding, setSchoolBranding] = useState({ logo: null, name: 'Smansys' });
+
+ // 2. جلب اللوغو والاسم من الداتا باز كي تفتح الباجة تاع السكريتيرة
+ useEffect(() => {
+   const fetchBranding = async () => {
+     const { data, error } = await supabase
+       .from('school_settings')
+       .select('logo, name')
+       .eq('id', 1)
+       .single();
+
+     if (data && !error) {
+       setSchoolBranding({
+         logo: data.logo,
+         name: data.name || 'Smansys'
+       });
+     }
+   };
+   fetchBranding();
+ }, []);
 
   return (
     <div className="flex h-screen bg-[#F4F7FE] font-sans text-[#1B254B] overflow-hidden relative">
       
       <aside className="w-[250px] bg-[#111C44] text-[#A3AED0] flex flex-col justify-between shrink-0 overflow-y-auto custom-scrollbar shadow-2xl z-20">
         <div>
-          <div className="p-6 flex items-center space-x-3 mb-2 border-b border-white/5 pb-6">
-             <div className="w-8 h-8 bg-white text-black rounded flex items-center justify-center font-bold text-lg shadow-md">🎓</div>
-             <span className="text-xl font-bold tracking-wider text-white uppercase">UTOPIA</span>
-          </div>
+          {/* 💡 اللوغو المربوط بالداتا باز */}
+        <div className="p-6 flex items-center space-x-3 cursor-pointer" onClick={() => setActiveTab('Dashboard')}>
+          {schoolBranding.logo ? (
+            <img 
+              src={schoolBranding.logo} 
+              alt="School Logo" 
+              className="w-8 h-8 rounded-lg object-contain bg-white/10 border border-white/10" 
+            />
+          ) : (
+            <div className="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center font-bold text-sm border border-white/10">
+              {schoolBranding.name.charAt(0).toUpperCase()}
+            </div>
+          )}
+          <span className="text-xl font-bold tracking-tight truncate max-w-[140px]">
+            {schoolBranding.name}
+          </span>
+        </div>
 
           <nav className="px-4 space-y-2 mt-4">
             {[

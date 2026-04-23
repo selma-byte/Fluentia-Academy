@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../supabaseClient';
 
@@ -20,13 +20,39 @@ import Users from './users';
 import Settings from './settings';
 
 // ==========================================
-// 🏠 DASHBOARD CONTENT (DEFINED FIRST)
+// 🏠 DASHBOARD CONTENT
 // ==========================================
 const DashboardContent = ({ setActiveTab }) => {
+  const [statsData, setStatsData] = useState({ students: 0, teachers: 0, courses: 0 });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchDashboardStats = async () => {
+      setLoading(true);
+      try {
+        const { count: studentCount } = await supabase.from('students').select('*', { count: 'exact', head: true });
+        const { count: teacherCount } = await supabase.from('staff').select('*', { count: 'exact', head: true }).ilike('role', 'Teacher');
+        const { count: courseCount } = await supabase.from('classes').select('*', { count: 'exact', head: true });
+
+        setStatsData({
+          students: studentCount || 0,
+          teachers: teacherCount || 0,
+          courses: courseCount || 0
+        });
+      } catch (error) {
+        console.error("Error fetching stats:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardStats();
+  }, []);
+
   const stats = [
-    { label: 'TOTAL STUDENTS', val: '2,450', icon: '👥', grad: 'from-[#4F46E5] to-[#3B82F6]', growth: '+12.5%', glow: 'shadow-blue-500/20', tab: 'Students Management' },
-    { label: 'TOTAL TEACHERS', val: '120', icon: '👨‍🏫', grad: 'from-[#F59E0B] to-[#EA580C]', growth: 'STABLE', glow: 'shadow-orange-500/20', tab: 'Teacher Management' },
-    { label: 'TOTAL COURSES', val: '45', icon: '📚', grad: 'from-[#6366F1] to-[#4F46E5]', growth: '+4 NEW', glow: 'shadow-indigo-500/20', tab: 'Scheduling Hub' }
+    { label: 'TOTAL STUDENTS', val: loading ? '...' : statsData.students, icon: '👥', grad: 'from-[#4F46E5] to-[#3B82F6]', growth: '+12.5%', glow: 'shadow-blue-500/20', tab: 'Students Management' },
+    { label: 'TOTAL TEACHERS', val: loading ? '...' : statsData.teachers, icon: '👨‍🏫', grad: 'from-[#F59E0B] to-[#EA580C]', growth: 'STABLE', glow: 'shadow-orange-500/20', tab: 'Teacher Management' },
+    { label: 'TOTAL COURSES', val: loading ? '...' : statsData.courses, icon: '📚', grad: 'from-[#6366F1] to-[#4F46E5]', growth: '+4 NEW', glow: 'shadow-indigo-500/20', tab: 'Scheduling Hub' }
   ];
 
   // Logic for Quick Action buttons
@@ -43,7 +69,6 @@ const DashboardContent = ({ setActiveTab }) => {
           <h1 className="text-3xl font-bold text-[#0A1128]">Welcome back, Admin</h1>
           <p className="text-sm text-gray-400 mt-1 uppercase tracking-widest font-black opacity-50">Polyglot Academy Management</p>
         </div>
-        {/* Export Analytics button removed per request */}
       </div>
 
       {/* MODERN DYNAMIC CARDS */}
@@ -67,7 +92,7 @@ const DashboardContent = ({ setActiveTab }) => {
         <div className="lg:col-span-2">
           <div className="flex justify-between items-center mb-6 px-2">
             <h2 className="text-lg font-bold text-[#0A1128]">System Activity</h2>
-            <button className="text-xs font-bold text-blue-600 hover:underline">View All</button>
+            <button className="text-xs font-bold text-blue-600 hover:underline cursor-pointer">View All</button>
           </div>
           <div className="space-y-3">
             {["New student registered", "Teacher attendance updated", "Exam schedule published"].map((title, idx) => (
@@ -90,7 +115,7 @@ const DashboardContent = ({ setActiveTab }) => {
               <button 
                 key={action.name} 
                 onClick={() => setActiveTab(action.tab)}
-                className="w-full flex justify-between items-center px-5 py-4 bg-white border border-gray-100 rounded-[1.5rem] text-[11px] font-black uppercase tracking-wider text-[#0A1128] hover:bg-gray-50 transition-all shadow-sm active:scale-95"
+                className="w-full flex justify-between items-center px-5 py-4 bg-white border border-gray-100 rounded-[1.5rem] text-[11px] font-black uppercase tracking-wider text-[#0A1128] hover:bg-gray-50 transition-all shadow-sm active:scale-95 cursor-pointer"
               >
                 <span>{action.name}</span>
                 <span className="text-gray-300 text-lg">➔</span>
@@ -103,7 +128,7 @@ const DashboardContent = ({ setActiveTab }) => {
               <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" /> Action Needed
             </h4>
             <p className="text-xs text-red-700 leading-relaxed mb-6 font-medium">Monthly staff attendance reports are pending.</p>
-            <button className="w-full bg-[#D90429] hover:bg-red-700 text-white text-[10px] font-black py-4 rounded-2xl tracking-widest active:scale-95 shadow-xl shadow-red-200">
+            <button className="w-full bg-[#D90429] hover:bg-red-700 text-white text-[10px] font-black py-4 rounded-2xl tracking-widest active:scale-95 shadow-xl shadow-red-200 cursor-pointer">
               NOTIFY STAFF
             </button>
           </div>
@@ -120,6 +145,28 @@ const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('Dashboard');
   const [examView, setExamView] = useState('home');
   const navigate = useNavigate();
+
+  // 💡 State جديد باش نخبوا فيه اللوغو واسم المدرسة
+  const [schoolBranding, setSchoolBranding] = useState({ logo: null, name: 'Smansys' });
+
+  // 💡 جلب اللوغو والاسم من الداتا باز كي تفتح الباجة
+  useEffect(() => {
+    const fetchBranding = async () => {
+      const { data, error } = await supabase
+        .from('school_settings')
+        .select('logo, name')
+        .eq('id', 1)
+        .single();
+
+      if (data && !error) {
+        setSchoolBranding({
+          logo: data.logo,
+          name: data.name || 'Smansys'
+        });
+      }
+    };
+    fetchBranding();
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -168,9 +215,23 @@ const AdminDashboard = () => {
       
       {/* SIDEBAR */}
       <aside className="w-64 bg-[#0A1128] text-white flex flex-col shrink-0 border-r border-white/5">
+        
+        {/* 💡 هنا راني درت اللوغو المربوط بالداتا باز */}
         <div className="p-6 flex items-center space-x-3 cursor-pointer" onClick={() => setActiveTab('Dashboard')}>
-          <div className="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center font-bold text-sm border border-white/10">S</div>
-          <span className="text-xl font-bold tracking-tight">Smansys</span>
+          {schoolBranding.logo ? (
+            <img 
+              src={schoolBranding.logo} 
+              alt="School Logo" 
+              className="w-8 h-8 rounded-lg object-contain bg-white/10 border border-white/10" 
+            />
+          ) : (
+            <div className="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center font-bold text-sm border border-white/10">
+              {schoolBranding.name.charAt(0).toUpperCase()}
+            </div>
+          )}
+          <span className="text-xl font-bold tracking-tight truncate max-w-[140px]">
+            {schoolBranding.name}
+          </span>
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 mt-1 space-y-0.5 custom-scrollbar">
@@ -191,7 +252,7 @@ const AdminDashboard = () => {
         </nav>
 
         <div className="p-4 border-t border-white/5">
-          <button onClick={handleLogout} className="flex items-center justify-between w-full px-4 py-3 bg-white text-[#0A1128] rounded-xl text-sm font-bold hover:bg-gray-100 transition-all active:scale-95 shadow-sm group">
+          <button onClick={handleLogout} className="flex items-center justify-between w-full px-4 py-3 bg-white text-[#0A1128] rounded-xl text-sm font-bold hover:bg-gray-100 transition-all active:scale-95 shadow-sm group cursor-pointer">
             <span>Log Out</span> <span className="font-bold text-lg">➔</span>
           </button>
         </div>

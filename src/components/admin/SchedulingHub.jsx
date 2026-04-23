@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 
 // 💡 هنا نعيطو للكومبوننتس في 3 (تأكدي برك من المسار Path ديالهم)
-import Enrollment from './Enrollment'; 
-import SchoolSchedule from './SchoolSchedule'; 
-import Appointments from './Appointments'; 
+import Enrollment from '../secretery/Enrollment'; 
+import SchoolSchedule from '../secretery/SchoolSchedule';
+import Appointments from '../secretery/Appointments'; 
 
 const SchedulingHub = () => {
   // بدينا بالـ enrollment كأول باجة تفتح
