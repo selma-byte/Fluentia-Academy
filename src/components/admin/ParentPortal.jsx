@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../supabaseClient';
+import { supabase } from '../../supabaseClient'; 
 
 // ==========================================
 // 🔔 MODERN NOTIFICATION COMPONENT
 // ==========================================
 const Toast = ({ message, onClose }) => (
-  <div className="fixed bottom-12 right-12 z-[250] animate-in slide-in-from-right duration-500">
+  <div className="fixed bottom-12 right-12 z-[250] animate-in slide-in-from-right duration-500 text-left">
     <div className="bg-[#1A2252] text-white px-10 py-6 rounded-[2.5rem] shadow-2xl flex items-center gap-6 border border-blue-400/30 backdrop-blur-xl min-w-[400px]">
       <div className="w-12 h-12 bg-blue-500 rounded-2xl flex items-center justify-center text-2xl shadow-lg shadow-blue-500/40 animate-pulse">✨</div>
-      <div className="flex-1 text-left">
+      <div className="flex-1">
         <p className="text-lg font-black italic tracking-tight leading-none mb-1">System Update</p>
         <p className="text-sm font-bold text-blue-200/80 italic">{message}</p>
       </div>
@@ -19,63 +19,93 @@ const Toast = ({ message, onClose }) => (
 
 const ParentPortal = () => {
   const [chatMessages, setChatMessages] = useState([]);
-  const [mainView, setMainView] = useState('portal');
-  const [activeTab, setActiveTab] = useState('parents');
-  const [modalView, setModalView] = useState(null);
+  const [recentComms, setRecentComms] = useState([]); 
+  const [announcements, setAnnouncements] = useState([]); 
+  const [mainView, setMainView] = useState('portal'); 
+  const [activeTab, setActiveTab] = useState('parents'); 
+  const [modalView, setModalView] = useState(null); 
   const [chatType, setChatType] = useState(null);
   const [newMessage, setNewMessage] = useState(''); 
   const [selectedRecipient, setSelectedRecipient] = useState(null); 
   
   const [studentsList, setStudentsList] = useState([]); 
   const [staffList, setStaffList] = useState([]); 
-  const [parentsList, setParentsList] = useState([]); // 💡 قائمة الأولياء (تُستخرج أوتوماتيكيا)
-  const [announcementsList, setAnnouncementsList] = useState([]); // 💡 قائمة الإعلانات
-  
+  const [parentsList, setParentsList] = useState([]); 
+  const [loading, setLoading] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null); 
+
   const [toast, setToast] = useState(null);
   const showToast = (msg) => {
     setToast(msg);
     setTimeout(() => setToast(null), 4500);
   };
 
-  const [announcementForm, setAnnouncementForm] = useState({ title: '', content: '', priority: 'Medium', audience: 'All' });
+  const [announcementForm, setAnnouncementForm] = useState({ title: '', content: '', priority: 'Medium' });
+  const [notificationForm, setNotificationForm] = useState({ title: '', content: '' });
+  
+  const [parentForm, setParentForm] = useState({
+    firstName: '', lastName: '', email: '', phone: '', address: '', occupation: '', relationship: 'Select relationship', emergency: false
+  });
 
   const [selectedAudiences, setSelectedAudiences] = useState({
     all: true, students: false, parents: false, staff: false, teacher: false, admin: false
   });
 
+  // ==========================================
+  // 💡 FETCH DATA (Unified ID Logic)
+  // ==========================================
   const fetchData = async () => {
-    // 1. جلب الأساتذة
-    const { data: staffData } = await supabase.from('staff').select('*');
-    if (staffData) setStaffList(staffData);
-
-    // 2. جلب التلاميذ واستخراج الأولياء
-    const { data: studentData } = await supabase.from('students').select('*');
-    if (studentData) {
-      setStudentsList(studentData);
-      
-      // 💡 استخراج الأولياء من بيانات التلاميذ
-      const parentsMap = {};
-      studentData.forEach(s => {
-        if (s.parent_email) {
-          if (!parentsMap[s.parent_email]) {
-            parentsMap[s.parent_email] = {
-              email: s.parent_email,
-              name: s.parent_name || `Guardian of ${s.first_name}`,
-              phone: s.parent_contact || s.phone,
-              kids: []
-            };
-          }
-          parentsMap[s.parent_email].kids.push(`${s.first_name} (${s.level || 'N/A'})`);
+    setLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user && user.email) {
+        const { data: staffData } = await supabase.from('staff').select('*').eq('email', user.email).single();
+        if (staffData) {
+          setCurrentUser(staffData);
+        } else {
+          setCurrentUser(user);
         }
-      });
-      setParentsList(Object.values(parentsMap));
-    }
+      }
 
-    // 3. جلب الإعلانات والمراسلات
-    const { data: commsData } = await supabase.from('communications').select('*').order('created_at', { ascending: false });
-    if (commsData) {
-      setAnnouncementsList(commsData.filter(c => c.type === 'announcement'));
-      setChatMessages(commsData.filter(c => c.type !== 'announcement').reverse());
+      const { data: sData } = await supabase.from('staff').select('*');
+      if (sData) setStaffList(sData);
+
+      const { data: stData } = await supabase.from('students').select('*');
+      if (stData) {
+        setStudentsList(stData.filter(s => s.exam_type !== 'Parent_Account')); 
+        
+        // Extract Parents Automatically
+        const parentsMap = {};
+        stData.forEach(s => {
+          if (s.parent_email) {
+            if (!parentsMap[s.parent_email]) {
+              parentsMap[s.parent_email] = {
+                email: s.parent_email,
+                name: s.parent_name || `${s.first_name} ${s.last_name}`,
+                phone: s.parent_contact || s.phone,
+                kids: []
+              };
+            }
+            if (s.exam_type !== 'Parent_Account') {
+              parentsMap[s.parent_email].kids.push(`${s.first_name} (${s.level || '-'})`);
+            }
+          }
+        });
+        setParentsList(Object.values(parentsMap));
+      }
+
+      const { data: annData } = await supabase.from('communications').select('*').eq('type', 'announcement').order('created_at', { ascending: false });
+      if (annData) setAnnouncements(annData);
+
+      const { data: commData } = await supabase.from('communications').select('*').neq('type', 'announcement').order('created_at', { ascending: false }).limit(6);
+      if (commData) setRecentComms(commData);
+
+      const { data: msgData } = await supabase.from('communications').select('*').order('created_at', { ascending: true });
+      if (msgData) setChatMessages(msgData);
+    } catch (err) {
+      console.error("Fetch Error:", err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -83,46 +113,124 @@ const ParentPortal = () => {
     fetchData();
   }, []);
 
+  // ==========================================
+  // HANDLERS
+  // ==========================================
   const handleAudienceChange = (audience) => {
     if (audience === 'all') {
       setSelectedAudiences({ all: true, students: false, parents: false, staff: false, teacher: false, admin: false });
     } else {
       setSelectedAudiences(prev => {
         const newState = { ...prev, [audience]: !prev[audience], all: false };
-        if (!newState.students && !newState.parents && !newState.staff && !newState.teacher && !newState.admin) {
-          newState.all = true;
-        }
+        if (!Object.values(newState).some(v => v)) newState.all = true;
         return newState;
       });
     }
   };
 
+  const getTargetAudienceString = () => {
+    const selectedGroups = [];
+    if (selectedAudiences.students) selectedGroups.push('students');
+    if (selectedAudiences.teacher) selectedGroups.push('teachers');
+    if (selectedAudiences.parents) selectedGroups.push('parents');
+    if (selectedAudiences.staff) selectedGroups.push('staff');
+    return selectedGroups.length > 0 ? selectedGroups.join(', ') : 'All Community';
+  };
+
   const handlePublishAnnouncement = async () => {
     if (!announcementForm.title || !announcementForm.content) return showToast("⚠️ Please fill title and content");
-    
+
+    const targetAudience = getTargetAudienceString();
+
     const { error } = await supabase.from('communications').insert([{
-      content: `📢 ${announcementForm.title}\n\n${announcementForm.content}`,
-      type: 'announcement',
-      recipient_name: announcementForm.audience,
-      recipient_id: 'all',
+      subject: announcementForm.title,
+      content: announcementForm.content,
+      type: 'announcement', 
+      recipient_name: targetAudience, 
+      recipient_id: 'all', 
+      sender_id: currentUser?.id,
       sender_role: 'admin'
     }]);
 
     if (!error) {
-      showToast("✅ Announcement Published successfully!");
+      showToast("✅ Announcement Published Successfully!");
       setModalView(null);
-      setAnnouncementForm({ title: '', content: '', priority: 'Medium', audience: 'All' });
-      fetchData(); // تحديث القائمة
+      setAnnouncementForm({ title: '', content: '', priority: 'Medium' }); 
+      fetchData(); 
     } else {
-      showToast("❌ Error publishing announcement: " + error.message);
+      showToast("❌ Error publishing announcement!");
+      console.error(error);
     }
   };
 
-  const handleAddParentMock = () => {
-    // هادي دالة وهمية برك باش تمشي المودال تاع إضافة ولي، باسكو الأولياء يتزادو من باجة Registration
-    showToast("✅ Parent profile linked successfully. (Data is synced from Student Registration)");
-    setModalView(null);
+  const handleSendNotification = async () => {
+    if (!notificationForm.title || !notificationForm.content) return showToast("⚠️ Please fill title and content");
+
+    const targetAudience = getTargetAudienceString();
+
+    const { error } = await supabase.from('communications').insert([{
+      subject: notificationForm.title,
+      content: notificationForm.content,
+      type: 'notification', 
+      recipient_name: targetAudience, 
+      recipient_id: 'all', 
+      sender_id: currentUser?.id,
+      sender_role: 'admin'
+    }]);
+
+    if (!error) {
+      showToast("🔔 Notification Sent Successfully!");
+      setModalView(null);
+      setNotificationForm({ title: '', content: '' }); 
+      fetchData(); 
+    } else {
+      showToast("❌ Error sending notification!");
+      console.error(error);
+    }
   };
+
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !currentUser) return;
+    const messageData = {
+      content: newMessage,
+      type: chatType,
+      recipient_name: selectedRecipient?.name || 'Group Message',
+      recipient_id: selectedRecipient?.id?.toString() || 'all',
+      sender_id: currentUser.id,
+      sender_role: 'admin'
+    };
+    const { error } = await supabase.from('communications').insert([messageData]);
+    if (!error) {
+      setNewMessage('');
+      fetchData(); 
+    }
+  };
+
+  const handleAddParent = async (e) => {
+    e.preventDefault();
+    try {
+      const { error: authError } = await supabase.auth.signUp({ email: parentForm.email, password: parentForm.phone });
+      if (authError && authError.message !== "User already registered") throw authError;
+
+      const { error: dbError } = await supabase.from('students').insert([{
+        first_name: parentForm.firstName, last_name: parentForm.lastName, email: parentForm.email, phone: parentForm.phone,
+        parent_email: parentForm.email, parent_name: `${parentForm.firstName} ${parentForm.lastName}`, parent_contact: parentForm.phone,
+        exam_type: 'Parent_Account', status: 'Active', enrollment_date: new Date().toISOString().split('T')[0]
+      }]);
+
+      if (dbError) throw dbError;
+      showToast(`🎉 Parent ${parentForm.firstName} added successfully!`);
+      setModalView(null);
+      setParentForm({ firstName: '', lastName: '', email: '', phone: '', address: '', occupation: '', relationship: 'Select relationship', emergency: false });
+      fetchData(); 
+    } catch (err) {
+      showToast("❌ Error: " + err.message);
+    }
+  };
+
+  // ==========================================
+  // RENDER SECTIONS
+  // ==========================================
 
   const renderParentsTab = () => (
     <div className="flex flex-col flex-1 min-h-0 animate-fade-in text-left">
@@ -138,7 +246,7 @@ const ParentPortal = () => {
 
       <div className="mb-6 relative w-96 shrink-0">
         <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-400">🔍</span>
-        <input type="text" placeholder="Search parents by name..." className="w-full bg-white border border-gray-200 rounded-xl py-3 pl-10 pr-4 text-sm outline-none focus:border-blue-500 shadow-sm" />
+        <input type="text" placeholder="Search parents by name or student..." className="w-full bg-white border border-gray-200 rounded-xl py-3 pl-10 pr-4 text-sm outline-none focus:border-blue-500 shadow-sm" />
       </div>
 
       <div className="overflow-x-auto flex-1 custom-scrollbar bg-white border border-gray-100 rounded-xl shadow-sm">
@@ -172,12 +280,10 @@ const ParentPortal = () => {
                 </td>
                 <td className="py-4 px-6"><span className="text-green-600 font-bold flex items-center"><span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-2"></span>Active</span></td>
                 <td className="py-4 px-6 text-center space-x-4">
-                  <button onClick={() => { setMainView('chat'); setChatType('parent'); setSelectedRecipient({ id: parent.email, name: parent.name, role: 'Parent', phone: parent.phone, email: parent.email }); setModalView(null); }} className="text-gray-400 hover:text-blue-600 text-lg transition-colors cursor-pointer">💬</button>
+                  <button onClick={() => { setMainView('chat'); setChatType('parent'); setSelectedRecipient({ id: parent.email, name: parent.name, role: 'Parent', email: parent.email, phone: parent.phone }); }} className="text-gray-400 hover:text-blue-600 text-lg transition-colors cursor-pointer">💬</button>
                 </td>
               </tr>
-            )) : (
-              <tr><td colSpan="5" className="py-12 text-center text-gray-400 font-bold">No parents found. Register students to auto-generate parents.</td></tr>
-            )}
+            )) : <tr><td colSpan="5" className="py-12 text-center text-gray-400 font-bold">No parents found. Register students to auto-generate parents.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -206,6 +312,7 @@ const ParentPortal = () => {
               <th className="py-4 px-6">Contact Info</th>
               <th className="py-4 px-6">Course Info</th>
               <th className="py-4 px-6">Group</th>
+              <th className="py-4 px-6">Status</th>
               <th className="py-4 px-6 text-center">Actions</th>
             </tr>
           </thead>
@@ -213,12 +320,21 @@ const ParentPortal = () => {
             {studentsList.map((student) => (
               <tr key={student.id} className="hover:bg-gray-50/50 transition-colors">
                 <td className="py-4 px-6 font-bold text-[#0A1128]">{student.first_name} {student.last_name}</td>
-                <td className="py-4 px-6 text-xs text-gray-600 space-y-1"><p>✉️ {student.email}</p><p>📱 {student.phone}</p></td>
+                <td className="py-4 px-6 text-xs text-gray-600 space-y-1">
+                  <p>✉️ {student.email}</p>
+                  <p>📱 {student.phone}</p>
+                </td>
                 <td className="py-4 px-6 font-bold text-[#0A1128]">{student.language || 'N/A'} ({student.level || '-'})</td>
                 <td className="py-4 px-6 text-gray-600">{student.group_name || 'No Group'}</td>
+                <td className="py-4 px-6">
+                  <span className="text-green-600 font-bold flex items-center">
+                    <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-2"></span>Active
+                  </span>
+                </td>
                 <td className="py-4 px-6 text-center space-x-4">
                   <button onClick={() => { 
-                      setMainView('chat'); setChatType('student_individual'); 
+                      setMainView('chat'); 
+                      setChatType('student_individual'); 
                       setSelectedRecipient({ id: student.id, name: `${student.first_name} ${student.last_name}`, role: 'Student', email: student.email, phone: student.phone, level: student.level }); 
                   }} className="text-gray-400 hover:text-blue-600 text-lg transition-colors cursor-pointer">💬</button>
                 </td>
@@ -252,21 +368,34 @@ const ParentPortal = () => {
               <th className="py-4 px-6">Contact</th>
               <th className="py-4 px-6">Role</th>
               <th className="py-4 px-6">Department</th>
+              <th className="py-4 px-6">Status</th>
               <th className="py-4 px-6 text-center">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {staffList.map((staff) => (
               <tr key={staff.id} className="hover:bg-gray-50/50 transition-colors">
-                <td className="py-4 px-6"><p className="font-bold text-[#0A1128]">{staff.first_name} {staff.last_name}</p><p className="text-xs text-gray-500">{staff.role}</p></td>
-                <td className="py-4 px-6 text-xs text-gray-600 space-y-1"><p className="flex items-center"><span className="mr-2">✉️</span> {staff.email}</p><p className="flex items-center"><span className="mr-2">📞</span> {staff.phone}</p></td>
+                <td className="py-4 px-6">
+                  <p className="font-bold text-[#0A1128]">{staff.first_name} {staff.last_name}</p>
+                  <p className="text-xs text-gray-500">{staff.role}</p>
+                </td>
+                <td className="py-4 px-6 text-xs text-gray-600 space-y-1">
+                  <p className="flex items-center"><span className="mr-2">✉️</span> {staff.email}</p>
+                  <p className="flex items-center"><span className="mr-2">📞</span> {staff.phone}</p>
+                </td>
                 <td className="py-4 px-6 text-gray-600 font-bold">{staff.role}</td>
                 <td className="py-4 px-6 text-gray-600">{staff.department || 'General'}</td>
+                <td className="py-4 px-6"><span className="text-green-600 font-bold flex items-center"><span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-2"></span>Active</span></td>
                 <td className="py-4 px-6 text-center space-x-4">
-                  <button onClick={() => { 
-                      setMainView('chat'); setChatType('staff_individual'); 
-                      setSelectedRecipient({ id: staff.id, name: `${staff.first_name} ${staff.last_name}`, role: staff.role, email: staff.email, phone: staff.phone, dept: staff.department }); 
-                  }} className="text-gray-400 hover:text-blue-600 text-lg transition-colors cursor-pointer">💬</button>
+                  <button 
+                    onClick={() => {  setMainView('chat'); 
+                    setChatType('staff_individual'); 
+                    setSelectedRecipient({ id: staff.id, name: `${staff.first_name} ${staff.last_name}`, role: staff.role, email: staff.email, phone: staff.phone, dept: staff.department }); 
+                   }} 
+                   className="text-gray-400 hover:text-blue-600 text-lg transition-colors cursor-pointer"
+                  >
+                  💬
+                  </button>
                 </td>
               </tr>
             ))}
@@ -289,33 +418,32 @@ const ParentPortal = () => {
       </div>
 
       <div className="space-y-6 overflow-y-auto custom-scrollbar pr-2 flex-1">
-        {announcementsList.length > 0 ? announcementsList.map((ann, idx) => {
-          // استخراج العنوان والمحتوى من الفورمات اللي خبيناه
-          const lines = ann.content.split('\n\n');
-          const title = lines[0].replace('📢 ', '');
-          const body = lines.slice(1).join('\n\n');
-
-          return (
-            <div key={idx} className="bg-[#fff7ed] border border-[#ffedd5] rounded-2xl p-6 flex shadow-sm relative overflow-hidden">
-              <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-orange-400"></div>
-              <div className="flex-1 pl-2">
-                <div className="flex items-center mb-2">
-                  <span className="text-orange-500 mr-2">📌</span>
-                  <h4 className="font-bold text-orange-900 text-base">{title}</h4>
-                  <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[10px] font-bold ml-4">Announcement</span>
-                </div>
-                <p className="text-sm text-orange-800/80 mb-4 leading-relaxed whitespace-pre-wrap">{body}</p>
-                <p className="text-xs text-orange-600/70">Published by Admin • {new Date(ann.created_at).toLocaleDateString()}</p>
+        {announcements.map((ann) => (
+          <div key={ann.id} className="bg-[#fff7ed] border border-[#ffedd5] rounded-2xl p-6 flex shadow-sm relative overflow-hidden animate-fade-in">
+            <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-orange-400"></div>
+            <div className="flex-1 pl-2">
+              <div className="flex items-center mb-2">
+                <span className="text-orange-500 mr-2">📌</span>
+                <h4 className="font-bold text-orange-900 text-base">{ann.subject || "No Title"}</h4>
+                <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[10px] font-bold ml-4">Announcement</span>
               </div>
-              <div className="flex flex-col justify-between items-end">
-                <div className="flex space-x-2 text-orange-400"><button className="hover:text-orange-600">🗑</button></div>
-                <div className="flex space-x-2"><span className="bg-white/50 text-orange-800 border border-orange-200 px-3 py-1 rounded-lg text-xs font-bold">{ann.recipient_name || 'All'}</span></div>
-              </div>
+              <p className="text-sm text-orange-800/80 mb-4 leading-relaxed whitespace-pre-wrap">{ann.content}</p>
+              <p className="text-xs text-orange-600/70">Published by Admin • {new Date(ann.created_at).toLocaleDateString()}</p>
             </div>
-          );
-        }) : (
-          <div className="text-center py-20 text-gray-400 font-bold">No announcements published yet.</div>
-        )}
+            <div className="flex flex-col justify-between items-end">
+              <div className="flex space-x-2 text-orange-400">
+                <button onClick={async () => {
+                  if(window.confirm("Delete this announcement?")) {
+                    await supabase.from('communications').delete().eq('id', ann.id);
+                    fetchData();
+                  }
+                }} className="hover:text-red-600 cursor-pointer">🗑</button>
+              </div>
+              <div className="flex space-x-2"><span className="bg-white/50 text-orange-800 border border-orange-200 px-3 py-1 rounded-lg text-xs font-bold">{ann.recipient_name || 'All'}</span></div>
+            </div>
+          </div>
+        ))}
+        {announcements.length === 0 && <div className="text-center py-20 text-gray-400 font-bold">No announcements published yet.</div>}
       </div>
     </div>
   );
@@ -332,7 +460,7 @@ const ParentPortal = () => {
           <h4 className="font-bold text-[#0A1128] text-base mb-4">Targeted Messages</h4>
           <div className="space-y-3">
             <button onClick={() => { setMainView('chat'); setChatType('smart'); setSelectedRecipient(null); }} className="w-full bg-[#0A1128] hover:bg-gray-800 text-white font-bold text-sm py-3.5 rounded-xl transition-colors flex items-center justify-center shadow-sm cursor-pointer">
-              <span className="mr-2">💬</span> Send Group Message
+              <span className="mr-2">💬</span> Send Message
             </button>
           </div>
         </div>
@@ -341,31 +469,32 @@ const ParentPortal = () => {
           <h4 className="font-bold text-[#0A1128] text-base mb-4">Bulk Communications</h4>
           <div className="space-y-3">
             <button onClick={() => { setMainView('chat'); setChatType('staff'); setSelectedRecipient(null); }} className="w-full bg-gray-50 hover:bg-gray-100 text-[#0A1128] border border-gray-200 font-bold text-sm py-3.5 rounded-xl transition-colors flex items-center justify-center cursor-pointer">
-              <span className="mr-2 text-gray-500">👨‍🏫</span> Send to All Staff
+              <span className="mr-2 text-gray-500">👨‍🏫</span> Send to Staff
             </button>
-            <button onClick={() => { setMainView('chat'); setChatType('emergency'); setSelectedRecipient(null); }} className="w-full bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold text-sm py-3.5 rounded-xl transition-colors flex items-center justify-center cursor-pointer">
-              <span className="mr-2">🚨</span> Emergency Notification
+            <button onClick={() => setModalView('newNotification')} className="w-full bg-purple-50 hover:bg-purple-100 text-purple-600 border border-purple-200 font-bold text-sm py-3.5 rounded-xl transition-colors flex items-center justify-center cursor-pointer">
+              <span className="mr-2 text-lg">🔔</span> Send Notification
             </button>
           </div>
         </div>
       </div>
 
       <div className="flex-1 flex flex-col min-h-0 bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-        <h4 className="font-bold text-[#0A1128] text-base mb-4 shrink-0">Recent Direct Messages</h4>
+        <h4 className="font-bold text-[#0A1128] text-base mb-4 shrink-0">Recent Communications</h4>
         <div className="overflow-y-auto custom-scrollbar flex-1">
           <table className="w-full text-left text-sm">
             <tbody className="divide-y divide-gray-100">
-              {chatMessages.length > 0 ? chatMessages.slice(0, 10).map((msg, idx) => (
-                 <tr key={idx} className="hover:bg-gray-50 transition-colors">
+              {recentComms.map((comm) => (
+                <tr key={comm.id} className="hover:bg-gray-50 transition-colors">
                   <td className="py-4 px-2">
-                    <p className="font-bold text-[#0A1128] line-clamp-1">{msg.content.replace('🚨 EMERGENCY: ', '')}</p>
-                    <p className="text-xs text-gray-500 capitalize">Sent to: {msg.recipient_name || 'Bulk'}</p>
+                    <p className="font-bold text-[#0A1128] truncate max-w-xs">{comm.subject || comm.content}</p>
+                    <p className="text-[10px] text-gray-500 capitalize">To: {comm.recipient_name} • Type: {comm.type}</p>
                   </td>
-                  <td className="py-4 px-2 text-right text-xs text-gray-400 font-medium">{new Date(msg.created_at).toLocaleString()}</td>
+                  <td className="py-4 px-2 text-right text-xs text-gray-400 font-medium">
+                    {new Date(comm.created_at).toLocaleString()}
+                  </td>
                 </tr>
-              )) : (
-                <tr><td colSpan="2" className="py-10 text-center text-gray-400">No recent messages.</td></tr>
-              )}
+              ))}
+              {recentComms.length === 0 && <tr><td className="py-10 text-center text-gray-400">No recent communications</td></tr>}
             </tbody>
           </table>
         </div>
@@ -380,46 +509,38 @@ const ParentPortal = () => {
           <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Target Audience</label>
           <div className="flex space-x-4 pt-1">
             <label className="flex items-center cursor-pointer">
-              <input type="checkbox" checked={selectedAudiences.all} onChange={() => handleAudienceChange('all')} className="w-4 h-4 text-blue-600 rounded border-gray-300" />
+              <input type="checkbox" checked={selectedAudiences.all} onChange={() => handleAudienceChange('all')} className="w-4 h-4 text-blue-600 rounded border-gray-300 cursor-pointer" />
               <span className="ml-2 text-sm font-bold text-[#0A1128]">All</span>
             </label>
             {chatType === 'smart' && (
               <>
                 <label className="flex items-center cursor-pointer">
-                  <input type="checkbox" checked={selectedAudiences.students} onChange={() => handleAudienceChange('students')} className="w-4 h-4 text-blue-600 rounded border-gray-300" />
+                  <input type="checkbox" checked={selectedAudiences.students} onChange={() => handleAudienceChange('students')} className="w-4 h-4 text-blue-600 rounded border-gray-300 cursor-pointer" />
                   <span className="ml-2 text-sm font-bold text-[#0A1128]">Students</span>
                 </label>
                 <label className="flex items-center cursor-pointer">
-                  <input type="checkbox" checked={selectedAudiences.parents} onChange={() => handleAudienceChange('parents')} className="w-4 h-4 text-blue-600 rounded border-gray-300" />
+                  <input type="checkbox" checked={selectedAudiences.parents} onChange={() => handleAudienceChange('parents')} className="w-4 h-4 text-blue-600 rounded border-gray-300 cursor-pointer" />
                   <span className="ml-2 text-sm font-bold text-[#0A1128]">Parents</span>
+                </label>
+                <label className="flex items-center cursor-pointer">
+                  <input type="checkbox" checked={selectedAudiences.staff} onChange={() => handleAudienceChange('staff')} className="w-4 h-4 text-blue-600 rounded border-gray-300 cursor-pointer" />
+                  <span className="ml-2 text-sm font-bold text-[#0A1128]">Staff</span>
                 </label>
               </>
             )}
             {chatType === 'staff' && (
               <>
                 <label className="flex items-center cursor-pointer">
-                  <input type="checkbox" checked={selectedAudiences.teacher} onChange={() => handleAudienceChange('teacher')} className="w-4 h-4 text-blue-600 rounded border-gray-300" />
+                  <input type="checkbox" checked={selectedAudiences.teacher} onChange={() => handleAudienceChange('teacher')} className="w-4 h-4 text-blue-600 rounded border-gray-300 cursor-pointer" />
                   <span className="ml-2 text-sm font-bold text-[#0A1128]">Teachers</span>
                 </label>
                 <label className="flex items-center cursor-pointer">
-                  <input type="checkbox" checked={selectedAudiences.admin} onChange={() => handleAudienceChange('admin')} className="w-4 h-4 text-blue-600 rounded border-gray-300" />
+                  <input type="checkbox" checked={selectedAudiences.admin} onChange={() => handleAudienceChange('admin')} className="w-4 h-4 text-blue-600 rounded border-gray-300 cursor-pointer" />
                   <span className="ml-2 text-sm font-bold text-[#0A1128]">Admins</span>
                 </label>
               </>
             )}
           </div>
-        </div>
-        <div>
-          <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Language</label>
-          <select className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 outline-none text-sm font-bold text-[#0A1128] focus:border-blue-500 cursor-pointer">
-            <option>All Languages</option><option>English</option><option>French</option><option>Spanish</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Level</label>
-          <select className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 outline-none text-sm font-bold text-[#0A1128] focus:border-blue-500 cursor-pointer">
-            <option>All Levels</option><option>A1</option><option>B1</option>
-          </select>
         </div>
       </div>
     </div>
@@ -428,45 +549,24 @@ const ParentPortal = () => {
   const renderChatView = () => {
     let chatTitle = 'Chat View';
     let isBulkChat = false;
-    let emergencyIcon = null;
 
-    if (chatType === 'parent' || chatType === 'student_individual' || chatType === 'staff_individual') {
+    if (chatType === 'parent' || chatType === 'student' || chatType === 'staff_individual' || chatType === 'student_individual') {
       chatTitle = selectedRecipient?.name || 'User';
     } else if (chatType === 'smart') {
-      chatTitle = 'Send Group Message';
+      chatTitle = 'Send Smart Message';
       isBulkChat = true;
     } else if (chatType === 'staff') {
       chatTitle = 'Sending to All School Staff';
       isBulkChat = true;
-    } else if (chatType === 'emergency') {
-      chatTitle = 'CRITICAL: Urgent Emergency Notification';
-      emergencyIcon = <span className="text-red-600 mr-3 text-2xl">⚠️</span>;
-      isBulkChat = true;
     }
 
-    const handleSendMessage = async () => {
-      if (!newMessage.trim()) return;
-      
-      const messageData = {
-        content: chatType === 'emergency' ? `🚨 EMERGENCY: ${newMessage}` : newMessage,
-        type: chatType,
-        recipient_name: selectedRecipient?.name || (chatType === 'emergency' ? 'All Users' : 'Group/Bulk'),
-        recipient_id: selectedRecipient?.id || 'all',
-        sender_role: 'admin'
-      };
-    
-      const { data, error } = await supabase.from('communications').insert([messageData]).select(); 
-      if (!error && data) {
-        setNewMessage('');
-        setChatMessages([...chatMessages, data[0]]);
-        if (chatType === 'emergency') showToast("🚨 Emergency Alert Broadcasted to all channels!");
-      } else {
-        showToast("❌ Error sending message.");
-      }
-    };
-
     const displayMessages = chatMessages.filter(msg => {
-      if (selectedRecipient) return msg.recipient_id === selectedRecipient.id;
+      if (selectedRecipient && currentUser) {
+        const myId = currentUser.id;
+        const theirId = selectedRecipient.id.toString();
+        if (myId === theirId) return msg.sender_id === myId || msg.recipient_id === myId;
+        return (msg.sender_id === myId && msg.recipient_id === theirId) || (msg.sender_id === theirId && msg.recipient_id === myId);
+      }
       return msg.type === chatType;
     });
 
@@ -480,26 +580,26 @@ const ParentPortal = () => {
                 👤<span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white rounded-full"></span>
               </div>
             )}
-            {emergencyIcon}
             <div>
-             <h3 className={`font-bold ${chatType === 'emergency' ? 'text-red-600' : 'text-[#0A1128]'} text-base`}>{chatTitle}</h3>
-             <p className="text-xs text-green-600 font-medium">System Ready</p>
+             <h3 className="font-bold text-[#0A1128] text-base">{chatTitle}</h3>
+             <p className="text-xs text-green-600 font-medium">Online</p>
             </div>
           </div>
         </div>
 
         <div className="flex flex-1 min-h-0 relative">
           <div className={`flex-1 flex flex-col bg-[#f8fafc] relative ${isBulkChat ? 'col-span-2' : ''}`}>
+            
             {(chatType === 'smart' || chatType === 'staff') && <FilterSection />}
 
             <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar flex flex-col">
               {displayMessages.length > 0 ? (
                 displayMessages.map((msg) => (
-                  <div key={msg.id} className={`flex items-end ${msg.sender_role === 'admin' ? 'justify-end' : 'justify-start'} space-x-2`}>
-                    <div className={`${chatType === 'emergency' ? 'bg-[#fee2e2] text-red-900 border border-red-200' : 'bg-[#2563eb] text-white'} p-4 rounded-2xl ${msg.sender_role === 'admin' ? 'rounded-br-sm' : 'rounded-bl-sm'} max-w-md shadow-sm`}>
+                  <div key={msg.id} className={`flex ${msg.sender_id === currentUser?.id ? 'items-end justify-end' : 'items-start justify-start'} space-x-2`}>
+                    <div className={`${msg.sender_id === currentUser?.id ? 'bg-[#2563eb] text-white rounded-br-sm' : 'bg-white border text-[#0A1128] rounded-bl-sm'} p-4 rounded-2xl max-w-md shadow-sm`}>
                       <p className="text-sm leading-relaxed">{msg.content}</p>
-                      <span className={`text-[10px] ${chatType === 'emergency' ? 'text-red-700' : 'text-blue-200'} mt-2 block text-right`}>
-                        {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ✓✓
+                      <span className={`text-[10px] ${msg.sender_id === currentUser?.id ? 'text-blue-200' : 'text-gray-400'} mt-2 block text-right`}>
+                        {new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} ✓✓
                       </span>
                     </div>
                   </div>
@@ -508,14 +608,14 @@ const ParentPortal = () => {
                 <div className="flex flex-col items-center justify-center h-full flex-1 text-gray-400 opacity-70">
                   {chatType === 'smart' && <><span className="text-5xl mb-4">💬</span><p className="text-sm font-bold text-gray-500">Select filters above and type your message to broadcast.</p></>}
                   {chatType === 'staff' && <><span className="text-5xl mb-4">👨‍🏫</span><p className="text-sm font-bold text-gray-500">Select audience above and type your message to send to staff.</p></>}
-                  {(chatType !== 'smart' && chatType !== 'staff' && chatType !== 'emergency') && <p className="text-sm italic">No messages yet. Say hello!</p>}
+                  {(chatType !== 'smart' && chatType !== 'staff') && <p className="text-sm italic">No messages yet. Start the conversation!</p>}
                 </div>
               )}
             </div>
 
             <div className="p-4 bg-white border-t border-gray-200 shrink-0 m-4 rounded-2xl shadow-sm flex items-center relative z-20">
-              <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()} placeholder="Type your message here..." className="flex-1 bg-transparent px-4 outline-none text-sm font-medium text-gray-700" />
-              <button onClick={handleSendMessage} className={`${chatType === 'emergency' ? 'bg-red-600 hover:bg-red-700' : 'bg-[#2563eb] hover:bg-blue-700'} text-white px-6 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center shadow-sm transition-colors cursor-pointer`}>
+              <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} onKeyPress={(e)=> e.key === 'Enter' && handleSendMessage()} placeholder="Type your message here..." className="flex-1 bg-transparent px-4 outline-none text-sm font-medium text-gray-700" />
+              <button onClick={handleSendMessage} className="bg-[#2563eb] hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center shadow-sm transition-colors cursor-pointer">
                 Send ➤
               </button>
             </div>
@@ -531,7 +631,7 @@ const ParentPortal = () => {
               
               <div className="space-y-6">
                 <div>
-                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center">📄 Contact Information</h4>
+                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center">📄 Contact Info</h4>
                   <div className="space-y-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
                     <div><p className="text-[10px] font-bold text-gray-400 uppercase">Phone Number</p><p className="text-sm font-bold text-[#0A1128]">{selectedRecipient.phone || 'N/A'}</p></div>
                     <div><p className="text-[10px] font-bold text-gray-400 uppercase">Email Address</p><p className="text-sm font-bold text-[#2563eb] break-all">{selectedRecipient.email || 'N/A'}</p></div>
@@ -553,28 +653,28 @@ const ParentPortal = () => {
   };
 
   return (
-    <div className="animate-fade-in w-full h-full flex flex-col relative text-[#0A1128]">
+    <div className="animate-fade-in w-full h-full flex flex-col relative pt-12 text-[#0A1128]">
       {toast && <Toast message={toast} onClose={() => setToast(null)} />}
       
       {mainView === 'portal' && (
         <div className="w-full h-full flex flex-col">
           <div className="mb-6 shrink-0 border-b border-gray-200 pb-4 text-left">
-            <h2 className="text-3xl font-bold text-[#0A1128] mb-1">Communication Hub</h2>
-            <p className="text-sm text-gray-500">Manage directories, announcements, and direct messaging</p>
+            <h2 className="text-3xl font-bold text-[#0A1128] mb-1">Communication Portal</h2>
+            <p className="text-sm text-gray-500">Manage directories and school updates</p>
           </div>
 
           <div className="grid grid-cols-4 gap-6 mb-8 shrink-0 text-left">
             <div className="bg-white border border-gray-200/60 rounded-2xl p-5 shadow-sm flex justify-between items-start">
-              <div><p className="text-gray-500 text-xs font-bold mb-1">Total Parents</p><p className="text-3xl font-bold text-[#0A1128] mb-1">{parentsList.length}</p><p className="text-[10px] text-gray-400">Registered parents</p></div><span className="text-blue-500 text-lg">👥</span>
+              <div><p className="text-gray-500 text-xs font-bold mb-1 uppercase tracking-widest">Total Students</p><p className="text-3xl font-bold text-[#0A1128] mb-1">{studentsList.length}</p></div><span className="text-blue-500 text-lg">👥</span>
             </div>
             <div className="bg-white border border-gray-200/60 rounded-2xl p-5 shadow-sm flex justify-between items-start">
-              <div><p className="text-gray-500 text-xs font-bold mb-1">Total Students</p><p className="text-3xl font-bold text-[#0A1128] mb-1">{studentsList.length}</p><p className="text-[10px] text-gray-400">Active enrollments</p></div><span className="text-green-500 text-lg">🎓</span>
+              <div><p className="text-gray-500 text-xs font-bold mb-1 uppercase tracking-widest">Staff Members</p><p className="text-3xl font-bold text-[#0A1128] mb-1">{staffList.length}</p></div><span className="text-green-500 text-lg">👨‍🏫</span>
             </div>
             <div className="bg-white border border-gray-200/60 rounded-2xl p-5 shadow-sm flex justify-between items-start">
-              <div><p className="text-gray-500 text-xs font-bold mb-1">Announcements</p><p className="text-3xl font-bold text-[#0A1128] mb-1">{announcementsList.length}</p><p className="text-[10px] text-gray-400">Published globally</p></div><span className="text-purple-500 text-lg">📢</span>
+              <div><p className="text-gray-500 text-xs font-bold mb-1 uppercase tracking-widest">Broadcasts</p><p className="text-3xl font-bold text-blue-600 mb-1">{announcements.length}</p></div><span className="text-orange-500 text-lg">📢</span>
             </div>
             <div className="bg-white border border-gray-200/60 rounded-2xl p-5 shadow-sm flex justify-between items-start">
-              <div><p className="text-gray-500 text-xs font-bold mb-1">Staff Members</p><p className="text-3xl font-bold text-[#0A1128] mb-1">{staffList.length}</p><p className="text-[10px] text-gray-400">Teachers & Admins</p></div><span className="text-orange-500 text-lg">👨‍🏫</span>
+              <div><p className="text-gray-500 text-xs font-bold mb-1 uppercase tracking-widest">Portal Status</p><p className="text-3xl font-bold text-green-600 mb-1">Active</p></div><span className="text-green-400 text-lg">●</span>
             </div>
           </div>
 
@@ -597,36 +697,65 @@ const ParentPortal = () => {
       {mainView === 'chat' && renderChatView()}
 
       {modalView === 'addParent' && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg bg-white rounded-3xl shadow-2xl animate-fade-in-up flex flex-col overflow-hidden border border-gray-100 text-left">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-gray-100 text-left">
             <div className="flex justify-between items-center p-6 border-b border-gray-100 bg-gray-50">
               <div>
-                <h2 className="text-xl font-bold text-[#0A1128] mb-1">Add New Parent</h2>
-                <p className="text-xs text-gray-500">System Information</p>
+                <h2 className="text-xl font-bold text-[#0A1128] mb-1">Add New Parent/Guardian</h2>
+                <p className="text-xs text-gray-500">Enter parent or guardian information for institute</p>
               </div>
               <button onClick={() => setModalView(null)} className="text-gray-400 hover:text-black text-xl cursor-pointer">✕</button>
             </div>
-            <div className="p-8 text-center">
-              <span className="text-5xl mb-4 block">ℹ️</span>
-              <h3 className="text-lg font-bold text-[#0A1128] mb-2">Automated Parent Profiles</h3>
-              <p className="text-sm text-gray-500 leading-relaxed mb-8">
-                Parent profiles are automatically created and synced when a new student is registered via the "Students Management" tab. You don't need to add them manually here.
-              </p>
-              <button onClick={handleAddParentMock} className="w-full bg-[#0A1128] hover:bg-gray-800 text-white py-3.5 rounded-xl font-bold text-sm shadow-sm transition-colors cursor-pointer">
-                Understood
-              </button>
+            <div className="p-8 overflow-y-auto custom-scrollbar">
+              <form onSubmit={handleAddParent} className="space-y-5">
+                <div className="grid grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">First Name</label>
+                    <input type="text" value={parentForm.firstName} onChange={(e) => setParentForm({...parentForm, firstName: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none text-sm focus:border-blue-500" required />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Last Name</label>
+                    <input type="text" value={parentForm.lastName} onChange={(e) => setParentForm({...parentForm, lastName: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none text-sm focus:border-blue-500" required />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Email</label>
+                    <input type="email" value={parentForm.email} onChange={(e) => setParentForm({...parentForm, email: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none text-sm focus:border-blue-500" required />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Phone</label>
+                    <input type="tel" value={parentForm.phone} onChange={(e) => setParentForm({...parentForm, phone: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none text-sm focus:border-blue-500" required />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Address</label>
+                  <input type="text" value={parentForm.address} onChange={(e) => setParentForm({...parentForm, address: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none text-sm focus:border-blue-500" />
+                </div>
+                <div className="grid grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Relationship</label>
+                    <select value={parentForm.relationship} onChange={(e) => setParentForm({...parentForm, relationship: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none text-sm focus:border-blue-500 cursor-pointer">
+                      <option>Select relationship</option><option>Father</option><option>Mother</option><option>Guardian</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="pt-4">
+                  <button type="submit" className="w-full bg-[#2563eb] hover:bg-blue-700 text-white py-3.5 rounded-xl font-bold text-sm shadow-sm transition-colors cursor-pointer">
+                    Add Parent
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </div>
       )}
 
       {modalView === 'newAnnouncement' && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-          <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl animate-fade-in-up flex flex-col overflow-hidden border border-gray-100 text-left">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-gray-100 text-left">
             <div className="flex justify-between items-center p-6 border-b border-gray-100 bg-gray-50">
               <div>
                 <h2 className="text-xl font-bold text-[#0A1128] mb-1">Create New Announcement</h2>
-                <p className="text-xs text-gray-500">Share important information globally</p>
+                <p className="text-xs text-gray-500">Share important information with school community</p>
               </div>
               <button onClick={() => setModalView(null)} className="text-gray-400 hover:text-black text-xl cursor-pointer">✕</button>
             </div>
@@ -634,28 +763,19 @@ const ParentPortal = () => {
               <form className="space-y-6">
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Title</label>
-                  <input type="text" onChange={(e) => setAnnouncementForm({...announcementForm, title: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 outline-none text-sm font-bold text-[#0A1128] focus:border-blue-500" placeholder="e.g. End of term exams" />
+                  <input type="text" onChange={(e) => setAnnouncementForm({...announcementForm, title: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 outline-none text-sm focus:border-blue-500" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Content</label>
-                  <textarea rows="4" onChange={(e) => setAnnouncementForm({...announcementForm, content: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 outline-none text-sm text-[#0A1128] focus:border-blue-500 resize-none" placeholder="Write your announcement here..."></textarea>
+                  <textarea rows="4" onChange={(e) => setAnnouncementForm({...announcementForm, content: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 outline-none text-sm focus:border-blue-500 resize-none"></textarea>
                 </div>
-                <div className="grid grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Target Audience</label>
-                    <select onChange={(e) => setAnnouncementForm({...announcementForm, audience: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 outline-none text-sm font-bold text-[#0A1128] focus:border-blue-500 cursor-pointer">
-                      <option value="All">Everyone (Public)</option>
-                      <option value="Students">Students Only</option>
-                      <option value="Parents">Parents Only</option>
-                      <option value="Staff">Staff Only</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Priority</label>
-                    <select className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 outline-none text-sm font-bold text-[#0A1128] focus:border-blue-500 cursor-pointer">
-                      <option>Normal</option>
-                      <option>High 🚨</option>
-                    </select>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Target Audience</label>
+                  <div className="flex space-x-6 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                    <label className="flex items-center cursor-pointer"><input type="checkbox" checked={selectedAudiences.students} onChange={() => handleAudienceChange('students')} className="w-4 h-4 text-blue-600 rounded cursor-pointer" /><span className="ml-2 text-sm font-bold text-[#0A1128]">Students</span></label>
+                    <label className="flex items-center cursor-pointer"><input type="checkbox" checked={selectedAudiences.teacher} onChange={() => handleAudienceChange('teacher')} className="w-4 h-4 text-blue-600 rounded cursor-pointer" /><span className="ml-2 text-sm font-bold text-[#0A1128]">Teachers</span></label>
+                    <label className="flex items-center cursor-pointer"><input type="checkbox" checked={selectedAudiences.parents} onChange={() => handleAudienceChange('parents')} className="w-4 h-4 text-blue-600 rounded cursor-pointer" /><span className="ml-2 text-sm font-bold text-[#0A1128]">Parents</span></label>
+                    <label className="flex items-center cursor-pointer"><input type="checkbox" checked={selectedAudiences.staff} onChange={() => handleAudienceChange('staff')} className="w-4 h-4 text-blue-600 rounded cursor-pointer" /><span className="ml-2 text-sm font-bold text-[#0A1128]">Staff</span></label>
                   </div>
                 </div>
                 <div className="pt-4">
@@ -668,6 +788,48 @@ const ParentPortal = () => {
           </div>
         </div>
       )}
+
+      {modalView === 'newNotification' && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-gray-100 text-left">
+            <div className="flex justify-between items-center p-6 border-b border-gray-100 bg-purple-50">
+              <div>
+                <h2 className="text-xl font-bold text-purple-900 mb-1">Send Notification 🔔</h2>
+                <p className="text-xs text-purple-600/70">Send an instant alert to specific groups or everyone</p>
+              </div>
+              <button onClick={() => setModalView(null)} className="text-gray-400 hover:text-black text-xl cursor-pointer">✕</button>
+            </div>
+            <div className="p-8 overflow-y-auto custom-scrollbar">
+              <form className="space-y-6">
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Notification Title</label>
+                  <input type="text" onChange={(e) => setNotificationForm({...notificationForm, title: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 outline-none text-sm focus:border-purple-500" placeholder="e.g. Urgent: Class Rescheduled" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Message Content</label>
+                  <textarea rows="4" onChange={(e) => setNotificationForm({...notificationForm, content: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 outline-none text-sm focus:border-purple-500 resize-none" placeholder="Type your notification here..."></textarea>
+                </div>
+                
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Send To (Target Audience)</label>
+                  <div className="flex space-x-6 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                    <label className="flex items-center cursor-pointer"><input type="checkbox" checked={selectedAudiences.students} onChange={() => handleAudienceChange('students')} className="w-4 h-4 text-purple-600 rounded cursor-pointer" /><span className="ml-2 text-sm font-bold text-[#0A1128]">Students</span></label>
+                    <label className="flex items-center cursor-pointer"><input type="checkbox" checked={selectedAudiences.teacher} onChange={() => handleAudienceChange('teacher')} className="w-4 h-4 text-purple-600 rounded cursor-pointer" /><span className="ml-2 text-sm font-bold text-[#0A1128]">Teachers</span></label>
+                    <label className="flex items-center cursor-pointer"><input type="checkbox" checked={selectedAudiences.parents} onChange={() => handleAudienceChange('parents')} className="w-4 h-4 text-purple-600 rounded cursor-pointer" /><span className="ml-2 text-sm font-bold text-[#0A1128]">Parents</span></label>
+                    <label className="flex items-center cursor-pointer"><input type="checkbox" checked={selectedAudiences.staff} onChange={() => handleAudienceChange('staff')} className="w-4 h-4 text-purple-600 rounded cursor-pointer" /><span className="ml-2 text-sm font-bold text-[#0A1128]">Staff</span></label>
+                  </div>
+                </div>
+                <div className="pt-4">
+                  <button type="button" onClick={handleSendNotification} className="w-full bg-[#9333ea] hover:bg-purple-700 text-white py-3.5 rounded-xl font-bold text-sm shadow-sm transition-colors cursor-pointer">
+                    Send Notification Now
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

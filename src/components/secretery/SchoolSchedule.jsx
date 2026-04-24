@@ -6,7 +6,12 @@ const SchoolSchedule = () => {
   const [filterLang, setFilterLang] = useState('All');
   const [filterLevel, setFilterLevel] = useState('All');
   const [filterGroup, setFilterGroup] = useState('All');
-  const [focusDay, setFocusDay] = useState('Mon');
+  
+  // نحددو اليوم الحالي أوتوماتيكيا (أول 3 حروف من اسم اليوم: 'Mon', 'Tue', ...)
+  const getTodayDayString = () => {
+    return new Date().toLocaleDateString('en-US', { weekday: 'short' });
+  };
+  const [focusDay, setFocusDay] = useState(getTodayDayString());
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDailyViewOpen, setIsDailyViewOpen] = useState(false);
@@ -21,14 +26,25 @@ const SchoolSchedule = () => {
     const { data, error } = await supabase.from('classes').select('*').not('schedule', 'eq', 'TBD');
     if (!error && data) {
       const formatted = data.map(item => {
+        // Schedule in DB is usually like: "Mon 10:00 - 12:00 - Room A"
         const dayMatch = item.schedule.match(/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)/);
         const timeMatch = item.schedule.match(/\d{2}:\d{2}/); 
         const roomMatch = item.schedule.split('- ')[1];
+        
         return {
-          id: item.id, language: item.language, level: item.level, group: item.name,
-          day: dayMatch ? dayMatch[0] : 'Mon', date: new Date(item.created_at).getDate(), 
-          time: timeMatch ? timeMatch[0] : '10:00', type: 'COURSE', teacher: item.teacher_name,
-          room: roomMatch || 'TBD'
+          id: item.id, 
+          language: item.language, 
+          level: item.level, 
+          group: item.name,
+          day: dayMatch ? dayMatch[0] : 'Mon', 
+          // Since classes are weekly repeating, the date property is abstract. 
+          // We will assign a created_at date just for fallback, but monthly view needs actual dates.
+          date: new Date(item.created_at).getDate(), 
+          time: timeMatch ? timeMatch[0] : '10:00', 
+          type: 'COURSE', 
+          teacher: item.teacher_name,
+          room: roomMatch || 'TBD',
+          originalSchedule: item.schedule
         };
       });
       setScheduleData(formatted);
@@ -38,7 +54,7 @@ const SchoolSchedule = () => {
   useEffect(() => { fetchScheduleFromSupabase(); }, []);
 
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  const times = ['10:00', '12:00', '14:00', '16:00', '18:00', '20:00']; 
+  const times = ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00']; 
 
   const getEventColors = (lang) => {
     const l = lang?.toLowerCase().trim() || '';
@@ -66,20 +82,45 @@ const SchoolSchedule = () => {
 
   const todaysEvents = filteredSchedule.filter(event => event.day === focusDay).sort((a, b) => a.time.localeCompare(b.time));
 
+  // ==========================================
+  // 💡 2. عرض التقويم الشهري الحقيقي (Real Month)
+  // ==========================================
   const renderMonthlyView = () => {
-    const monthDays = Array.from({ length: 35 }, (_, i) => i + 1); 
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    
+    const firstDayOfMonth = new Date(year, month, 1).getDay(); // 0 is Sunday, 1 is Monday
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    
+    // Adjust first day so Monday is the first column (0 index)
+    const startOffset = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1; 
+    const blanks = Array.from({ length: startOffset }, (_, i) => null);
+    const monthDays = Array.from({ length: daysInMonth }, (_, i) => i + 1); 
+    const totalCells = [...blanks, ...monthDays];
+
     return (
       <div className="grid grid-cols-7 h-full border-t border-l border-gray-100">
         {days.map(d => (<div key={d} className="bg-gray-50 py-2 border-r border-b border-gray-100 text-center font-bold text-[10px] text-gray-400 uppercase">{d}</div>))}
-        {monthDays.map(d => {
-          const dayEvents = filteredSchedule.filter(e => e.date === d);
+        
+        {totalCells.map((d, index) => {
+          if (!d) return <div key={`blank-${index}`} className="border-r border-b border-gray-50 bg-gray-50/50 min-h-[100px]"></div>;
+          
+          // نجبدوا اليوم فالسيمانة تاع هاد لادات (مثلا 14 الشهر يطيح يوم الاثنين)
+          const currentCellDate = new Date(year, month, d);
+          const dayNameShort = currentCellDate.toLocaleDateString('en-US', { weekday: 'short' });
+          const isToday = currentCellDate.toDateString() === today.toDateString();
+
+          // نجيبو الحصص لي يقراو ف هاداك اليوم من السيمانة (لأن الحصص تتكرر أسبوعيا)
+          const dayEvents = filteredSchedule.filter(e => e.day === dayNameShort);
+
           return (
-            <div key={d} className="border-r border-b border-gray-100 p-2 min-h-[100px] bg-white hover:bg-gray-50 transition-colors group cursor-pointer">
-              <span className={`text-xs font-bold ${d > 31 ? 'text-gray-200' : 'text-gray-400'}`}>{d > 31 ? d - 31 : d}</span>
+            <div key={d} className={`border-r border-b border-gray-100 p-2 min-h-[100px] hover:bg-blue-50/30 transition-colors group cursor-pointer ${isToday ? 'bg-blue-50/50' : 'bg-white'}`}>
+              <span className={`text-xs font-bold ${isToday ? 'text-blue-600 bg-white px-1.5 py-0.5 rounded shadow-sm' : 'text-gray-400'}`}>{d}</span>
               <div className="mt-1 space-y-1">
-                {dayEvents.slice(0, 4).map(e => (
-                  <div key={e.id} className={`text-[9px] px-1.5 py-0.5 rounded border-l-2 truncate font-bold ${getEventColors(e.language)}`}>
-                    {e.language.substring(0, 3)}: {e.group.split('-')[1]}
+                {dayEvents.slice(0, 4).map((e, i) => (
+                  <div key={`${e.id}-${i}`} className={`text-[9px] px-1.5 py-0.5 rounded border-l-2 truncate font-bold ${getEventColors(e.language)}`}>
+                    {e.time} | {e.group.split('-')[1] || e.group}
                   </div>
                 ))}
               </div>
@@ -90,11 +131,14 @@ const SchoolSchedule = () => {
     );
   };
 
+  // ==========================================
+  // 💡 3. عرض الأسبوع
+  // ==========================================
   const renderWeeklyView = () => (
     <div className="grid grid-cols-[60px_repeat(6,1fr)]">
       <div className="border-b border-gray-100 pb-2"></div>
       {days.filter(d => d !== 'Sat').map((day, idx) => (
-        <div key={day} className="text-center pb-4 pt-2 border-b border-gray-100">
+        <div key={day} className={`text-center pb-4 pt-2 border-b border-gray-100 ${day === focusDay ? 'bg-blue-50/50 border-b-2 border-b-blue-500' : ''}`}>
           <p className="text-[10px] font-bold text-gray-400 uppercase">{day}</p>
           <p className="text-sm font-bold text-[#0A1128]">Week Day</p>
         </div>
@@ -107,9 +151,9 @@ const SchoolSchedule = () => {
           {days.filter(d => d !== 'Sat').map(day => {
             const cellEvents = filteredSchedule.filter(e => e.day === day && e.time.startsWith(time.substring(0,2)));
             return (
-              <div key={`${day}-${time}`} className="border-b border-r border-gray-50 border-dashed p-1 min-h-[110px] flex flex-col gap-1.5 overflow-y-auto custom-scrollbar hover:bg-gray-50/50 transition-colors">
-                 {cellEvents.map(event => (
-                    <div key={event.id} onClick={() => { setFormData(event); setIsModalOpen(true); }} className={`cursor-pointer group relative border-l-4 rounded-r-lg p-2 ${getEventColors(event.language)} hover:shadow-md transition-all shrink-0`}>
+              <div key={`${day}-${time}`} className={`border-b border-r border-gray-50 border-dashed p-1 min-h-[110px] flex flex-col gap-1.5 overflow-y-auto custom-scrollbar hover:bg-gray-50/50 transition-colors ${day === focusDay ? 'bg-blue-50/20' : ''}`}>
+                 {cellEvents.map((event, index) => (
+                    <div key={`${event.id}-${index}`} onClick={() => { setFormData(event); setIsModalOpen(true); }} className={`cursor-pointer group relative border-l-4 rounded-r-lg p-2 ${getEventColors(event.language)} hover:shadow-md transition-all shrink-0`}>
                        <p className="text-[9px] font-bold uppercase tracking-wider opacity-80 mb-0.5">{event.type}</p>
                        <p className="text-xs font-bold leading-tight mb-1">{event.group}</p>
                        <p className="text-[9px] font-bold opacity-75">{event.room} • {event.teacher}</p>
@@ -137,7 +181,11 @@ const SchoolSchedule = () => {
         </div>
         <div className="flex items-center space-x-4">
           <select value={filterLang} onChange={(e) => setFilterLang(e.target.value)} className="bg-white border border-gray-200 text-xs rounded-lg px-3 py-2 outline-none font-bold cursor-pointer">
-            <option value="All">All Languages</option><option value="Spanish">Spanish</option><option value="English">English</option><option value="German">German</option><option value="French">French</option>
+            <option value="All">All Languages</option>
+            <option value="Spanish">Spanish</option>
+            <option value="English">English</option>
+            <option value="German">German</option>
+            <option value="French">French</option>
           </select>
           <button onClick={() => fetchScheduleFromSupabase()} className="bg-gray-100 hover:bg-gray-200 text-[#0A1128] px-5 py-2.5 rounded-xl text-sm font-bold transition-colors cursor-pointer">🔄 Refresh</button>
         </div>
@@ -147,7 +195,7 @@ const SchoolSchedule = () => {
         <div className="w-[280px] flex flex-col shrink-0">
           <div className="bg-white border border-gray-200 p-6 rounded-2xl shadow-sm mb-6 flex flex-col max-h-[60%]">
              <div className="flex justify-between items-center mb-6">
-                <h3 className="font-bold text-[#0A1128] text-lg">Today's Focus</h3>
+                <h3 className="font-bold text-[#0A1128] text-lg">Daily Focus</h3>
                 <select value={focusDay} onChange={(e) => setFocusDay(e.target.value)} className="text-[10px] font-bold text-blue-600 bg-blue-50 border-none rounded px-2 py-1 outline-none cursor-pointer">
                    {days.map(d => <option key={d} value={d}>{d.toUpperCase()}</option>)}
                 </select>
@@ -169,7 +217,7 @@ const SchoolSchedule = () => {
              <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden mb-6"><div className="h-full bg-blue-800 w-[64%]"></div></div>
              <div className="flex justify-between">
                 <div><p className="text-2xl font-bold">{scheduleData.length}</p><p className="text-[10px] font-bold text-gray-400">Total Classes</p></div>
-                <div className="text-right"><p className="text-2xl font-bold text-blue-600">{todaysEvents.length}</p><p className="text-[10px] font-bold text-gray-400">Today</p></div>
+                <div className="text-right"><p className="text-2xl font-bold text-blue-600">{todaysEvents.length}</p><p className="text-[10px] font-bold text-gray-400">Selected Day</p></div>
              </div>
           </div>
         </div>
@@ -194,12 +242,12 @@ const SchoolSchedule = () => {
             <div className="space-y-4">
               <div className="bg-gray-50 p-4 rounded-xl">
                 <p className="text-xs font-bold text-gray-400 uppercase mb-2">Detailed Info</p>
-                <p className="text-sm"><b>Teacher:</b> {formData.teacher}</p>
-                <p className="text-sm"><b>Room:</b> {formData.room}</p>
-                <p className="text-sm"><b>Time:</b> {formData.day} at {formData.time}</p>
+                <p className="text-sm mb-1"><b>Teacher:</b> {formData.teacher}</p>
+                <p className="text-sm mb-1"><b>Room:</b> {formData.room}</p>
+                <p className="text-sm mb-1"><b>Schedule:</b> {formData.originalSchedule || `${formData.day} at ${formData.time}`}</p>
               </div>
               <p className="text-[10px] text-gray-400 italic">💡 To change this schedule, please go to Groups & Levels Management.</p>
-              <button onClick={() => setIsModalOpen(false)} className="w-full bg-[#0A1128] text-white py-3 rounded-xl font-bold text-sm cursor-pointer">Close</button>
+              <button onClick={() => setIsModalOpen(false)} className="w-full bg-[#0A1128] hover:bg-gray-800 text-white py-3 rounded-xl font-bold text-sm transition-colors cursor-pointer">Close</button>
             </div>
           </div>
         </div>
@@ -210,7 +258,7 @@ const SchoolSchedule = () => {
           <div className="bg-white w-full max-w-4xl h-[80vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-fade-in-up">
             <div className="bg-[#0A1128] text-white p-6 flex justify-between items-center shrink-0">
                 <div><h3 className="font-bold text-2xl flex items-center"><span className="mr-3 text-3xl">📅</span> {focusDay.toUpperCase()} Schedule</h3></div>
-                <button onClick={() => setIsDailyViewOpen(false)} className="text-white/50 hover:text-white text-2xl font-bold cursor-pointer">✕</button>
+                <button onClick={() => setIsDailyViewOpen(false)} className="text-white/50 hover:text-white text-2xl font-bold cursor-pointer transition-colors">✕</button>
             </div>
             <div className="flex-1 bg-gray-50 p-8 overflow-y-auto custom-scrollbar">
                 <div className="max-w-3xl mx-auto space-y-6">

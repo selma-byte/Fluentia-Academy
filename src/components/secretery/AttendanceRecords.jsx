@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../supabaseClient';
 
 const Icons = {
@@ -19,10 +19,16 @@ const AttendanceRecords = () => {
   const [filterLevel, setFilterLevel] = useState('All');
   const [filterGroup, setFilterGroup] = useState('All');
   const [filterTime, setFilterTime] = useState('All'); 
-  const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().split('T')[0]);
+  
+  const getTodayString = () => {
+    const today = new Date();
+    return new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+  };
+  const [attendanceDate, setAttendanceDate] = useState(getTodayString());
 
   const [studentsData, setStudentsData] = useState([]);
   const [attendanceHistory, setAttendanceHistory] = useState([]);
+  const [classesData, setClassesData] = useState([]); // 💡 جبنا بيانات الأقسام
   const [attendanceState, setAttendanceState] = useState({});
 
   // ==========================================
@@ -31,11 +37,7 @@ const AttendanceRecords = () => {
   const fetchAttendanceData = async () => {
     try {
       // أ. جلب الطلبة النشطين
-      const { data: students } = await supabase
-        .from('students')
-        .select('*')
-        .eq('status', 'Active');
-        
+      const { data: students } = await supabase.from('students').select('*').eq('status', 'Active');
       if (students) {
         const formattedStudents = students.map(s => ({
           id: s.id,
@@ -49,35 +51,27 @@ const AttendanceRecords = () => {
         setStudentsData(formattedStudents);
       }
 
-      // ب. جلب سجلات الغياب مرتبة من القديم للجديد
-      const { data: attendanceLogs } = await supabase
-        .from('attendance')
-        .select('*')
-        .order('date', { ascending: true }); 
-
+      // ب. جلب سجلات الغياب
+      const { data: attendanceLogs } = await supabase.from('attendance').select('*').order('date', { ascending: true }); 
       if (attendanceLogs) {
         let groupSessionsCount = {};
-
         const formattedLogs = attendanceLogs.map(a => {
-          const cleanDate = a.date ? a.date.split('T')[0].split(' ')[0] : '';
+          const cleanDate = a.date ? new Date(a.date).toISOString().split('T')[0] : '';
           const cleanTimeSlot = a.time_slot ? a.time_slot.trim() : '';
           const cleanStatus = a.status ? a.status.charAt(0).toUpperCase() + a.status.slice(1).toLowerCase() : '';
           
-          // حساب رقم الحصة
           const groupKey = `${a.course}_${cleanDate}_${cleanTimeSlot}`;
           if (!groupSessionsCount[a.course]) groupSessionsCount[a.course] = [];
-          
           if (!groupSessionsCount[a.course].includes(groupKey)) {
              groupSessionsCount[a.course].push(groupKey);
           }
-          
           const sessionNum = groupSessionsCount[a.course].indexOf(groupKey) + 1;
 
           return {
             studentId: a.student_id, 
             studentName: a.student_name,
             language: a.course, 
-            date: cleanDate,
+            date: cleanDate, 
             timeSlot: cleanTimeSlot,
             status: cleanStatus,
             sessionNumber: `Session ${sessionNum.toString().padStart(2, '0')}` 
@@ -85,6 +79,11 @@ const AttendanceRecords = () => {
         });
         setAttendanceHistory(formattedLogs);
       }
+
+      // ج. جلب الأقسام لمعرفة الأوقات (Schedule) 💡
+      const { data: classes } = await supabase.from('classes').select('*');
+      if (classes) setClassesData(classes);
+
     } catch (error) {
       console.error("Error fetching attendance data:", error);
     }
@@ -97,10 +96,8 @@ const AttendanceRecords = () => {
   // تحديث الحضور عند تغيير الفلاتر
   useEffect(() => {
     const todayLogs = attendanceHistory.filter(log => {
-      const dbDate = log.date ? String(log.date).substring(0, 10) : '';
-      const uiDate = attendanceDate ? String(attendanceDate).substring(0, 10) : '';
-      const isDateMatch = dbDate === uiDate;
-      const isTimeMatch = filterTime === 'All' || (log.timeSlot && log.timeSlot.trim() === filterTime.trim());
+      const isDateMatch = log.date === attendanceDate;
+      const isTimeMatch = filterTime === 'All' || (log.timeSlot && log.timeSlot === filterTime);
       return isDateMatch && isTimeMatch;
     });
 
@@ -117,12 +114,58 @@ const AttendanceRecords = () => {
   };
 
   // ==========================================
-  // 💡 استخراج الخيارات الحقيقية من قاعدة البيانات
+  // 💡 استخراج الخيارات والديناميكية للأوقات (Dynamic Time Slots)
   // ==========================================
   const uniqueLanguages = [...new Set(studentsData.map(s => s.language).filter(Boolean))];
   const uniqueLevels = [...new Set(studentsData.map(s => s.level).filter(Boolean))];
   const uniqueGroups = [...new Set(studentsData.map(s => s.group).filter(Boolean))];
-  const uniqueTimeSlots = [...new Set(attendanceHistory.map(a => a.timeSlot).filter(Boolean))];
+
+  // حساب الأوقات المتاحة بناءً على الفوج المختار واليوم
+  const availableTimeSlots = useMemo(() => {
+    let slots = [];
+    
+    if (filterGroup !== 'All') {
+      const selectedDayIndex = new Date(attendanceDate).getDay();
+      const daysMap = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const dayName = daysMap[selectedDayIndex];
+
+      // 1. نحوسو في جدول الأقسام (Classes) اذا الفوج يقرى فهاد اليوم
+      const groupClass = classesData.find(c => c.name === filterGroup);
+      if (groupClass && groupClass.schedule && groupClass.schedule.includes(dayName)) {
+        // استخراج الوقت، مثال: "10:00 - 12:00"
+        const timeMatch = groupClass.schedule.match(/\d{2}:\d{2}\s*-\s*\d{2}:\d{2}/);
+        if (timeMatch) slots.push(timeMatch[0]);
+      }
+      
+      // 2. إذا ملقيناهاش في الجدول، نجيبو الأوقات اللي سجلوا فيهم من قبل من السجل (History)
+      if (slots.length === 0) {
+        const histTimes = attendanceHistory
+          .filter(l => l.language === filterGroup || l.group === filterGroup)
+          .map(l => l.timeSlot)
+          .filter(Boolean);
+        slots = [...new Set(histTimes)];
+      }
+    } else {
+      // 3. إذا مكانش فوج محدد، نجيبو كل الأوقات الموجودة
+      slots = [...new Set(attendanceHistory.map(a => a.timeSlot).filter(Boolean))];
+    }
+
+    // 4. أوقات احتياطية إذا مالقينا والو
+    if (slots.length === 0) {
+      slots = ['08:00 - 10:00', '10:00 - 12:00', '14:00 - 16:00', '16:00 - 18:00'];
+    }
+    
+    return slots;
+  }, [filterGroup, attendanceDate, classesData, attendanceHistory]);
+
+  // تحديد الوقت أوتوماتيكيا كي نبدلو الفوج أو اليوم 💡
+  useEffect(() => {
+    if (filterGroup !== 'All' && availableTimeSlots.length > 0) {
+      if (!availableTimeSlots.includes(filterTime)) {
+        setFilterTime(availableTimeSlots[0]); // يختار أول وقت مباشرة
+      }
+    }
+  }, [filterGroup, attendanceDate, availableTimeSlots]);
 
   // الفلترة
   const filteredStudents = studentsData.filter(s => 
@@ -134,15 +177,16 @@ const AttendanceRecords = () => {
   const filteredLogs = attendanceHistory.filter(log => 
     (filterLang === 'All' || log.language === filterLang) &&
     (filterLevel === 'All' || log.level === filterLevel) &&
-    (filterGroup === 'All' || log.language === filterGroup) && // Note: in history, language often holds group name
-    (filterTime === 'All' || log.timeSlot === filterTime)
+    (filterGroup === 'All' || log.language === filterGroup) && 
+    (filterTime === 'All' || log.timeSlot === filterTime) &&
+    (activeMode === 'daily' ? log.date === attendanceDate : true) 
   );
 
   // إحصائيات
   const totalStudents = filteredStudents.length;
-  const presentCount = filteredStudents.filter(s => attendanceState[s.id] === 'Present').length;
-  const absentCount = filteredStudents.filter(s => attendanceState[s.id] === 'Absent').length;
-  const lateCount = filteredStudents.filter(s => attendanceState[s.id] === 'Late').length;
+  const presentCount = filteredStudents.filter(s => attendanceState[`id_${s.id}`] === 'Present' || attendanceState[`name_${s.firstName.toLowerCase()} ${s.lastName.toLowerCase()}`] === 'Present').length;
+  const absentCount = filteredStudents.filter(s => attendanceState[`id_${s.id}`] === 'Absent' || attendanceState[`name_${s.firstName.toLowerCase()} ${s.lastName.toLowerCase()}`] === 'Absent').length;
+  const lateCount = filteredStudents.filter(s => attendanceState[`id_${s.id}`] === 'Late' || attendanceState[`name_${s.firstName.toLowerCase()} ${s.lastName.toLowerCase()}`] === 'Late').length;
   const attendancePercentage = totalStudents === 0 ? 0 : Math.round(((presentCount + lateCount) / totalStudents) * 100);
 
   const openStudentProfile = (student) => { setSelectedStudent(student); setCurrentView('profile'); };
@@ -172,11 +216,11 @@ const AttendanceRecords = () => {
       </div>
 
       <div className="bg-white border border-gray-100 rounded-3xl shadow-sm p-6">
-        <h3 className="font-bold text-lg text-[#0A1128] mb-6">Student Roster</h3>
+        <h3 className="font-bold text-lg text-[#0A1128] mb-6">Student Roster ({new Date(attendanceDate).toLocaleDateString()})</h3>
         
-        {filterTime === 'All' && (
+        {filterTime === 'All' && filterGroup !== 'All' && (
           <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-xl text-sm font-bold flex items-center">
-            <span className="mr-2">⚠️</span> Please select a 'Time Slot' from the top filters to view attendance.
+            <span className="mr-2">⚠️</span> Please confirm the 'Time Slot' from the top filters to view attendance.
           </div>
         )}
 
@@ -225,6 +269,9 @@ const AttendanceRecords = () => {
                   </tr>
                 );
               })}
+              {filteredStudents.length === 0 && (
+                 <tr><td colSpan="4" className="py-8 text-center text-gray-400 font-bold">No students found for this filter.</td></tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -261,7 +308,10 @@ const AttendanceRecords = () => {
                      <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-lg text-xs font-bold">{log.sessionNumber}</span>
                   </td>
                   <td className="py-4 px-6">
-                    <button onClick={() => openStudentProfile(studentsData.find(s => s.id === log.studentId))} className="font-bold text-[#0A1128] hover:text-blue-600">
+                    <button onClick={() => {
+                        const std = studentsData.find(s => s.id === log.studentId);
+                        if (std) openStudentProfile(std);
+                      }} className="font-bold text-[#0A1128] hover:text-blue-600">
                       {log.studentName}
                     </button>
                   </td>
@@ -412,14 +462,10 @@ const AttendanceRecords = () => {
             </div>
             <div>
                <label className="block text-[10px] font-bold text-blue-500 uppercase mb-2">Time Slot *</label>
+               {/* 💡 هادي ولات dynamic: كي تخيري جروب يجيبلك الأوقات تاعو برك */}
                <select value={filterTime} onChange={(e) => setFilterTime(e.target.value)} className="w-full bg-transparent border-b-2 border-blue-400 py-2 text-sm font-bold text-blue-700 outline-none cursor-pointer">
                  <option value="All">- Select Time -</option>
-                 {uniqueTimeSlots.map(time => <option key={time} value={time}>{time}</option>)}
-                 {/* كاحتياط نزيدو أوقات ثابتة باش لوكان ماكانش أوقات مسجلة يبقاو يبانو للسكريتيرة */}
-                 {!uniqueTimeSlots.includes('08:00 - 10:00') && <option value="08:00 - 10:00">08:00 - 10:00</option>}
-                 {!uniqueTimeSlots.includes('10:00 - 12:00') && <option value="10:00 - 12:00">10:00 - 12:00</option>}
-                 {!uniqueTimeSlots.includes('14:00 - 16:00') && <option value="14:00 - 16:00">14:00 - 16:00</option>}
-                 {!uniqueTimeSlots.includes('16:00 - 18:00') && <option value="16:00 - 18:00">16:00 - 18:00</option>}
+                 {availableTimeSlots.map(time => <option key={time} value={time}>{time}</option>)}
                </select>
             </div>
           </div>

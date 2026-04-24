@@ -14,19 +14,36 @@ const Exams = ({ examView, setExamView }) => {
   const [classesData, setClassesData] = useState([]);
   const [teachersData, setTeachersData] = useState([]);
 
-  // State لمعلومات الامتحان اللي رانا نكرييو فيه
+  const getTodayString = () => {
+    const today = new Date();
+    return new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+  };
+
+  // State لمعلومات الامتحان (تم إضافة التاريخ والوقت الحقيقيين)
   const [newExam, setNewExam] = useState({
     title: '',
     subject: 'English',
     class_name: '',
     teacher_id: '', 
     duration: 60,
+    date: getTodayString(),
+    time: '10:00',
     instructions: ''
   });
 
   const [resultsData, setResultsData] = useState([]);
   const [selectedResultExam, setSelectedResultExam] = useState('');
   const [resultStats, setResultStats] = useState({ total: 0, completed: 0, avg: 0, passRate: 0 });
+
+  // لضبط التقويم الخاص بالامتحانات على الأسبوع الحالي
+  const getStartOfWeek = (date) => {
+    const d = new Date(date);
+    const day = d.getDay() || 7; 
+    if (day !== 1) d.setHours(-24 * (day - 1));
+    d.setHours(0, 0, 0, 0);
+    return d;
+  };
+  const [currentWeekStart, setCurrentWeekStart] = useState(getStartOfWeek(new Date()));
 
   // =======================================
   // 1. جلب البيانات من قاعدة البيانات
@@ -61,7 +78,6 @@ const Exams = ({ examView, setExamView }) => {
   const fetchExamResults = async (examTitle) => {
     if (!examTitle) return;
     try {
-      // 💡 جلب النتائج بطريقة مباشرة تضمن عرض الأسماء حتى لو فشل الربط المعقد
       const { data, error } = await supabase
         .from('grades')
         .select('*')
@@ -128,13 +144,11 @@ const Exams = ({ examView, setExamView }) => {
     
     setLoading(true);
     try {
-      const todayDate = new Date().toISOString().split('T')[0];
-
       const { data: existingExams, error: checkError } = await supabase
         .from('exams')
         .select('*')
         .eq('class_name', newExam.class_name)
-        .eq('exam_date', todayDate);
+        .eq('exam_date', newExam.date);
 
       if (checkError) throw checkError;
 
@@ -144,21 +158,23 @@ const Exams = ({ examView, setExamView }) => {
         return;
       }
 
+      // إضافة start_time و exam_date
       const { error } = await supabase.from('exams').insert([{
         title: newExam.title,
         subject: newExam.subject,
         class_name: newExam.class_name,
         teacher_id: newExam.teacher_id,
         duration_minutes: parseInt(newExam.duration),
-        status: 'Active', 
-        exam_date: todayDate,
+        status: 'Scheduled', 
+        exam_date: newExam.date,
+        start_time: newExam.time,
         instructions: newExam.instructions
       }]);
 
       if (error) throw error;
       
       alert("✅ Exam Created Successfully!");
-      setNewExam({ title: '', subject: 'English', class_name: classesData[0]?.name || '', teacher_id: teachersData[0]?.id || '', duration: 60, instructions: '' });
+      setNewExam({ title: '', subject: 'English', class_name: classesData[0]?.name || '', teacher_id: teachersData[0]?.id || '', duration: 60, date: getTodayString(), time: '10:00', instructions: '' });
       setCreateStep(1);
       setExamView('manage'); 
       fetchExams(); 
@@ -203,6 +219,16 @@ const Exams = ({ examView, setExamView }) => {
     const matchesStatus = statusFilter === 'All Status' || (exam.status?.toLowerCase() || 'draft') === statusFilter.toLowerCase();
     return matchesSearch && matchesStatus;
   });
+
+  // تحديد ألوان بطاقات الامتحان بناءً على المادة
+  const getSubjectColor = (subject) => {
+    const s = subject?.toLowerCase() || '';
+    if (s.includes('german')) return { bg: 'bg-green-50', border: 'border-green-500', text: 'text-green-600' };
+    if (s.includes('english')) return { bg: 'bg-blue-50', border: 'border-blue-500', text: 'text-blue-600' };
+    if (s.includes('spanish')) return { bg: 'bg-orange-50', border: 'border-orange-500', text: 'text-orange-600' };
+    if (s.includes('french')) return { bg: 'bg-purple-50', border: 'border-purple-500', text: 'text-purple-600' };
+    return { bg: 'bg-gray-50', border: 'border-gray-500', text: 'text-gray-600' };
+  };
 
   // =======================================
   // 3. الصفحة الرئيسية (Dashboard)
@@ -389,7 +415,7 @@ const Exams = ({ examView, setExamView }) => {
                   </td>
                   <td className="py-4 px-4 text-gray-500 text-xs"><span className="mr-1.5 opacity-50">⏱</span> {row.duration_minutes}m</td>
                   <td className="py-4 px-4">
-                     <p className="text-xs text-gray-600 font-bold">{row.exam_date || 'TBD'}</p>
+                     <p className="text-xs text-gray-600 font-bold">{row.exam_date || 'TBD'} {row.start_time && `at ${row.start_time}`}</p>
                   </td>
                   <td className="py-4 px-4 text-gray-400 space-x-3 text-sm text-center">
                      {row.status?.toLowerCase() === 'active' && (
@@ -464,6 +490,17 @@ const Exams = ({ examView, setExamView }) => {
                   ))}
                 </select>
               </div>
+              
+              {/* 💡 هنا تمت إضافة حقول التاريخ والوقت الحقيقية */}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Exam Date <span className="text-red-500">*</span></label>
+                <input type="date" value={newExam.date} onChange={e=>setNewExam({...newExam, date: e.target.value})} className="w-full bg-gray-100 border border-gray-200 rounded-xl px-5 py-3 outline-none focus:border-blue-500 text-sm font-bold" required/>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Start Time <span className="text-red-500">*</span></label>
+                <input type="time" value={newExam.time} onChange={e=>setNewExam({...newExam, time: e.target.value})} className="w-full bg-gray-100 border border-gray-200 rounded-xl px-5 py-3 outline-none focus:border-blue-500 text-sm font-bold" required/>
+              </div>
+
               <div className="col-span-2">
                 <label className="block text-sm font-bold text-gray-700 mb-2">Duration (minutes)</label>
                 <input type="number" value={newExam.duration} onChange={e=>setNewExam({...newExam, duration: e.target.value})} placeholder="60" className="w-full bg-gray-100 border border-gray-200 rounded-xl px-5 py-3 outline-none focus:border-blue-500 text-sm font-bold" />
@@ -673,83 +710,98 @@ const Exams = ({ examView, setExamView }) => {
   };
 
   // =======================================
-  // 7. صفحة جدول الامتحانات (Schedule View)
+  // 7. صفحة جدول الامتحانات (Schedule View) الحقيقي
   // =======================================
-  const renderSchedule = () => (
-    <div className="animate-fade-in pb-10">
-      <div className="mb-8 border-b border-gray-200 pb-5">
-        <h2 className="text-3xl font-bold text-[#0A1128] mb-2">Exam Schedule</h2>
-      </div>
+  const renderSchedule = () => {
+    // بناء أيام الأسبوع الحالية للتقويم
+    const weekDays = Array.from({ length: 5 }).map((_, i) => {
+      const d = new Date(currentWeekStart);
+      d.setDate(d.getDate() + i);
+      return d;
+    });
 
-      <div className="bg-white border border-gray-200 rounded-2xl p-8 shadow-sm overflow-x-auto">
-        <div className="min-w-[900px]">
-          <div className="grid grid-cols-6 gap-4 mb-6 text-center border-b border-gray-100 pb-6">
-            <div className="text-gray-400 font-bold text-sm">🕒 Time</div>
-            <div><p className="text-blue-600 font-bold text-sm uppercase mb-1">Mon</p><p className="text-xl font-black text-[#0A1128]">Oct 23</p></div>
-            <div><p className="text-gray-500 font-bold text-sm uppercase mb-1">Tue</p><p className="text-xl font-black text-[#0A1128]">Oct 24</p></div>
-            <div><p className="text-gray-500 font-bold text-sm uppercase mb-1">Wed</p><p className="text-xl font-black text-[#0A1128]">Oct 25</p></div>
-            <div><p className="text-gray-500 font-bold text-sm uppercase mb-1">Thu</p><p className="text-xl font-black text-[#0A1128]">Oct 26</p></div>
-            <div><p className="text-gray-500 font-bold text-sm uppercase mb-1">Fri</p><p className="text-xl font-black text-[#0A1128]">Oct 27</p></div>
+    const START_HOUR = 8;
+    const HOUR_HEIGHT = 70; // ارتفاع السطر الواحد لتمثيل ساعة
+    
+    // تحويل الوقت من "HH:MM" الى رقم 
+    const timeToFloat = (timeString) => {
+      if (!timeString) return 10;
+      const [h, m] = timeString.split(':');
+      return parseInt(h) + (parseInt(m || 0) / 60);
+    };
+
+    return (
+      <div className="animate-fade-in pb-10">
+        <div className="mb-8 border-b border-gray-200 pb-5 flex justify-between items-center">
+          <h2 className="text-3xl font-bold text-[#0A1128] mb-2">Exam Schedule</h2>
+          <div className="flex space-x-2">
+            <button onClick={() => {const d = new Date(currentWeekStart); d.setDate(d.getDate() - 7); setCurrentWeekStart(getStartOfWeek(d))}} className="w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center hover:bg-gray-50 cursor-pointer">{"<"}</button>
+            <button onClick={() => setCurrentWeekStart(getStartOfWeek(new Date()))} className="px-4 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center font-bold text-sm hover:bg-gray-50 cursor-pointer">This Week</button>
+            <button onClick={() => {const d = new Date(currentWeekStart); d.setDate(d.getDate() + 7); setCurrentWeekStart(getStartOfWeek(d))}} className="w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center hover:bg-gray-50 cursor-pointer">{">"}</button>
           </div>
+        </div>
 
-          <div className="grid grid-cols-6 gap-4 text-base relative">
-            <div className="space-y-20 text-gray-400 font-bold text-sm text-center pt-6">
-              <div>10:00 AM</div>
-              <div>12:00 PM</div>
-              <div>02:00 PM</div>
-              <div>04:00 PM</div>
+        <div className="bg-white border border-gray-200 rounded-2xl p-8 shadow-sm overflow-x-auto">
+          <div className="min-w-[900px]">
+            <div className="grid grid-cols-6 gap-4 mb-6 text-center border-b border-gray-100 pb-6">
+              <div className="text-gray-400 font-bold text-sm flex items-end justify-center">🕒 Time</div>
+              {weekDays.map(date => {
+                const isToday = date.toDateString() === new Date().toDateString();
+                return (
+                  <div key={date.toISOString()}>
+                    <p className={`${isToday ? 'text-blue-600' : 'text-gray-500'} font-bold text-sm uppercase mb-1`}>{date.toLocaleDateString('en-US', { weekday: 'short' })}</p>
+                    <p className={`text-xl font-black ${isToday ? 'text-blue-600' : 'text-[#0A1128]'}`}>{date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+                  </div>
+                );
+              })}
             </div>
 
-            <div className="relative">
-              <div className="absolute top-4 w-full bg-green-50 border-l-4 border-green-500 p-4 rounded-r-xl shadow-sm">
-                <p className="text-xs font-bold text-green-600 mb-2 uppercase tracking-wide">Level A1</p>
-                <p className="font-bold text-[#0A1128] text-base mb-1">German Quiz</p>
-                <p className="text-xs text-gray-500">Room 4 • Dr. Sara</p>
+            <div className="grid grid-cols-6 gap-4 text-base relative">
+              {/* عمود الأوقات */}
+              <div className="relative text-gray-400 font-bold text-sm text-center pt-6 min-h-[600px] border-r border-dashed border-gray-100">
+                {[8, 10, 12, 14, 16].map(hour => (
+                   <div key={hour} style={{ position: 'absolute', top: `${(hour - START_HOUR) * HOUR_HEIGHT + 24}px`, width: '100%' }}>
+                     {hour > 12 ? hour - 12 : hour}:00 {hour >= 12 ? 'PM' : 'AM'}
+                   </div>
+                ))}
               </div>
-              <div className="absolute top-48 w-full bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-xl shadow-sm">
-                <p className="text-xs font-bold text-blue-600 mb-2 uppercase tracking-wide">Level B2</p>
-                <p className="font-bold text-[#0A1128] text-base mb-1">English Test</p>
-              </div>
-            </div>
 
-            <div className="relative">
-              <div className="absolute top-12 w-full bg-orange-50 border-l-4 border-orange-500 p-4 rounded-r-xl shadow-sm">
-                <p className="text-xs font-bold text-orange-600 mb-2 uppercase tracking-wide">Level C1</p>
-                <p className="font-bold text-[#0A1128] text-base mb-1">Spanish Oral</p>
-                <p className="text-xs text-gray-500">Room 2</p>
-              </div>
-            </div>
+              {/* أعمدة الأيام الديناميكية */}
+              {weekDays.map((date, index) => {
+                const dateStr = date.toISOString().split('T')[0];
+                // نجيبو الامتحانات لي طايحين فهاد النهار
+                const dayExams = examsData.filter(e => e.exam_date === dateStr && e.status?.toLowerCase() !== 'draft');
 
-            <div className="relative">
-              <div className="absolute top-4 w-full bg-green-50 border-l-4 border-green-500 p-4 rounded-r-xl shadow-sm">
-                <p className="text-xs font-bold text-green-600 mb-2 uppercase tracking-wide">Level A1</p>
-                <p className="font-bold text-[#0A1128] text-base mb-1">German Quiz</p>
-              </div>
-              <div className="absolute top-32 w-full bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-xl shadow-sm">
-                <p className="text-xs font-bold text-blue-600 mb-2 uppercase tracking-wide">Level B2</p>
-                <p className="font-bold text-[#0A1128] text-base mb-1">English Final</p>
-                <p className="text-xs text-gray-500">Hall B</p>
-              </div>
-            </div>
-
-            <div className="relative">
-              <div className="absolute top-10 w-full bg-purple-50 border-l-4 border-purple-500 p-4 rounded-r-xl shadow-sm">
-                <p className="text-xs font-bold text-purple-600 mb-2 uppercase tracking-wide">Level B1</p>
-                <p className="font-bold text-[#0A1128] text-base mb-1">French Written</p>
-                <p className="text-xs text-gray-500">Room 5</p>
-              </div>
-            </div>
-
-            <div className="relative border-l border-dashed border-gray-200 pl-4">
-               <div className="absolute top-32 w-full bg-gray-100 p-5 rounded-xl text-center border border-gray-200">
-                <p className="text-sm font-bold text-gray-400 mt-2 uppercase tracking-widest">No Exams</p>
-              </div>
+                return (
+                  <div key={dateStr} className={`relative min-h-[600px] border-dashed border-gray-200 ${index < 4 ? 'border-r' : ''}`}>
+                    {dayExams.map(exam => {
+                      const startFloat = timeToFloat(exam.start_time);
+                      const topPosition = (startFloat - START_HOUR) * HOUR_HEIGHT + 24; 
+                      const colorClass = getSubjectColor(exam.subject);
+                      
+                      return (
+                        <div key={exam.id} style={{ top: `${topPosition}px` }} className={`absolute w-[95%] left-[2.5%] ${colorClass.bg} border-l-4 ${colorClass.border} p-4 rounded-r-xl shadow-sm z-10 hover:shadow-md transition-shadow cursor-pointer`}>
+                          <p className={`text-[10px] font-bold ${colorClass.text} mb-1.5 uppercase tracking-wider`}>{exam.subject} • {exam.start_time || 'TBD'}</p>
+                          <p className="font-bold text-[#0A1128] text-sm mb-1 leading-tight">{exam.title}</p>
+                          <p className="text-xs text-gray-500 truncate">{exam.class_name}</p>
+                        </div>
+                      )
+                    })}
+                    
+                    {dayExams.length === 0 && (
+                      <div className="absolute top-48 w-[95%] left-[2.5%] bg-gray-50 p-5 rounded-xl text-center border border-gray-100">
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">No Exams</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="p-8 h-full overflow-y-auto bg-transparent custom-scrollbar">

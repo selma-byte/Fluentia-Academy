@@ -64,7 +64,14 @@ const RegistrationRequestsTab = () => {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [loading, setLoading] = useState(false); 
   
-  const [schedDay, setSchedDay] = useState('Mon');
+  // 💡 تحديد تاريخ اليوم حقيقي
+  const getTodayString = () => {
+    const today = new Date();
+    return new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+  };
+
+  // 💡 States جديدة خاصة بالوقت الحقيقي
+  const [schedDate, setSchedDate] = useState(getTodayString());
   const [schedTime, setSchedTime] = useState('10:00');
   const [schedRoom, setSchedRoom] = useState('');
 
@@ -76,16 +83,6 @@ const RegistrationRequestsTab = () => {
     if (activeFilter === 'All') return true;
     return req.type === activeFilter;
   });
-
-  const getDayNumber = (dayStr) => {
-      const days = { 'Mon': 1, 'Tue': 2, 'Wed': 3, 'Thu': 4, 'Fri': 5, 'Sat': 6, 'Sun': 0 };
-      return days[dayStr] || 1;
-  };
-  
-  const parseTimeToFloat = (timeStr) => {
-      const [hours, minutes] = timeStr.split(':');
-      return parseInt(hours) + parseInt(minutes)/60;
-  };
 
   const detectLevelFromScore = (scoreStr) => {
     if (!scoreStr) return 'A1';
@@ -124,17 +121,18 @@ const RegistrationRequestsTab = () => {
   const handleSaveSchedule = async () => {
     setLoading(true);
     try {
-      if (!schedRoom || !schedTeacher) {
-        alert("⚠️ من فضلك خيري الأستاذ والقاعة!");
+      if (!schedRoom || !schedTeacher || !schedDate || !schedTime) {
+        alert("⚠️ من فضلك خيري التاريخ، الوقت، الأستاذ والقاعة!");
         setLoading(false);
         return;
       }
 
+      // 💡 البحث عن تعارض في جدول الـ Appointments بناءً على التاريخ الحقيقي والوقت
       const { data: existingTests } = await supabase
         .from('appointments')
         .select('*')
-        .eq('appointment_day', getDayNumber(schedDay))
-        .eq('start_time_float', parseTimeToFloat(schedTime))
+        .eq('appointment_date', schedDate)
+        .eq('start_time', schedTime)
         .ilike('sub_title', '%Placement Test%');
 
       if (existingTests && existingTests.length > 0) {
@@ -144,11 +142,17 @@ const RegistrationRequestsTab = () => {
         }
       }
 
+      // 💡 استخراج اسم اليوم للتحقق من تعارض القاعات مع جدول الحصص (Classes)
+      const dateObj = new Date(schedDate);
+      const daysMap = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const dayName = daysMap[dateObj.getDay()];
+      const hourOnly = schedTime.substring(0, 2); // '10' from '10:30'
+
       const { data: conflicts } = await supabase
         .from('classes')
         .select('*')
-        .ilike('schedule', `%${schedDay}%`)
-        .ilike('schedule', `%${schedTime}%`)
+        .ilike('schedule', `%${dayName}%`)
+        .ilike('schedule', `%${hourOnly}%`)
         .ilike('schedule', `%${schedRoom}%`)
         .limit(1);
 
@@ -157,15 +161,16 @@ const RegistrationRequestsTab = () => {
         setLoading(false); return; 
       }
 
-      const fullAppointmentDate = `${schedDay}, ${schedTime}`;
+      const fullAppointmentDate = `${schedDate} at ${schedTime}`;
       
       await supabase.from('students').update({ status: 'Scheduled', appointment_date: fullAppointmentDate }).eq('id', selectedStudent.id);
 
+      // 💡 إرسال البيانات بشكل متوافق مع تعديلات الـ Appointments
       await supabase.from('appointments').insert([{
           title: selectedStudent.name,
           sub_title: `Placement Test: ${selectedStudent.language} (Prof: ${schedTeacher}, Room: ${schedRoom})`, 
-          appointment_day: getDayNumber(schedDay), 
-          start_time_float: parseTimeToFloat(schedTime),
+          appointment_date: schedDate, 
+          start_time: schedTime,
           status: 'Upcoming',
           phone: selectedStudent.phone
         }]);
@@ -412,24 +417,31 @@ const RegistrationRequestsTab = () => {
                 <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Level</label>
                 <input type="text" defaultValue={selectedStudent?.level} className="w-full bg-transparent border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold text-gray-700 outline-none" readOnly/>
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 col-span-2">
                 <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Applicant</label>
                 <input type="text" defaultValue={selectedStudent?.name} className="w-full bg-transparent border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold text-gray-700 outline-none" readOnly />
               </div>
+              
+              {/* 💡 Inputs الحقيقية للوقت والتاريخ */}
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Day</label>
-                <div className="relative">
-                  <select value={schedDay} onChange={(e) => setSchedDay(e.target.value)} className="w-full bg-transparent border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold text-gray-700 outline-none appearance-none cursor-pointer"><option value="Mon">Mon</option><option value="Tue">Tue</option><option value="Wed">Wed</option><option value="Thu">Thu</option></select>
-                  <span className="absolute right-4 top-3 text-gray-500 text-[10px]">▼</span>
-                </div>
+                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Date</label>
+                <input 
+                  type="date" 
+                  value={schedDate} 
+                  onChange={(e) => setSchedDate(e.target.value)} 
+                  className="w-full bg-transparent border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold text-gray-700 outline-none cursor-pointer"
+                />
               </div>
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Time Block</label>
-                <div className="relative">
-                  <select value={schedTime} onChange={(e) => setSchedTime(e.target.value)} className="w-full bg-transparent border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold text-gray-700 outline-none appearance-none cursor-pointer"><option value="10:00">10:00</option><option value="14:00">14:00</option></select>
-                  <span className="absolute right-4 top-3 text-gray-500 text-[10px]">▼</span>
-                </div>
+                <input 
+                  type="time" 
+                  value={schedTime} 
+                  onChange={(e) => setSchedTime(e.target.value)} 
+                  className="w-full bg-transparent border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold text-gray-700 outline-none cursor-pointer"
+                />
               </div>
+
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Teacher</label>
                 <div className="relative">
