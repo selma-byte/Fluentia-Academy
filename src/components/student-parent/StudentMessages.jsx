@@ -14,81 +14,95 @@ const Icons = {
 const StudentMessages = () => {
   const [activeChat, setActiveChat] = useState(1);
   const [messageText, setMessageText] = useState("");
+  const [showEmoji, setShowEmoji] = useState(false);
   const scrollRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  const initialContacts = [
+    { id: 1, name: "Academic Office", lastMsg: "Your registration is confirmed.", time: "10 Min", color: "bg-[#E3DAFF] text-[#4318FF]", initial: "AO", status: "online" },
+    { id: 2, name: "Mr. Adam Smith", lastMsg: "Please review the B2 syllabus.", time: "12:36 PM", color: "bg-[#E1F5FE] text-[#01B574]", initial: "AS", status: "offline" },
+    { id: 3, name: "Student Support", lastMsg: "The library is now open.", time: "Yesterday", color: "bg-[#FFF4E5] text-[#FFB547]", initial: "SS", status: "online" },
+    { id: 4, name: "Dr. Johnson", lastMsg: "Grade report is available.", time: "2 days ago", color: "bg-[#FFE5F1] text-[#E31A1A]", initial: "DJ", status: "offline" },
+  ];
+
+  const [messages, setMessages] = useState([
+    { id: 1, sender: "them", text: "Good morning. I have uploaded the feedback for your recent oral presentation.", time: "10:15 AM" },
+    { id: 2, sender: "them", text: "Please let me know if you have any questions regarding the score." },
+    { id: 3, sender: "me", text: "Thank you, Professor. I will review it immediately.", time: "10:20 AM" },
+  ]);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [activeChat]);
+  }, [messages]);
 
-  const contacts = [
-    { id: 1, name: "Academic Office", lastMsg: "Your registration is confirmed.", time: "10 Min", color: "bg-[#E3DAFF] text-[#4318FF]", initial: "AO", status: "online" },
-    { id: 2, name: "Mr. Adam Smith", lastMsg: "Please review the B2 syllabus.", time: "12:36 PM", color: "bg-[#E1F5FE] text-[#01B574]", initial: "AS", status: "offline" },
-    { id: 3, name: "Student Support", lastMsg: "The library is now open.", time: "Yesterday", color: "bg-[#FFF4E5] text-[#FFB547]", initial: "SS", status: "online" },
-    { id: 4, name: "Dr. Johnson", lastMsg: "Grade report is available.", time: "2 days ago", color: "bg-[#FFE5F1] text-[#E31A1A]", initial: "DJ", status: "offline" },
-    { id: 5, name: "Campus Registrar", lastMsg: "Payment verified.", time: "Monday", color: "bg-[#F4F7FE] text-[#1B254B]", initial: "CR", status: "online" },
-  ];
+  const handleSendMessage = (e) => {
+    e.preventDefault();
+    if (!messageText.trim()) return;
+    
+    const newMessage = {
+      id: Date.now(),
+      sender: "me",
+      text: messageText,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+    
+    setMessages([...messages, newMessage]);
+    setMessageText("");
+    setShowEmoji(false);
+  };
 
-  const currentMessages = [
-    { id: 1, sender: "them", text: "Good morning, Selma. I have uploaded the feedback for your recent oral presentation.", time: "Monday, April 14 • 10:15 AM" },
-    { id: 2, sender: "them", text: "Please let me know if you have any questions regarding the final score." },
-    { id: 3, sender: "me", text: "Thank you, Professor. I will review it immediately." },
-    { id: 4, sender: "me", text: "Is it possible to schedule a brief call to discuss Unit 4?" },
-  ];
+  const addEmoji = (emoji) => {
+    setMessageText(prev => prev + emoji);
+  };
 
-  const activeContact = contacts.find(c => c.id === activeChat);
+  const activeContact = initialContacts.find(c => c.id === activeChat);
 
   return (
-    <div className="flex-1 flex bg-white rounded-[45px] overflow-hidden shadow-sm border border-gray-50 animate-fadeIn h-[calc(100vh-180px)] mb-10">
+    <div className="flex-1 flex bg-white rounded-[35px] overflow-hidden shadow-sm border border-gray-100 animate-fadeIn h-[calc(100vh-160px)] mb-8">
       
-      {/* LEFT: SIDEBAR - CONTACT LIST */}
-      <div className="w-[350px] border-r border-gray-100 flex flex-col bg-white shrink-0">
+      {/* LEFT: CONTACT LIST */}
+      <div className="w-[320px] border-r border-gray-100 flex flex-col bg-white shrink-0">
         <div className="p-8 border-b border-gray-50">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-[20px] font-black text-[#1B254B] uppercase tracking-tighter">Messages</h2>
-            <div className="bg-[#4318FF] text-white text-[10px] font-black px-2 py-1 rounded-lg shadow-lg shadow-blue-500/20">NEW</div>
+          <div className="flex justify-between items-center mb-6 px-1">
+            <h2 className="text-xl font-black text-[#1B254B] italic">Messages</h2>
+            <div className="bg-[#4318FF] text-white text-[9px] font-black px-2 py-0.5 rounded-md shadow-lg shadow-blue-200">NEW</div>
           </div>
           <div className="relative group">
-            <span className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#4318FF] transition-colors"><Icons.Search /></span>
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"><Icons.Search /></span>
             <input 
               type="text" 
-              placeholder="Filter contacts..." 
-              className="w-full bg-[#F4F7FE] border-none rounded-2xl py-3.5 pl-14 pr-4 text-xs font-bold text-[#1B254B] outline-none focus:ring-2 focus:ring-[#4318FF]/10 transition-all"
+              placeholder="Search conversations..." 
+              className="w-full bg-[#F4F7FE] border-none rounded-2xl py-3 pl-11 pr-4 text-[13px] font-bold text-[#1B254B] outline-none focus:ring-1 focus:ring-[#4318FF]/20 transition-all"
             />
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar py-4">
-          {contacts.map((contact) => (
+        <div className="flex-1 overflow-y-auto custom-scrollbar">
+          {initialContacts.map((contact) => (
             <button
               key={contact.id}
               onClick={() => setActiveChat(contact.id)}
-              className={`w-full flex items-center px-8 py-5 transition-all relative ${
-                activeChat === contact.id ? 'bg-[#F4F7FE]/50' : 'hover:bg-gray-50'
+              className={`w-full flex items-center px-8 py-5 transition-all relative border-b border-gray-50/50 ${
+                activeChat === contact.id ? 'bg-[#F4F7FE]/60' : 'hover:bg-gray-50'
               }`}
             >
-              {activeChat === contact.id && (
-                <div className="absolute left-0 top-4 bottom-4 w-1.5 bg-[#4318FF] rounded-r-full shadow-[0_0_10px_rgba(67,24,255,0.4)]" />
-              )}
-              
               <div className="relative shrink-0">
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xs uppercase tracking-widest shadow-sm ${contact.color}`}>
+                <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-black text-[10px] uppercase tracking-widest shadow-inner ${contact.color}`}>
                   {contact.initial}
                 </div>
-                {contact.status === 'online' && (
-                  <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-[#01B574] border-4 border-white rounded-full"></div>
-                )}
+                <div className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 border-[3px] border-white rounded-full ${contact.status === 'online' ? 'bg-[#01B574]' : 'bg-gray-200'}`}></div>
               </div>
 
-              <div className="ml-5 text-left overflow-hidden flex-1">
-                <div className="flex justify-between items-center mb-1">
-                  <h4 className={`text-[13px] truncate uppercase ${activeChat === contact.id ? 'font-black text-[#1B254B]' : 'font-bold text-[#A3AED0]'}`}>
+              <div className="ml-4 text-left overflow-hidden flex-1">
+                <div className="flex justify-between items-center mb-0.5">
+                  <h4 className={`text-[13px] truncate ${activeChat === contact.id ? 'font-black text-[#1B254B]' : 'font-bold text-[#A3AED0]'}`}>
                     {contact.name}
                   </h4>
-                  <span className="text-[9px] text-[#A3AED0] font-black uppercase tracking-widest">{contact.time}</span>
+                  <span className="text-[9px] text-[#A3AED0] font-black uppercase">{contact.time}</span>
                 </div>
-                <p className="text-[11px] text-[#A3AED0] truncate font-bold uppercase tracking-tight opacity-70">
+                <p className="text-[11px] text-[#A3AED0] truncate font-medium opacity-70 italic">
                   {contact.lastMsg}
                 </p>
               </div>
@@ -97,20 +111,20 @@ const StudentMessages = () => {
         </div>
       </div>
 
-      {/* RIGHT: CHAT AREA */}
-      <div className="flex-1 flex flex-col bg-[#FAFCFF]">
+      {/* RIGHT: CHAT INTERFACE */}
+      <div className="flex-1 flex flex-col bg-[#FAFCFF] relative">
         
         {/* CHAT HEADER */}
-        <div className="h-[90px] bg-white border-b border-gray-100 flex items-center px-10 justify-between shrink-0">
+        <div className="h-[80px] bg-white border-b border-gray-100 flex items-center px-8 justify-between shrink-0 shadow-sm z-10">
           <div className="flex items-center">
-            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-black text-xs uppercase tracking-widest shadow-sm ${activeContact.color}`}>
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-[10px] uppercase shadow-md ${activeContact.color}`}>
               {activeContact.initial}
             </div>
-            <div className="ml-5">
-              <h3 className="font-black text-[#1B254B] text-[15px] uppercase tracking-tighter leading-none">{activeContact.name}</h3>
-              <div className="flex items-center gap-2 mt-1.5">
-                <div className={`w-2 h-2 rounded-full ${activeContact.status === 'online' ? 'bg-[#01B574]' : 'bg-gray-300'}`}></div>
-                <p className={`text-[9px] font-black uppercase tracking-[0.2em] ${activeContact.status === 'online' ? 'text-[#01B574]' : 'text-gray-400'}`}>
+            <div className="ml-4">
+              <h3 className="font-black text-[#1B254B] text-[14px] leading-none italic">{activeContact.name}</h3>
+              <div className="flex items-center gap-1.5 mt-1.5">
+                <div className={`w-2 h-2 rounded-full ${activeContact.status === 'online' ? 'bg-[#01B574] shadow-[0_0_5px_#01B574]' : 'bg-gray-300'}`}></div>
+                <p className={`text-[9px] font-black uppercase tracking-widest ${activeContact.status === 'online' ? 'text-[#01B574]' : 'text-gray-400'}`}>
                   {activeContact.status === 'online' ? 'Secure Link Active' : 'Offline'}
                 </p>
               </div>
@@ -119,70 +133,74 @@ const StudentMessages = () => {
           
           <div className="flex items-center space-x-3">
             {[Icons.Phone, Icons.Video, Icons.Info].map((Icon, i) => (
-              <button key={i} className="w-11 h-11 flex items-center justify-center rounded-2xl bg-white text-[#A3AED0] hover:bg-[#4318FF] hover:text-white transition-all shadow-sm border border-gray-100">
+              <button key={i} className="w-10 h-10 flex items-center justify-center rounded-xl bg-white text-[#A3AED0] hover:bg-[#4318FF] hover:text-white transition-all shadow-sm border border-gray-50 active:scale-95">
                 <Icon />
               </button>
             ))}
           </div>
         </div>
 
-        {/* MESSAGES AREA */}
+        {/* THREAD */}
         <div 
           ref={scrollRef}
-          className="flex-1 overflow-y-auto p-10 flex flex-col space-y-8 custom-scrollbar"
+          className="flex-1 overflow-y-auto p-8 flex flex-col space-y-6 custom-scrollbar"
         >
-          {currentMessages.map((msg, idx) => (
-            <div key={msg.id} className="flex flex-col">
-              {msg.time && (
-                <div className="flex items-center justify-center my-10">
-                  <div className="h-[1px] bg-gray-100 flex-1"></div>
-                  <span className="px-6 text-[10px] font-black text-[#A3AED0] uppercase tracking-[0.3em]">
-                    {msg.time}
-                  </span>
-                  <div className="h-[1px] bg-gray-100 flex-1"></div>
+          {messages.map((msg) => (
+            <div key={msg.id} className={`flex items-end ${msg.sender === 'me' ? 'justify-end' : 'justify-start'}`}>
+              {msg.sender === 'them' && (
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[9px] font-black mr-3 mb-1 shrink-0 ${activeContact.color} shadow-sm`}>
+                  {activeContact.initial}
                 </div>
               )}
-              
-              <div className={`flex items-end ${msg.sender === 'me' ? 'justify-end' : 'justify-start'}`}>
-                {msg.sender === 'them' && (
-                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-[10px] font-black mr-3 mb-1 shrink-0 ${activeContact.color} shadow-sm uppercase`}>
-                    {activeContact.initial}
-                  </div>
-                )}
-                
-                <div className={`max-w-[60%] px-6 py-4 text-[13px] font-bold leading-relaxed shadow-sm transition-all hover:shadow-md ${
+              <div className="flex flex-col max-w-[60%]">
+                <div className={`px-5 py-3.5 text-[13px] font-bold leading-relaxed shadow-sm hover:shadow-md transition-all ${
                   msg.sender === 'me' 
-                  ? 'bg-[#111C44] text-white rounded-[24px] rounded-br-none italic tracking-tight' 
-                  : 'bg-white text-[#1B254B] rounded-[24px] rounded-bl-none border border-gray-50 uppercase tracking-tight'
+                  ? 'bg-[#111C44] text-white rounded-[20px] rounded-br-none italic tracking-tight' 
+                  : 'bg-white text-[#1B254B] rounded-[20px] rounded-bl-none border border-gray-100 uppercase tracking-tight text-[12px]'
                 }`}>
                   {msg.text}
                 </div>
+                {msg.time && (
+                   <span className={`text-[8px] font-black text-[#A3AED0] mt-1 uppercase ${msg.sender === 'me' ? 'text-right' : 'text-left'}`}>
+                      {msg.time}
+                   </span>
+                )}
               </div>
             </div>
           ))}
         </div>
 
-        {/* INPUT AREA */}
-        <div className="p-8 bg-white border-t border-gray-100">
-          <div className="bg-[#F4F7FE] rounded-[28px] p-3 flex items-center gap-2 border-2 border-transparent focus-within:border-[#4318FF]/10 focus-within:bg-white transition-all shadow-sm">
-            <button className="p-3 hover:bg-[#F4F7FE] rounded-2xl transition-all text-[#A3AED0] hover:text-[#4318FF]"><Icons.Paperclip /></button>
+        {/* EMOJI PICKER TOOLTIP */}
+        {showEmoji && (
+          <div className="absolute bottom-[100px] right-10 bg-white shadow-2xl border border-gray-100 p-4 rounded-3xl flex gap-3 z-20 animate-fadeInUp">
+            {['😊', '📚', '✅', '📍', '📝', '👋'].map(e => (
+              <button key={e} onClick={() => addEmoji(e)} className="text-xl hover:scale-125 transition-transform">{e}</button>
+            ))}
+          </div>
+        )}
+
+        {/* INPUT */}
+        <div className="p-6 bg-white border-t border-gray-100">
+          <form onSubmit={handleSendMessage} className="bg-[#F4F7FE] rounded-[25px] p-2 flex items-center gap-1 border-2 border-transparent focus-within:border-[#4318FF]/10 focus-within:bg-white transition-all shadow-inner">
+            <input type="file" ref={fileInputRef} className="hidden" />
+            <button type="button" onClick={() => fileInputRef.current.click()} className="p-3 hover:bg-[#F4F7FE] rounded-xl transition-all text-[#A3AED0] hover:text-[#4318FF] active:scale-90"><Icons.Paperclip /></button>
             
             <input 
               value={messageText}
               onChange={(e) => setMessageText(e.target.value)}
               type="text" 
-              placeholder={`Write official message to ${activeContact.name.split(' ')[0]}...`} 
-              className="flex-1 bg-transparent border-none px-4 text-[14px] font-bold outline-none text-[#1B254B] placeholder:text-[#A3AED0] placeholder:uppercase placeholder:text-[10px] placeholder:tracking-widest"
+              placeholder={`Write a reply to ${activeContact.name.split(' ')[0]}...`} 
+              className="flex-1 bg-transparent border-none px-4 text-[14px] font-black outline-none text-[#1B254B] placeholder:text-[#A3AED0] placeholder:uppercase placeholder:text-[9px] placeholder:tracking-[0.1em] italic"
             />
             
-            <div className="flex items-center space-x-2 pr-2">
-                <button className="p-3 hover:bg-[#F4F7FE] rounded-2xl transition-all text-[#A3AED0] hover:text-[#4318FF]"><Icons.Smile /></button>
-                <button className="p-3 hover:bg-[#F4F7FE] rounded-2xl transition-all text-[#A3AED0] hover:text-[#4318FF]"><Icons.Image /></button>
-                <button className="bg-[#4318FF] text-white w-12 h-12 rounded-2xl hover:bg-[#3311CC] hover:scale-105 active:scale-95 transition-all shadow-xl shadow-blue-500/40 flex items-center justify-center">
+            <div className="flex items-center space-x-1.5 pr-1">
+                <button type="button" onClick={() => setShowEmoji(!showEmoji)} className="p-3 hover:bg-[#F4F7FE] rounded-xl transition-all text-[#A3AED0] hover:text-[#4318FF] active:scale-90"><Icons.Smile /></button>
+                <button type="button" onClick={() => fileInputRef.current.click()} className="p-3 hover:bg-[#F4F7FE] rounded-xl transition-all text-[#A3AED0] hover:text-[#4318FF] active:scale-90"><Icons.Image /></button>
+                <button type="submit" className="bg-[#4318FF] text-white w-11 h-11 rounded-2xl hover:bg-black hover:scale-105 active:scale-95 transition-all shadow-xl shadow-blue-500/30 flex items-center justify-center">
                     <Icons.Send />
                 </button>
             </div>
-          </div>
+          </form>
         </div>
 
       </div>
