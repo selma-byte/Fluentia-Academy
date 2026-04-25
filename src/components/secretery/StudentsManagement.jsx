@@ -64,13 +64,11 @@ const RegistrationRequestsTab = () => {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [loading, setLoading] = useState(false); 
   
-  // 💡 تحديد تاريخ اليوم حقيقي
   const getTodayString = () => {
     const today = new Date();
     return new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
   };
 
-  // 💡 States جديدة خاصة بالوقت الحقيقي
   const [schedDate, setSchedDate] = useState(getTodayString());
   const [schedTime, setSchedTime] = useState('10:00');
   const [schedRoom, setSchedRoom] = useState('');
@@ -127,7 +125,6 @@ const RegistrationRequestsTab = () => {
         return;
       }
 
-      // 💡 البحث عن تعارض في جدول الـ Appointments بناءً على التاريخ الحقيقي والوقت
       const { data: existingTests } = await supabase
         .from('appointments')
         .select('*')
@@ -142,11 +139,10 @@ const RegistrationRequestsTab = () => {
         }
       }
 
-      // 💡 استخراج اسم اليوم للتحقق من تعارض القاعات مع جدول الحصص (Classes)
       const dateObj = new Date(schedDate);
       const daysMap = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       const dayName = daysMap[dateObj.getDay()];
-      const hourOnly = schedTime.substring(0, 2); // '10' from '10:30'
+      const hourOnly = schedTime.substring(0, 2);
 
       const { data: conflicts } = await supabase
         .from('classes')
@@ -165,7 +161,6 @@ const RegistrationRequestsTab = () => {
       
       await supabase.from('students').update({ status: 'Scheduled', appointment_date: fullAppointmentDate }).eq('id', selectedStudent.id);
 
-      // 💡 إرسال البيانات بشكل متوافق مع تعديلات الـ Appointments
       await supabase.from('appointments').insert([{
           title: selectedStudent.name,
           sub_title: `Placement Test: ${selectedStudent.language} (Prof: ${schedTeacher}, Room: ${schedRoom})`, 
@@ -422,7 +417,6 @@ const RegistrationRequestsTab = () => {
                 <input type="text" defaultValue={selectedStudent?.name} className="w-full bg-transparent border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold text-gray-700 outline-none" readOnly />
               </div>
               
-              {/* 💡 Inputs الحقيقية للوقت والتاريخ */}
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Date</label>
                 <input 
@@ -486,18 +480,38 @@ const StudentRecordsTab = () => {
   const [filterGroup, setFilterGroup] = useState('All');
 
   const [studentsData, setStudentsData] = useState([]);
+  const [classesData, setClassesData] = useState([]); 
+  const [loading, setLoading] = useState(false);
   
+  const [isProcessModalOpen, setIsProcessModalOpen] = useState(false);
+  const [processData, setProcessData] = useState({ newLevel: 'A1' }); 
+
+  const [isAssignGroupModalOpen, setIsAssignGroupModalOpen] = useState(false);
+  const [assignGroupData, setAssignGroupData] = useState({ classId: '' });
+
   const fetchActiveStudents = async () => {
-    const { data } = await supabase.from('students').select('*').eq('status', 'Active');
+    const { data } = await supabase.from('students')
+      .select('*')
+      .or('status.eq.Active,status.eq.Pending Group'); 
+      
     if (data) {
       const formatted = data.map(s => ({
-        ...s, id: s.id, firstName: s.first_name || '', lastName: s.last_name || '', language: s.language || '', level: s.level || '', group: s.group_name || '', status: s.status || '', phone: s.phone || '', email: s.email || '', address: s.address || '', parentName: s.parent_name || '', parentContact: s.parent_contact || '', enrollmentDate: s.enrollment_date || ''
+        ...s, id: s.id, firstName: s.first_name || '', lastName: s.last_name || '', language: s.language || '', level: s.level || '', group: s.group_name || '', status: s.status || '', phone: s.phone || '', email: s.email || '', address: s.address || '', parentName: s.parent_name || '', parentContact: s.parent_contact || '', enrollmentDate: s.enrollment_date || '',
+        test_score: s.test_score || '' 
       }));
       setStudentsData(formatted);
     }
   };
 
-  useEffect(() => { fetchActiveStudents(); }, []);
+  const fetchClasses = async () => {
+    const { data } = await supabase.from('classes').select('*');
+    if (data) setClassesData(data);
+  };
+
+  useEffect(() => { 
+    fetchActiveStudents(); 
+    fetchClasses();
+  }, []);
 
   const [academicEntry, setAcademicEntry] = useState({ subject: '', grade: '', attendance: '', remarks: '' });
   const [contactEntry, setContactEntry] = useState({ phone: '', email: '', address: '', parentName: '', parentContact: '' });
@@ -524,6 +538,73 @@ const StudentRecordsTab = () => {
 
   const handleUpdateContact = (e) => { e.preventDefault(); alert(`✅ Contact Info Updated Successfully for ${selectedStudent.firstName}!`); };
   const handlePrint = () => { window.print(); };
+
+  const handleProcessResult = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const score = parseFloat(selectedStudent.test_score);
+      const { error: historyError } = await supabase.from('enrollment_history').insert([{
+        student_id: selectedStudent.id,
+        student_name: `${selectedStudent.firstName} ${selectedStudent.lastName}`,
+        level_completed: selectedStudent.level,
+        group_name: selectedStudent.group,
+        grade: isNaN(score) ? null : score
+      }]);
+      if (historyError) console.warn("ملاحظة: طابلو الأرشيف بالاك مازال ما تخدمش.", historyError);
+
+      const isArchiving = processData.newLevel === 'Archived';
+
+      const { error: updateError } = await supabase.from('students').update({
+        level: isArchiving ? selectedStudent.level : processData.newLevel, 
+        group_name: null, 
+        status: isArchiving ? 'Archived' : 'Pending Group',  
+        test_score: selectedStudent.test_score
+      }).eq('id', selectedStudent.id);
+
+      if (updateError) throw updateError;
+
+      if (isArchiving) {
+        alert(`✅ تم أرشفة ${selectedStudent.firstName} بنجاح. ما بقاش يقرا معانا.`);
+      } else {
+        alert(`✅ تم معالجة نتيجة ${selectedStudent.firstName} بنجاح! راهو دركا "يستنى فوج" في المستوى ${processData.newLevel}.`);
+      }
+      
+      setIsProcessModalOpen(false);
+      fetchActiveStudents();
+    } catch (err) {
+      alert("إيرور: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAssignGroup = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      if (!assignGroupData.classId) throw new Error("⚠️ من فضلك خيري فوج باش تحطيه فيه!");
+      
+      const selectedClass = classesData.find(c => c.id === assignGroupData.classId);
+      const currentCount = selectedClass.enrolled_count || 0;
+      if (currentCount >= selectedClass.capacity) throw new Error("❌ هاد الفوج معمر، شوفي فوج واحد أخر!");
+
+      await supabase.from('classes').update({ enrolled_count: currentCount + 1 }).eq('id', assignGroupData.classId);
+      
+      await supabase.from('students').update({
+        group_name: selectedClass.name,
+        status: 'Active'
+      }).eq('id', selectedStudent.id);
+
+      alert(`✅ تم إدخال ${selectedStudent.firstName} بنجاح في فوج ${selectedClass.name}!`);
+      setIsAssignGroupModalOpen(false);
+      fetchActiveStudents();
+    } catch(err) {
+      alert(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const renderList = () => (
     <div className="w-full flex flex-col min-h-full animate-fade-in p-8">
@@ -563,11 +644,20 @@ const StudentRecordsTab = () => {
             {filteredStudents.length > 0 ? filteredStudents.map((student) => (
               <tr key={student.id} className="hover:bg-blue-50/50 transition-colors group">
                 <td className="py-4 px-6 font-bold text-gray-500">{student.id}</td>
-                <td className="py-4 px-6"><p className="font-bold text-[#0A1128]">{student.firstName} {student.lastName}</p></td>
+                <td className="py-4 px-6">
+                  <p className="font-bold text-[#0A1128]">{student.firstName} {student.lastName}</p>
+                  {student.status === 'Pending Group' && <span className="text-[10px] text-orange-500 font-bold">Needs Group</span>}
+                </td>
                 <td className="py-4 px-6 font-medium text-gray-700">{student.language}</td>
-                <td className="py-4 px-6 font-medium text-gray-700">{student.level} • {student.group}</td>
-                <td className="py-4 px-6 flex justify-center">
+                <td className="py-4 px-6 font-medium text-gray-700">{student.level} • {student.group || '---'}</td>
+                <td className="py-4 px-6 flex justify-center gap-2">
                   <button onClick={() => handleViewProfile(student)} className="bg-white border border-gray-200 hover:bg-[#2563eb] hover:text-white hover:border-[#2563eb] text-gray-700 font-bold py-1.5 px-4 rounded-lg transition-all cursor-pointer text-xs shadow-sm">Open Record</button>
+                  
+                  {student.status === 'Pending Group' ? (
+                     <button onClick={() => { setSelectedStudent(student); setAssignGroupData({classId: ''}); setIsAssignGroupModalOpen(true); }} className="bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-600 hover:text-white font-bold py-1.5 px-3 rounded-lg transition-all cursor-pointer text-xs shadow-sm">🏫 Assign Group</button>
+                  ) : (
+                     <button onClick={() => { setSelectedStudent(student); setProcessData({ newLevel: student.level }); setIsProcessModalOpen(true); }} className="bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-600 hover:text-white font-bold py-1.5 px-3 rounded-lg transition-all cursor-pointer text-xs shadow-sm">📝 Process Result</button>
+                  )}
                 </td>
               </tr>
             )) : (
@@ -576,6 +666,69 @@ const StudentRecordsTab = () => {
           </tbody>
         </table>
       </div>
+
+      {isProcessModalOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl p-8 font-sans border border-gray-100">
+            <div className="flex justify-between items-center mb-6">
+               <h2 className="text-xl font-bold text-[#0A1128]">Process Result</h2>
+               <button onClick={() => setIsProcessModalOpen(false)} className="text-gray-400 hover:text-red-500 font-bold text-xl">×</button>
+            </div>
+            
+            <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-6 text-center">
+               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Teacher's Final Grade</p>
+               <p className={`text-2xl font-black ${parseFloat(selectedStudent?.test_score) >= 10 ? 'text-green-600' : selectedStudent?.test_score ? 'text-red-600' : 'text-orange-500'}`}>
+                 {selectedStudent?.test_score ? `${selectedStudent?.test_score} / 20` : '⏳ Waiting for Teacher...'}
+               </p>
+            </div>
+
+            <form onSubmit={handleProcessResult} className="space-y-4">
+               <div>
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Decision / Set Next Level</label>
+                  <select value={processData.newLevel} onChange={(e) => setProcessData({...processData, newLevel: e.target.value})} className="w-full bg-blue-50 border border-blue-200 text-blue-700 rounded-xl p-3 text-sm font-bold outline-none focus:border-[#2563eb] cursor-pointer">
+                     <option value="A1">Keep in A1 (Retake)</option>
+                     <option value="A2">Promote to A2</option>
+                     <option value="B1">Promote to B1</option>
+                     <option value="B2">Promote to B2</option>
+                     <option value="C1">Promote to C1</option>
+                     <option value="C2">Promote to C2</option>
+                     <option value="Archived" className="text-red-600 font-bold">🛑 Leave School (Archive)</option>
+                  </select>
+               </div>
+               <button type="submit" disabled={loading} className="w-full mt-4 bg-[#10b981] hover:bg-green-700 text-white font-bold py-3 rounded-xl shadow-md transition-colors text-sm">
+                 {loading ? 'Processing...' : 'Confirm Decision'}
+               </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {isAssignGroupModalOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl p-8 font-sans border border-gray-100">
+            <div className="flex justify-between items-center mb-6">
+               <h2 className="text-xl font-bold text-[#0A1128]">Assign to Class</h2>
+               <button onClick={() => setIsAssignGroupModalOpen(false)} className="text-gray-400 hover:text-red-500 font-bold text-xl">×</button>
+            </div>
+            <p className="text-sm text-gray-600 mb-6">Select a new <b>{selectedStudent?.level}</b> group for <b>{selectedStudent?.firstName}</b>.</p>
+            <form onSubmit={handleAssignGroup} className="space-y-4">
+               <div>
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Available Groups ({selectedStudent?.level})</label>
+                  <select value={assignGroupData.classId} onChange={(e) => setAssignGroupData({classId: e.target.value})} className="w-full bg-blue-50 border border-blue-200 text-blue-700 rounded-xl p-3 text-sm font-bold outline-none focus:border-[#2563eb] cursor-pointer">
+                     <option value="">-- Choose Group --</option>
+                     {classesData.filter(c => c.language === selectedStudent?.language && c.level === selectedStudent?.level).map(c => {
+                       const isFull = (c.enrolled_count || 0) >= (c.capacity || 20);
+                       return <option key={c.id} value={c.id} disabled={isFull}>{c.name} {isFull ? '(FULL)' : ''}</option>
+                     })}
+                  </select>
+               </div>
+               <button type="submit" disabled={loading} className="w-full mt-4 bg-[#2563eb] hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-md transition-colors text-sm">
+                 {loading ? 'Saving...' : 'Assign Group'}
+               </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -676,6 +829,183 @@ const StudentRecordsTab = () => {
 
   return <div className="h-full w-full">{currentView === 'list' ? renderList() : renderProfile()}</div>;
 };
+
+// ==========================================
+// 🌟 الرواق الجديد 🗄️: أرشيف الطلاب (Archived Students) 🌟
+// ==========================================
+const StudentArchiveTab = () => {
+  const [archivedStudents, setArchivedStudents] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [studentHistory, setStudentHistory] = useState([]);
+  const [currentView, setCurrentView] = useState('list');
+  const [loading, setLoading] = useState(false);
+
+  const fetchArchived = async () => {
+    const { data } = await supabase.from('students').select('*').eq('status', 'Archived');
+    if (data) {
+      setArchivedStudents(data.map(s => ({
+        ...s, 
+        name: `${s.first_name || ''} ${s.last_name || ''}`.trim()
+      })));
+    }
+  };
+
+  useEffect(() => { fetchArchived(); }, []);
+
+  const handleViewProfile = async (student) => {
+    setSelectedStudent(student);
+    const { data } = await supabase
+      .from('enrollment_history')
+      .select('*')
+      .eq('student_id', student.id)
+      .order('completion_date', { ascending: false });
+    
+    if (data) setStudentHistory(data);
+    setCurrentView('profile');
+  };
+
+  const handleRestore = async (student) => {
+    if(window.confirm(`Are you sure you want to restore ${student.name} to Active learning?`)) {
+       setLoading(true);
+       try {
+         await supabase.from('students').update({ status: 'Pending Group' }).eq('id', student.id);
+         alert(`✅ ${student.name} has been restored! They are now in "Active Records" waiting for a group.`);
+         setCurrentView('list');
+         fetchArchived();
+       } catch (err) {
+         alert(err.message);
+       } finally {
+         setLoading(false);
+       }
+    }
+  };
+
+  const filteredArchived = archivedStudents.filter(s => 
+    s.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    String(s.id).includes(searchQuery)
+  );
+
+  const renderList = () => (
+    <div className="w-full flex flex-col min-h-full animate-fade-in p-8">
+      <div className="flex justify-between items-center mb-8 shrink-0">
+        <div>
+          <h2 className="text-3xl font-bold text-[#0A1128] mb-1">Archived Students</h2>
+          <p className="text-sm font-bold text-gray-500">View past students and their academic history</p>
+        </div>
+      </div>
+      
+      <div className="flex items-center gap-4 mb-6 shrink-0 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+        <div className="relative flex-1 max-w-md">
+          <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">🔍</span>
+          <input type="text" placeholder="Search archive by name or ID..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-lg py-2.5 pl-10 pr-4 text-sm outline-none focus:border-blue-500 transition-all" />
+        </div>
+      </div>
+
+      <div className="overflow-x-auto bg-white border border-gray-200 rounded-xl shadow-sm">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-gray-50 border-b border-gray-200">
+            <tr>
+              <th className="py-4 px-6 font-bold text-gray-600 uppercase text-xs">Student ID</th>
+              <th className="py-4 px-6 font-bold text-gray-600 uppercase text-xs">Name</th>
+              <th className="py-4 px-6 font-bold text-gray-600 uppercase text-xs">Language</th>
+              <th className="py-4 px-6 font-bold text-gray-600 uppercase text-xs">Last Level</th>
+              <th className="py-4 px-6 font-bold text-gray-600 uppercase text-xs text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {filteredArchived.length > 0 ? filteredArchived.map((student) => (
+              <tr key={student.id} className="hover:bg-gray-50/80 transition-colors">
+                <td className="py-4 px-6 font-bold text-gray-500">{student.id}</td>
+                <td className="py-4 px-6 font-bold text-[#0A1128]">{student.name}</td>
+                <td className="py-4 px-6 font-medium text-gray-700">{student.language || 'N/A'}</td>
+                <td className="py-4 px-6 font-medium text-gray-700">{student.level || 'N/A'}</td>
+                <td className="py-4 px-6 flex justify-center gap-2">
+                  <button onClick={() => handleViewProfile(student)} className="bg-white border border-gray-200 hover:bg-[#0A1128] hover:text-white text-gray-700 font-bold py-1.5 px-4 rounded-lg transition-all cursor-pointer text-xs shadow-sm">View History</button>
+                  <button onClick={() => handleRestore(student)} disabled={loading} className="bg-blue-50 border border-blue-200 hover:bg-blue-600 hover:text-white text-blue-700 font-bold py-1.5 px-4 rounded-lg transition-all cursor-pointer text-xs shadow-sm">♻️ Restore</button>
+                </td>
+              </tr>
+            )) : (
+              <tr><td colSpan="5" className="py-12 text-center text-gray-400"><p className="text-4xl mb-2">🗄️</p><p className="font-bold">Archive is empty.</p></td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
+  const renderProfile = () => {
+    if (!selectedStudent) return null;
+    return (
+      <div className="w-full flex flex-col min-h-full animate-fade-in pb-12 p-8">
+        <div className="flex justify-between items-center mb-6 max-w-5xl mx-auto w-full">
+          <div className="flex items-center">
+            <button onClick={() => setCurrentView('list')} className="mr-4 w-10 h-10 bg-white border border-gray-200 rounded-full font-bold flex items-center justify-center hover:bg-gray-100 transition-colors cursor-pointer shadow-sm text-gray-600">←</button>
+            <h2 className="text-2xl font-bold text-[#0A1128]">Archived Record</h2>
+          </div>
+          <button onClick={() => handleRestore(selectedStudent)} disabled={loading} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl text-sm font-bold shadow-md transition-colors cursor-pointer">
+            ♻️ Restore Student
+          </button>
+        </div>
+
+        <div className="max-w-5xl mx-auto w-full space-y-6">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 flex items-center space-x-6">
+               <div className="w-16 h-16 bg-gray-100 text-gray-500 rounded-full flex items-center justify-center text-2xl font-black border-2 border-gray-200">
+                  {selectedStudent.first_name?.[0]}{selectedStudent.last_name?.[0]}
+               </div>
+               <div>
+                  <h3 className="text-2xl font-bold text-[#0A1128]">{selectedStudent.name}</h3>
+                  <p className="text-sm text-gray-500 font-medium mt-1">ID: {selectedStudent.id} • Language: {selectedStudent.language} • Enrolled: {selectedStudent.enrollment_date}</p>
+               </div>
+               <div className="ml-auto bg-gray-100 text-gray-600 font-bold px-4 py-2 rounded-xl text-xs uppercase tracking-widest border border-gray-200">
+                 Status: Archived
+               </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
+               <h4 className="font-bold text-lg text-[#0A1128] mb-6 flex items-center"><span className="mr-2">📚</span> Academic History (Past Levels)</h4>
+               
+               {studentHistory.length > 0 ? (
+                 <div className="overflow-hidden border border-gray-100 rounded-xl">
+                   <table className="w-full text-left text-sm">
+                     <thead className="bg-gray-50 border-b border-gray-100">
+                       <tr>
+                         <th className="py-3 px-4 font-bold text-gray-600 uppercase text-[10px] tracking-widest">Date Completed</th>
+                         <th className="py-3 px-4 font-bold text-gray-600 uppercase text-[10px] tracking-widest">Level</th>
+                         <th className="py-3 px-4 font-bold text-gray-600 uppercase text-[10px] tracking-widest">Group Name</th>
+                         <th className="py-3 px-4 font-bold text-gray-600 uppercase text-[10px] tracking-widest">Final Grade</th>
+                       </tr>
+                     </thead>
+                     <tbody className="divide-y divide-gray-50">
+                       {studentHistory.map((hist) => (
+                         <tr key={hist.id} className="hover:bg-gray-50/50">
+                           <td className="py-3 px-4 text-gray-500 font-medium">{new Date(hist.completion_date).toLocaleDateString()}</td>
+                           <td className="py-3 px-4 font-bold text-[#0A1128]">{hist.level_completed}</td>
+                           <td className="py-3 px-4 text-gray-600">{hist.group_name || 'N/A'}</td>
+                           <td className="py-3 px-4">
+                             <span className={`font-black ${hist.grade >= 10 ? 'text-green-600' : 'text-red-500'}`}>
+                               {hist.grade ? `${hist.grade} / 20` : 'No Grade'}
+                             </span>
+                           </td>
+                         </tr>
+                       ))}
+                     </tbody>
+                   </table>
+                 </div>
+               ) : (
+                 <div className="text-center py-10 bg-gray-50 rounded-xl border border-gray-100 border-dashed">
+                   <p className="text-gray-400 font-bold text-sm">No historical records found for this student.</p>
+                 </div>
+               )}
+            </div>
+        </div>
+      </div>
+    );
+  };
+
+  return <div className="h-full w-full">{currentView === 'list' ? renderList() : renderProfile()}</div>;
+};
+
 
 // ==========================================
 // 3. الرواق الثالث: تسجيل جديد مباشر (Add Student & Family)
@@ -1048,6 +1378,7 @@ const StudentsManagement = () => {
         <div className="flex space-x-2 bg-white p-2 rounded-2xl shadow-sm border border-gray-200 w-max">
           <button onClick={() => setActiveTab('requests')} className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'requests' ? 'bg-[#0A1128] text-white shadow-md' : 'text-gray-500 hover:bg-gray-50 cursor-pointer'}`}>📥 Requests Pipeline</button>
           <button onClick={() => setActiveTab('records')} className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'records' ? 'bg-[#0A1128] text-white shadow-md' : 'text-gray-500 hover:bg-gray-50 cursor-pointer'}`}>🎓 Active Records</button>
+          <button onClick={() => setActiveTab('archive')} className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'archive' ? 'bg-[#0A1128] text-white shadow-md' : 'text-gray-500 hover:bg-gray-50 cursor-pointer'}`}>🗄️ Archive</button>
           <button onClick={() => setActiveTab('add')} className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'add' ? 'bg-[#0A1128] text-white shadow-md' : 'text-gray-500 hover:bg-gray-50 cursor-pointer'}`}>➕ Manual Registration</button>
           <button onClick={() => setActiveTab('addStaff')} className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ml-4 ${activeTab === 'addStaff' ? 'bg-[#2563eb] text-white shadow-md' : 'text-gray-500 hover:bg-gray-50 cursor-pointer border border-gray-100'}`}>👥 Add Staff</button>
         </div>
@@ -1056,6 +1387,7 @@ const StudentsManagement = () => {
       <div className="flex-1 overflow-hidden">
         {activeTab === 'requests' && <RegistrationRequestsTab />}
         {activeTab === 'records' && <StudentRecordsTab />}
+        {activeTab === 'archive' && <StudentArchiveTab />}
         {activeTab === 'add' && <StudentRegistrationTab />}
         {activeTab === 'addStaff' && <StaffRegistrationTab />}
       </div>

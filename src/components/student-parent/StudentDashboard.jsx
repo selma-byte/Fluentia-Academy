@@ -403,9 +403,28 @@ const StudentDashboard = () => {
     if (activeTab === 'Payment')  return <StudentPayment />;
     if (activeTab === 'Settings') return <AccountSettings />;
 
+    // 💡 التحقق من الترقية باش نبينولو التهنئة
+    const needsGroup = currentUser && (!currentUser.group_name || currentUser.status === 'Pending Group');
+
     // ── Dashboard View ──────────────────────────────────────────────────────
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 28 }}>
+
+        {/* 💡 نافذة التهنئة بالترقية */}
+        {needsGroup && (
+          <div style={{
+             background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+             borderRadius: 16, padding: '24px 32px', color: '#fff',
+             boxShadow: '0 10px 25px rgba(16,185,129,0.3)', position: 'relative', overflow: 'hidden'
+          }}>
+             <span style={{ position: 'absolute', top: -20, right: -10, fontSize: 100, opacity: 0.2 }}>🏆</span>
+             <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>🎉 Congratulations, {studentInfo.full_name}!</h2>
+             <p style={{ margin: '8px 0 0', fontSize: 14, opacity: 0.9, maxWidth: '80%', lineHeight: 1.5 }}>
+                You have successfully passed your previous level! You are now officially promoted to <strong>Level {studentInfo.level}</strong>.<br/>
+                The administration will assign you to a new group shortly. Get ready for the next challenge! 🚀
+             </p>
+          </div>
+        )}
 
         {/* Header row */}
         <div>
@@ -486,7 +505,7 @@ const StudentDashboard = () => {
             </div>
           ) : (
             <div style={{ padding: '32px 0', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
-              No classes found for your group.
+              {needsGroup ? "الرجاء الانتظار ريثما يتم تعيينك في الفوج الجديد." : "No classes found for your group."}
             </div>
           )}
         </div>

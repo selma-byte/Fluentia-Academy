@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -61,7 +61,7 @@ const ShieldIcon = () => (
 const Login = () => {
   const navigate = useNavigate();
 
-  const [email,      setEmail]      = useState('');
+  const [email,       setEmail]       = useState('');
   const [password,   setPassword]   = useState('');
   const [loading,    setLoading]    = useState(false);
   const [errorMsg,   setErrorMsg]   = useState('');
@@ -69,6 +69,31 @@ const Login = () => {
   const [emailFocus, setEmailFocus] = useState(false);
   const [pwFocus,    setPwFocus]    = useState(false);
   const [backHover,  setBackHover]  = useState(false);
+
+  // 💡 State for dynamic school settings
+  const [schoolSettings, setSchoolSettings] = useState({
+    name: 'POLYGLOT ACADEMY',
+    logo: null
+  });
+
+  // 💡 Fetch school settings from DB on mount
+  useEffect(() => {
+    const fetchSettings = async () => {
+      const { data } = await supabase.from('school_settings').select('*').eq('id', 1).single();
+      if (data) {
+        setSchoolSettings({
+          name: data.name || 'POLYGLOT ACADEMY',
+          logo: data.logo || null
+        });
+      }
+    };
+    fetchSettings();
+  }, []);
+
+  // Split name for styling (e.g., "POLYGLOT" and "ACADEMY")
+  const nameParts = schoolSettings.name.split(' ');
+  const firstName = nameParts[0] || 'POLYGLOT';
+  const lastName = nameParts.slice(1).join(' ') || 'ACADEMY';
 
   // ── ALL ORIGINAL SUPABASE LOGIC — COMPLETELY UNTOUCHED ───────────────────
   const handleSubmit = async (e) => {
@@ -253,18 +278,23 @@ const Login = () => {
                 pointerEvents: 'none',
               }}/>
 
-              {/* Logo mark — same style as SchoolLogo in dashboard */}
+              {/* 💡 Dynamic Logo mark */}
               <div style={{
                 width: 68, height: 68, borderRadius: 16,
-                background: 'linear-gradient(135deg, #4318FF, #6b47ff)',
+                background: schoolSettings.logo ? '#fff' : 'linear-gradient(135deg, #4318FF, #6b47ff)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 marginBottom: 22, position: 'relative', zIndex: 1,
                 boxShadow: '0 8px 24px rgba(67,24,255,0.35)',
+                overflow: 'hidden'
               }}>
-                <GlobeIcon />
+                {schoolSettings.logo ? (
+                  <img src={schoolSettings.logo} alt="School Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <GlobeIcon />
+                )}
               </div>
 
-              {/* School name — exact same font treatment as SchoolLogo */}
+              {/* 💡 Dynamic School name */}
               <p style={{
                 margin: 0,
                 fontSize: 13, fontWeight: 800,
@@ -275,8 +305,7 @@ const Login = () => {
                 position: 'relative', zIndex: 1,
                 textTransform: 'uppercase',
               }}>
-                {/* fetched dynamically from school_settings — fallback shown */}
-                POLYGLOT
+                {firstName}
               </p>
               <p style={{
                 margin: 0,
@@ -287,7 +316,7 @@ const Login = () => {
                 position: 'relative', zIndex: 1,
                 marginBottom: 28,
               }}>
-                ACADEMY
+                {lastName}
               </p>
 
               {/* Divider */}
@@ -499,7 +528,7 @@ const Login = () => {
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
               }}>
                 <ShieldIcon />
-                Secured connection &nbsp;·&nbsp; Fluentia Academy &copy; {new Date().getFullYear()}
+                Secured connection &nbsp;·&nbsp; {firstName} {lastName} &copy; {new Date().getFullYear()}
               </p>
 
             </div>
