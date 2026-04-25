@@ -1,63 +1,234 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../supabaseClient'; 
+import { supabase } from '../../supabaseClient';
 
+// ─── Design Tokens ────────────────────────────────────────────────────────────
+const T = {
+  navy:       '#0f172a',
+  primary:    '#4318FF',
+  primaryLt:  '#eef2ff',
+  white:      '#ffffff',
+  pageBg:     '#f8fafc',
+  border:     '#f1f5f9',
+  borderMid:  '#e2e8f0',
+  textDark:   '#1e293b',
+  textMid:    '#64748b',
+  textMuted:  '#94a3b8',
+  danger:     '#dc2626',
+  dangerBg:   '#fef2f2',
+  success:    '#059669',
+  successBg:  '#ecfdf5',
+  warning:    '#d97706',
+  warningBg:  '#fffbeb',
+};
+
+// ─── Icons ────────────────────────────────────────────────────────────────────
+const Icons = {
+  Refresh:    () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>,
+  Plus:       () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
+  Settings:   () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93l-1.41 1.41M4.93 4.93l1.41 1.41M4.93 19.07l1.41-1.41M19.07 19.07l-1.41-1.41M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>,
+  BarChart:   () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
+  Calendar:   () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+  ChevronRight:()=><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>,
+  ChevronLeft:()=><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>,
+  Search:     () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
+  Edit:       () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
+  Trash:      () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>,
+  Check:      () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
+  Clock:      () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+  FileText:   () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>,
+  Users:      () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+  Download:   () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
+  Upload:     () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>,
+  Eye:        () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
+  Medal:      () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>,
+};
+
+// ─── Shared sub-components ────────────────────────────────────────────────────
+const Card = ({ children, style = {} }) => (
+  <div style={{
+    background: T.white, borderRadius: 14,
+    border: `1px solid ${T.border}`,
+    boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+    ...style,
+  }}>{children}</div>
+);
+
+const StatCard = ({ label, value, icon: Icon, iconBg, iconColor, loading }) => (
+  <Card style={{ padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+    <div>
+      <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>{label}</p>
+      <p style={{ margin: 0, fontSize: 28, fontWeight: 800, color: T.textDark, lineHeight: 1 }}>
+        {loading ? <span style={{ color: T.borderMid }}>—</span> : value}
+      </p>
+    </div>
+    <div style={{ width: 38, height: 38, borderRadius: 10, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: iconColor }}>
+      <Icon />
+    </div>
+  </Card>
+);
+
+const Badge = ({ status }) => {
+  const s = status?.toLowerCase() || 'draft';
+  const map = {
+    active:    { bg: '#ecfdf5', color: '#059669', label: 'Active'     },
+    scheduled: { bg: '#fffbeb', color: '#d97706', label: 'Scheduled'  },
+    completed: { bg: '#eef2ff', color: '#4318FF', label: 'Completed'  },
+    draft:     { bg: '#f8fafc', color: '#94a3b8', label: 'Draft'      },
+  };
+  const cfg = map[s] || map.draft;
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center',
+      fontSize: 10, fontWeight: 700, padding: '3px 10px',
+      borderRadius: 20, background: cfg.bg, color: cfg.color,
+      textTransform: 'uppercase', letterSpacing: '0.06em',
+    }}>{cfg.label}</span>
+  );
+};
+
+const ActionBtn = ({ icon: Icon, color, title, onClick }) => (
+  <button
+    title={title} onClick={onClick}
+    style={{
+      width: 30, height: 30, borderRadius: 8, border: 'none',
+      background: 'transparent', cursor: 'pointer',
+      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      color: T.textMuted, transition: 'all 0.15s',
+    }}
+    onMouseEnter={e => { e.currentTarget.style.background = color + '18'; e.currentTarget.style.color = color; }}
+    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = T.textMuted; }}
+  >
+    <Icon />
+  </button>
+);
+
+const PrimaryBtn = ({ children, onClick, disabled, style = {} }) => (
+  <button
+    onClick={onClick} disabled={disabled}
+    style={{
+      display: 'inline-flex', alignItems: 'center', gap: 8,
+      padding: '9px 18px', borderRadius: 10, border: 'none',
+      background: disabled ? T.textMuted : T.primary,
+      color: '#fff', fontSize: 13, fontWeight: 700,
+      cursor: disabled ? 'not-allowed' : 'pointer',
+      boxShadow: disabled ? 'none' : '0 4px 14px rgba(67,24,255,0.28)',
+      transition: 'all 0.15s', ...style,
+    }}
+    onMouseEnter={e => { if (!disabled) { e.currentTarget.style.background = '#3510d4'; e.currentTarget.style.transform = 'translateY(-1px)'; }}}
+    onMouseLeave={e => { e.currentTarget.style.background = disabled ? T.textMuted : T.primary; e.currentTarget.style.transform = 'none'; }}
+  >
+    {children}
+  </button>
+);
+
+const GhostBtn = ({ children, onClick, style = {} }) => (
+  <button
+    onClick={onClick}
+    style={{
+      display: 'inline-flex', alignItems: 'center', gap: 7,
+      padding: '8px 16px', borderRadius: 10,
+      border: `1px solid ${T.borderMid}`,
+      background: T.white, color: T.textDark,
+      fontSize: 13, fontWeight: 600, cursor: 'pointer',
+      transition: 'all 0.15s', ...style,
+    }}
+    onMouseEnter={e => { e.currentTarget.style.background = T.pageBg; e.currentTarget.style.borderColor = '#c7d2fe'; }}
+    onMouseLeave={e => { e.currentTarget.style.background = T.white; e.currentTarget.style.borderColor = T.borderMid; }}
+  >
+    {children}
+  </button>
+);
+
+const FieldLabel = ({ children, required }) => (
+  <label style={{
+    display: 'block', fontSize: 11, fontWeight: 700,
+    color: T.textMuted, textTransform: 'uppercase',
+    letterSpacing: '0.08em', marginBottom: 7,
+  }}>
+    {children}{required && <span style={{ color: T.danger, marginLeft: 3 }}>*</span>}
+  </label>
+);
+
+const inputStyle = (focused = false) => ({
+  width: '100%', height: 44,
+  background: focused ? T.white : T.pageBg,
+  border: `1.5px solid ${focused ? T.primary : T.borderMid}`,
+  borderRadius: 10, padding: '0 14px',
+  fontSize: 13.5, fontFamily: "'Inter','Segoe UI',sans-serif",
+  color: T.textDark, outline: 'none',
+  boxShadow: focused ? '0 0 0 3px rgba(67,24,255,0.09)' : 'none',
+  transition: 'all 0.2s', boxSizing: 'border-box',
+});
+
+const selectStyle = () => ({
+  ...inputStyle(),
+  cursor: 'pointer', appearance: 'none', WebkitAppearance: 'none',
+  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
+  backgroundRepeat: 'no-repeat', backgroundPosition: 'right 14px center',
+  paddingRight: 36,
+});
+
+const SectionHeading = ({ title, sub }) => (
+  <div style={{ marginBottom: 20 }}>
+    <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: T.textDark, letterSpacing: '-0.01em' }}>{title}</h2>
+    {sub && <p style={{ margin: '4px 0 0', fontSize: 13, color: T.textMid }}>{sub}</p>}
+  </div>
+);
+
+const getSubjectColors = (subject) => {
+  const s = subject?.toLowerCase() || '';
+  if (s.includes('german'))  return { bg: '#ecfdf5', border: '#059669', text: '#059669' };
+  if (s.includes('english')) return { bg: '#eff6ff', border: '#2563eb', text: '#2563eb' };
+  if (s.includes('spanish')) return { bg: '#fff7ed', border: '#f97316', text: '#f97316' };
+  if (s.includes('french'))  return { bg: '#f5f3ff', border: '#7c3aed', text: '#7c3aed' };
+  return { bg: '#f8fafc', border: '#94a3b8', text: '#94a3b8' };
+};
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 const Exams = ({ examView, setExamView }) => {
   const [createStep, setCreateStep] = useState(1);
   const [examsData, setExamsData] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  // States للبحث والفلترة 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All Status');
-
-  // 💡 States للاقسام والأساتذة من الداتا باز
   const [classesData, setClassesData] = useState([]);
   const [teachersData, setTeachersData] = useState([]);
+
+  // ── Focused states for form inputs ──
+  const [focused, setFocused] = useState({});
+  const onFocus = k => setFocused(f => ({ ...f, [k]: true  }));
+  const onBlur  = k => setFocused(f => ({ ...f, [k]: false }));
 
   const getTodayString = () => {
     const today = new Date();
     return new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
   };
 
-  // State لمعلومات الامتحان (تم إضافة التاريخ والوقت الحقيقيين)
+  // ── ALL ORIGINAL STATE — UNTOUCHED ──────────────────────────────────────
   const [newExam, setNewExam] = useState({
-    title: '',
-    subject: 'English',
-    class_name: '',
-    teacher_id: '', 
-    duration: 60,
-    date: getTodayString(),
-    time: '10:00',
-    instructions: ''
+    title: '', subject: 'English', class_name: '',
+    teacher_id: '', duration: 60,
+    date: getTodayString(), time: '10:00', instructions: '',
   });
 
-  const [resultsData, setResultsData] = useState([]);
-  const [selectedResultExam, setSelectedResultExam] = useState('');
-  const [resultStats, setResultStats] = useState({ total: 0, completed: 0, avg: 0, passRate: 0 });
+  const [resultsData,         setResultsData]         = useState([]);
+  const [selectedResultExam,  setSelectedResultExam]  = useState('');
+  const [resultStats,         setResultStats]          = useState({ total: 0, completed: 0, avg: 0, passRate: 0 });
 
-  // لضبط التقويم الخاص بالامتحانات على الأسبوع الحالي
   const getStartOfWeek = (date) => {
     const d = new Date(date);
-    const day = d.getDay() || 7; 
+    const day = d.getDay() || 7;
     if (day !== 1) d.setHours(-24 * (day - 1));
     d.setHours(0, 0, 0, 0);
     return d;
   };
   const [currentWeekStart, setCurrentWeekStart] = useState(getStartOfWeek(new Date()));
 
-  // =======================================
-  // 1. جلب البيانات من قاعدة البيانات
-  // =======================================
+  // ── ALL ORIGINAL SUPABASE LOGIC — UNTOUCHED ──────────────────────────────
   const fetchExams = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('exams')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (!error && data) {
-      setExamsData(data);
-    }
+    const { data, error } = await supabase.from('exams').select('*').order('created_at', { ascending: false });
+    if (!error && data) setExamsData(data);
     setLoading(false);
   };
 
@@ -67,7 +238,6 @@ const Exams = ({ examView, setExamView }) => {
       setClassesData(cData);
       if (cData.length > 0) setNewExam(prev => ({ ...prev, class_name: cData[0].name }));
     }
-
     const { data: tData } = await supabase.from('staff').select('*');
     if (tData) {
       setTeachersData(tData);
@@ -78,48 +248,27 @@ const Exams = ({ examView, setExamView }) => {
   const fetchExamResults = async (examTitle) => {
     if (!examTitle) return;
     try {
-      const { data, error } = await supabase
-        .from('grades')
-        .select('*')
-        .eq('exam_title', examTitle);
-        
-      if (error) {
-        console.error("🚨 Supabase Error:", error);
-        return;
-      }
-
+      const { data, error } = await supabase.from('grades').select('*').eq('exam_title', examTitle);
+      if (error) { console.error('Supabase Error:', error); return; }
       if (data && data.length > 0) {
         setResultsData(data);
         const total = data.length;
         const completed = data.filter(d => d.score != null).length;
-        let sumScores = 0;
-        let passedCount = 0;
-        
+        let sumScores = 0, passedCount = 0;
         data.forEach(d => {
           const scoreNum = parseFloat(d.score) || 0;
           sumScores += scoreNum;
           if (scoreNum >= 50 || d.status === 'Passed') passedCount++;
         });
-
-        setResultStats({
-          total,
-          completed,
-          avg: total ? (sumScores / total).toFixed(1) : 0,
-          passRate: total ? ((passedCount / total) * 100).toFixed(1) : 0
-        });
+        setResultStats({ total, completed, avg: total ? (sumScores / total).toFixed(1) : 0, passRate: total ? ((passedCount / total) * 100).toFixed(1) : 0 });
       } else {
         setResultsData([]);
         setResultStats({ total: 0, completed: 0, avg: 0, passRate: 0 });
       }
-    } catch (err) {
-      console.log("Error fetching grades", err);
-    }
+    } catch (err) { console.log('Error fetching grades', err); }
   };
 
-  useEffect(() => {
-    fetchExams();
-    fetchClassesAndTeachers();
-  }, []);
+  useEffect(() => { fetchExams(); fetchClassesAndTeachers(); }, []);
 
   useEffect(() => {
     if (examView === 'results') {
@@ -133,664 +282,706 @@ const Exams = ({ examView, setExamView }) => {
     }
   }, [examView, selectedResultExam, examsData]);
 
-  // =======================================
-  // 2. دالة حفظ الامتحان + التحقق
-  // =======================================
   const handleSaveExam = async () => {
     if (!newExam.title || !newExam.class_name || !newExam.teacher_id) {
-      alert("Please fill all required fields (Title, Class, Teacher)!");
-      return;
+      alert('Please fill all required fields (Title, Class, Teacher)!'); return;
     }
-    
     setLoading(true);
     try {
       const { data: existingExams, error: checkError } = await supabase
-        .from('exams')
-        .select('*')
-        .eq('class_name', newExam.class_name)
-        .eq('exam_date', newExam.date);
-
+        .from('exams').select('*')
+        .eq('class_name', newExam.class_name).eq('exam_date', newExam.date);
       if (checkError) throw checkError;
-
       if (existingExams && existingExams.length > 0) {
-        alert(`❌ Conflict! The class "${newExam.class_name}" already has an exam scheduled on this date.`);
-        setLoading(false);
-        return;
+        alert(`Conflict! The class "${newExam.class_name}" already has an exam on this date.`);
+        setLoading(false); return;
       }
-
-      // إضافة start_time و exam_date
       const { error } = await supabase.from('exams').insert([{
-        title: newExam.title,
-        subject: newExam.subject,
-        class_name: newExam.class_name,
-        teacher_id: newExam.teacher_id,
+        title: newExam.title, subject: newExam.subject,
+        class_name: newExam.class_name, teacher_id: newExam.teacher_id,
         duration_minutes: parseInt(newExam.duration),
-        status: 'Scheduled', 
-        exam_date: newExam.date,
-        start_time: newExam.time,
-        instructions: newExam.instructions
+        status: 'Scheduled', exam_date: newExam.date,
+        start_time: newExam.time, instructions: newExam.instructions,
       }]);
-
       if (error) throw error;
-      
-      alert("✅ Exam Created Successfully!");
+      alert('Exam Created Successfully!');
       setNewExam({ title: '', subject: 'English', class_name: classesData[0]?.name || '', teacher_id: teachersData[0]?.id || '', duration: 60, date: getTodayString(), time: '10:00', instructions: '' });
-      setCreateStep(1);
-      setExamView('manage'); 
-      fetchExams(); 
-    } catch (err) {
-      alert("Error: " + err.message);
-    } finally {
-      setLoading(false);
-    }
+      setCreateStep(1); setExamView('manage'); fetchExams();
+    } catch (err) { alert('Error: ' + err.message); }
+    finally { setLoading(false); }
   };
 
   const handleMarkAsCompleted = async (id) => {
-    if(window.confirm("Mark this exam as Completed? It will now appear in the Results section.")) {
+    if (window.confirm('Mark this exam as Completed?')) {
       const { error } = await supabase.from('exams').update({ status: 'Completed' }).eq('id', id);
-      if(!error) {
-        setExamsData(examsData.map(exam => exam.id === id ? { ...exam, status: 'Completed' } : exam));
-      } else {
-        alert("Error updating exam: " + error.message);
-      }
+      if (!error) setExamsData(examsData.map(e => e.id === id ? { ...e, status: 'Completed' } : e));
+      else alert('Error: ' + error.message);
     }
   };
 
   const handleDeleteExam = async (id) => {
-    if(window.confirm("Are you sure you want to delete this exam?")) {
+    if (window.confirm('Are you sure you want to delete this exam?')) {
       const { error } = await supabase.from('exams').delete().eq('id', id);
-      if(!error) {
-        setExamsData(examsData.filter(exam => exam.id !== id));
-      } else {
-        alert("Error deleting exam: " + error.message);
-      }
+      if (!error) setExamsData(examsData.filter(e => e.id !== id));
+      else alert('Error: ' + error.message);
     }
   };
+  // ─────────────────────────────────────────────────────────────────────────
 
-  const totalExams = examsData.length;
-  const activeExams = examsData.filter(e => e.status?.toLowerCase() === 'active').length;
+  const totalExams     = examsData.length;
+  const activeExams    = examsData.filter(e => e.status?.toLowerCase() === 'active').length;
   const scheduledExams = examsData.filter(e => e.status?.toLowerCase() === 'scheduled').length;
   const completedExams = examsData.filter(e => e.status?.toLowerCase() === 'completed').length;
 
   const filteredExams = examsData.filter(exam => {
-    const matchesSearch = (exam.title?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || 
-                          (exam.subject?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || 
-                          (exam.class_name?.toLowerCase() || '').includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'All Status' || (exam.status?.toLowerCase() || 'draft') === statusFilter.toLowerCase();
-    return matchesSearch && matchesStatus;
+    const q = searchTerm.toLowerCase();
+    const matchSearch = (exam.title?.toLowerCase() || '').includes(q) ||
+      (exam.subject?.toLowerCase() || '').includes(q) ||
+      (exam.class_name?.toLowerCase() || '').includes(q);
+    const matchStatus = statusFilter === 'All Status' ||
+      (exam.status?.toLowerCase() || 'draft') === statusFilter.toLowerCase();
+    return matchSearch && matchStatus;
   });
 
-  // تحديد ألوان بطاقات الامتحان بناءً على المادة
-  const getSubjectColor = (subject) => {
-    const s = subject?.toLowerCase() || '';
-    if (s.includes('german')) return { bg: 'bg-green-50', border: 'border-green-500', text: 'text-green-600' };
-    if (s.includes('english')) return { bg: 'bg-blue-50', border: 'border-blue-500', text: 'text-blue-600' };
-    if (s.includes('spanish')) return { bg: 'bg-orange-50', border: 'border-orange-500', text: 'text-orange-600' };
-    if (s.includes('french')) return { bg: 'bg-purple-50', border: 'border-purple-500', text: 'text-purple-600' };
-    return { bg: 'bg-gray-50', border: 'border-gray-500', text: 'text-gray-600' };
-  };
-
-  // =======================================
-  // 3. الصفحة الرئيسية (Dashboard)
-  // =======================================
+  // ══════════════════════════════════════════════════════════════════════════
+  // VIEW 1 — HOME
+  // ══════════════════════════════════════════════════════════════════════════
   const renderHome = () => (
-    <div className="animate-fade-in pb-10">
-      <div className="flex justify-between items-center mb-8">
-        <h2 className="text-3xl font-bold text-[#0A1128]">Exam Management</h2>
-        <button onClick={fetchExams} className="bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-lg text-sm font-bold transition-colors cursor-pointer">
-          🔄 Refresh
-        </button>
-      </div>
-      
-      <div className="flex justify-between items-center bg-white p-6 rounded-2xl border border-gray-200 shadow-sm mb-10">
-        <div className="text-center px-6">
-          <p className="text-gray-500 text-sm font-bold mb-2">Total Exams</p>
-          <p className="text-4xl font-bold text-[#0A1128]">{loading ? '...' : totalExams}</p>
-        </div>
-        <div className="w-px h-12 bg-gray-200"></div>
-        <div className="text-center px-6">
-          <p className="text-gray-500 text-sm font-bold mb-2">Active Exams</p>
-          <p className="text-4xl font-bold text-[#0A1128]">{loading ? '...' : activeExams}</p>
-        </div>
-        <div className="w-px h-12 bg-gray-200"></div>
-        <div className="text-center px-6">
-          <p className="text-gray-500 text-sm font-bold mb-2">Scheduled</p>
-          <p className="text-4xl font-bold text-[#0A1128]">{loading ? '...' : scheduledExams}</p>
-        </div>
-        <div className="w-px h-12 bg-gray-200"></div>
-        <div className="text-center px-6">
-          <p className="text-gray-500 text-sm font-bold mb-2">Completed</p>
-          <p className="text-4xl font-bold text-[#0A1128]">{loading ? '...' : completedExams}</p>
-        </div>
+    <div style={{ paddingBottom: 40 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 26 }}>
+        <SectionHeading title="Exam Management" sub="Overview of all exams across the academy" />
+        <GhostBtn onClick={fetchExams}><Icons.Refresh /> Refresh</GhostBtn>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2">
-          <h3 className="text-xl font-bold text-[#0A1128] mb-6">Recent Exams</h3>
-          <div className="space-y-4">
-            {loading ? (
-              <p className="text-gray-400 font-bold italic">Loading...</p>
-            ) : examsData.length === 0 ? (
-              <div className="bg-gray-50 border border-dashed border-gray-300 rounded-xl p-8 text-center">
-                <p className="text-gray-500 font-bold mb-2">No exams created yet.</p>
-              </div>
-            ) : (
-              examsData.slice(0, 5).map((exam) => (
-                <div 
-                  key={exam.id} 
-                  onClick={() => exam.status?.toLowerCase() === 'completed' ? setExamView('results') : setExamView('manage')}
-                  className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow flex justify-between items-center cursor-pointer"
-                >
-                  <div>
-                    <div className="flex items-center mb-2">
-                      <h4 className="font-bold text-[#0A1128] text-base mr-3">{exam.title}</h4>
-                      <span className={`text-[10px] px-2.5 py-1 rounded font-bold capitalize tracking-wider ${
-                        exam.status?.toLowerCase() === 'active' ? 'bg-[#0A1128] text-white' : 
-                        exam.status?.toLowerCase() === 'scheduled' ? 'bg-orange-50 text-orange-600 border border-orange-200' : 'bg-gray-100 text-gray-500'
-                      }`}>{exam.status || 'Draft'}</span>
+      {/* Stat row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16, marginBottom: 24 }}>
+        <StatCard label="Total Exams"   value={totalExams}     icon={Icons.FileText} iconBg="#eef2ff" iconColor={T.primary}  loading={loading} />
+        <StatCard label="Active Exams"  value={activeExams}    icon={Icons.Check}    iconBg="#ecfdf5" iconColor={T.success}  loading={loading} />
+        <StatCard label="Scheduled"     value={scheduledExams} icon={Icons.Calendar} iconBg="#fffbeb" iconColor={T.warning}  loading={loading} />
+        <StatCard label="Completed"     value={completedExams} icon={Icons.Medal}    iconBg="#f5f3ff" iconColor="#7c3aed"    loading={loading} />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 20 }}>
+
+        {/* Recent exams */}
+        <Card style={{ padding: '22px 24px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: T.textDark }}>Recent Exams</h3>
+            <button onClick={() => setExamView('manage')} style={{ fontSize: 12, fontWeight: 700, color: T.primary, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: 6 }}
+              onMouseEnter={e => e.currentTarget.style.background = T.primaryLt}
+              onMouseLeave={e => e.currentTarget.style.background = 'none'}
+            >View All</button>
+          </div>
+          {loading ? (
+            <p style={{ color: T.textMuted, fontSize: 13 }}>Loading...</p>
+          ) : examsData.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '32px 0', border: `1.5px dashed ${T.borderMid}`, borderRadius: 12 }}>
+              <p style={{ color: T.textMuted, fontSize: 13, fontWeight: 600 }}>No exams created yet.</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {examsData.slice(0, 5).map(exam => {
+                const col = getSubjectColors(exam.subject);
+                return (
+                  <div
+                    key={exam.id}
+                    onClick={() => exam.status?.toLowerCase() === 'completed' ? setExamView('results') : setExamView('manage')}
+                    style={{
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      padding: '12px 14px', borderRadius: 10, cursor: 'pointer',
+                      border: `1px solid ${T.border}`, transition: 'all 0.15s',
+                      borderLeft: `3px solid ${col.border}`,
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = T.pageBg; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = T.white; e.currentTarget.style.boxShadow = 'none'; }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                        <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: T.textDark }}>{exam.title}</p>
+                        <Badge status={exam.status} />
+                      </div>
+                      <p style={{ margin: 0, fontSize: 12, color: T.textMid }}>{exam.subject} · {exam.class_name}</p>
                     </div>
-                    <p className="text-sm text-gray-500">{exam.subject} • {exam.class_name}</p>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <p style={{ margin: 0, fontSize: 11, color: T.textMuted, marginBottom: 2 }}>Date</p>
+                      <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: T.textMid }}>{exam.exam_date || 'TBD'}</p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-xs text-gray-400 capitalize mb-1">Date</p>
-                    <p className="text-sm font-medium text-gray-700">{exam.exam_date || 'TBD'}</p>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
 
-        <div>
-          <h3 className="text-xl font-bold text-[#0A1128] mb-6">Quick Actions</h3>
-          <div className="bg-transparent space-y-3">
-            <button onClick={() => {setExamView('create'); setCreateStep(1);}} className="w-full text-left px-4 py-4 rounded-xl hover:bg-gray-100 text-base font-medium text-gray-700 transition-colors flex items-center cursor-pointer">
-              <span className="mr-3 text-gray-500 text-xl">+</span> Create New Exam
-            </button>
-            <button onClick={() => setExamView('manage')} className="w-full text-left px-4 py-4 rounded-xl hover:bg-gray-100 text-base font-medium text-gray-700 transition-colors flex items-center cursor-pointer">
-              <span className="mr-3 text-gray-500 text-xl">⚙️</span> Manage Exams
-            </button>
-            <button onClick={() => setExamView('results')} className="w-full text-left px-4 py-4 rounded-xl hover:bg-gray-100 text-base font-medium text-gray-700 transition-colors flex items-center cursor-pointer">
-              <span className="mr-3 text-gray-500 text-xl">📊</span> View Exam Results
-            </button>
-            <button onClick={() => setExamView('schedule')} className="w-full text-left px-4 py-4 rounded-xl hover:bg-gray-100 text-base font-medium text-gray-700 transition-colors flex items-center cursor-pointer">
-              <span className="mr-3 text-gray-500 text-xl">📅</span> Schedule Exam
-            </button>
+        {/* Quick Actions */}
+        <Card style={{ padding: '22px 20px' }}>
+          <h3 style={{ margin: '0 0 16px', fontSize: 15, fontWeight: 700, color: T.textDark }}>Quick Actions</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {[
+              { icon: Icons.Plus,     label: 'Create New Exam',    view: 'create'   },
+              { icon: Icons.Settings, label: 'Manage Exams',       view: 'manage'   },
+              { icon: Icons.BarChart, label: 'View Exam Results',  view: 'results'  },
+              { icon: Icons.Calendar, label: 'Exam Schedule',      view: 'schedule' },
+            ].map(({ icon: Icon, label, view }) => (
+              <button
+                key={view}
+                onClick={() => { setExamView(view); if (view === 'create') setCreateStep(1); }}
+                style={{
+                  width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  padding: '11px 14px', borderRadius: 10, border: `1px solid ${T.border}`,
+                  background: T.white, fontSize: 13, fontWeight: 600, color: T.textDark,
+                  cursor: 'pointer', transition: 'all 0.15s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = T.primaryLt; e.currentTarget.style.borderColor = '#c7d2fe'; e.currentTarget.style.color = T.primary; }}
+                onMouseLeave={e => { e.currentTarget.style.background = T.white; e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.textDark; }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span><Icon /></span>{label}
+                </span>
+                <Icons.ChevronRight />
+              </button>
+            ))}
           </div>
-        </div>
+        </Card>
       </div>
     </div>
   );
 
-  // =======================================
-  // 4. صفحة إدارة الامتحانات (Manage View)
-  // =======================================
+  // ══════════════════════════════════════════════════════════════════════════
+  // VIEW 2 — MANAGE EXAMS
+  // ══════════════════════════════════════════════════════════════════════════
   const renderManageExams = () => (
-    <div className="animate-fade-in pb-10 max-w-7xl mx-auto">
-      <div className="mb-6 border-b border-gray-200 pb-4 flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-[#0A1128] mb-1">Exam Management</h2>
-          <p className="text-sm text-gray-500">Manage all exams across the school</p>
-        </div>
-        <button onClick={() => {setExamView('create'); setCreateStep(1);}} className="bg-[#2563eb] text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-md hover:bg-blue-700 transition-colors cursor-pointer">
-          + New Exam
-        </button>
+    <div style={{ paddingBottom: 40 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24 }}>
+        <SectionHeading title="Exam Management" sub="Manage all exams across the school" />
+        <PrimaryBtn onClick={() => { setExamView('create'); setCreateStep(1); }}>
+          <Icons.Plus /> New Exam
+        </PrimaryBtn>
       </div>
 
-      <div className="grid grid-cols-4 gap-4 mb-8">
-        <div className="bg-gray-100/80 rounded-2xl p-5 flex justify-between items-start border border-gray-200/50">
-          <div><p className="text-gray-500 text-[11px] font-medium mb-1">Total Exams</p><p className="text-2xl font-bold text-[#0A1128]">{loading ? '-' : totalExams}</p></div>
-          <span className="text-blue-500 text-xl">📄</span>
-        </div>
-        <div className="bg-gray-100/80 rounded-2xl p-5 flex justify-between items-start border border-gray-200/50">
-          <div><p className="text-gray-500 text-[11px] font-medium mb-1">Active Exams</p><p className="text-2xl font-bold text-[#0A1128]">{loading ? '-' : activeExams}</p></div>
-          <span className="text-green-500 text-xl">▶</span>
-        </div>
-        <div className="bg-gray-100/80 rounded-2xl p-5 flex justify-between items-start border border-gray-200/50">
-          <div><p className="text-gray-500 text-[11px] font-medium mb-1">Scheduled</p><p className="text-2xl font-bold text-[#0A1128]">{loading ? '-' : scheduledExams}</p></div>
-          <span className="text-orange-500 text-xl">📅</span>
-        </div>
-        <div className="bg-gray-100/80 rounded-2xl p-5 flex justify-between items-start border border-gray-200/50">
-          <div><p className="text-gray-500 text-[11px] font-medium mb-1">Completed</p><p className="text-2xl font-bold text-[#0A1128]">{loading ? '-' : completedExams}</p></div>
-          <span className="text-purple-500 text-xl">📋</span>
-        </div>
+      {/* Stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16, marginBottom: 22 }}>
+        <StatCard label="Total Exams"   value={totalExams}     icon={Icons.FileText} iconBg="#eef2ff" iconColor={T.primary}  loading={loading} />
+        <StatCard label="Active Exams"  value={activeExams}    icon={Icons.Check}    iconBg="#ecfdf5" iconColor={T.success}  loading={loading} />
+        <StatCard label="Scheduled"     value={scheduledExams} icon={Icons.Calendar} iconBg="#fffbeb" iconColor={T.warning}  loading={loading} />
+        <StatCard label="Completed"     value={completedExams} icon={Icons.Medal}    iconBg="#f5f3ff" iconColor="#7c3aed"    loading={loading} />
       </div>
 
-      <div className="bg-gray-100/80 rounded-xl p-3 flex justify-between items-center border border-gray-200/50 mb-10">
-        <div className="relative flex-1 max-w-lg">
-          <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 text-sm">🔍</span>
-          <input 
-            type="text" 
-            placeholder="Search exams by title, subject, or class..." 
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-transparent border-none py-2 pl-10 pr-4 text-sm outline-none text-gray-600" 
-          />
-        </div>
-        <div className="bg-gray-200/50 rounded-lg px-3 py-1.5 flex items-center">
-          <select 
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-transparent border-none text-sm font-medium text-gray-600 outline-none cursor-pointer pr-2"
-          >
-            <option>All Status</option>
-            <option>Active</option>
-            <option>Scheduled</option>
-            <option>Completed</option>
-            <option>Draft</option>
-          </select>
-        </div>
-      </div>
+      {/* Search + filter bar */}
+      <Card style={{ padding: '10px 16px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 12 }}>
+        <span style={{ color: T.textMuted, display: 'flex', alignItems: 'center' }}><Icons.Search /></span>
+        <input
+          type="text"
+          placeholder="Search by title, subject or class..."
+          value={searchTerm}
+          onChange={e => setSearchTerm(e.target.value)}
+          style={{ flex: 1, border: 'none', outline: 'none', fontSize: 13.5, color: T.textDark, background: 'transparent', fontFamily: "'Inter','Segoe UI',sans-serif" }}
+        />
+        <div style={{ width: 1, height: 20, background: T.borderMid }}/>
+        <select
+          value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+          style={{ border: 'none', outline: 'none', fontSize: 13, fontWeight: 600, color: T.textMid, background: 'transparent', cursor: 'pointer', fontFamily: "'Inter','Segoe UI',sans-serif" }}
+        >
+          <option>All Status</option>
+          <option>Active</option>
+          <option>Scheduled</option>
+          <option>Completed</option>
+          <option>Draft</option>
+        </select>
+      </Card>
 
-      <div className="overflow-x-auto bg-white border border-gray-200 rounded-2xl shadow-sm">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-gray-50 border-b border-gray-200 text-[#0A1128] font-bold">
-            <tr>
-              <th className="py-4 px-4">Title</th>
-              <th className="py-4 px-4">Subject</th>
-              <th className="py-4 px-4">Class</th>
-              <th className="py-4 px-4">Status</th>
-              <th className="py-4 px-4">Duration</th>
-              <th className="py-4 px-4">Date</th>
-              <th className="py-4 px-4 text-center">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {filteredExams.length === 0 ? ( 
-              <tr><td colSpan="7" className="text-center py-10 text-gray-400 font-bold">No exams found.</td></tr>
-            ) : (
-              filteredExams.map((row) => (
-                <tr key={row.id} className="hover:bg-gray-50/50 transition-colors cursor-pointer">
-                  <td className="py-4 px-4">
-                    <p className="font-bold text-[#0A1128] text-[13px]">{row.title}</p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">Created: {new Date(row.created_at).toLocaleDateString()}</p>
-                  </td>
-                  <td className="py-4 px-4 text-gray-700 text-xs font-medium">{row.subject}</td>
-                  <td className="py-4 px-4 text-gray-700 text-xs font-medium">{row.class_name}</td>
-                  <td className="py-4 px-4">
-                    {row.status?.toLowerCase() === 'active' && <span className="bg-[#0A1128] text-white px-2.5 py-1 rounded text-[10px] font-bold flex items-center w-max">▶ Active</span>}
-                    {row.status?.toLowerCase() === 'scheduled' && <span className="text-gray-600 border border-gray-200 px-2.5 py-1 rounded text-[10px] font-bold flex items-center w-max">📅 Scheduled</span>}
-                    {row.status?.toLowerCase() === 'completed' && <span className="text-green-600 border border-green-200 bg-green-50 px-2.5 py-1 rounded text-[10px] font-bold flex items-center w-max">📋 Completed</span>}
-                    {(!row.status || row.status?.toLowerCase() === 'draft') && <span className="text-gray-500 px-2.5 py-1 rounded text-[10px] font-bold flex items-center w-max">⚙️ Draft</span>}
-                  </td>
-                  <td className="py-4 px-4 text-gray-500 text-xs"><span className="mr-1.5 opacity-50">⏱</span> {row.duration_minutes}m</td>
-                  <td className="py-4 px-4">
-                     <p className="text-xs text-gray-600 font-bold">{row.exam_date || 'TBD'} {row.start_time && `at ${row.start_time}`}</p>
-                  </td>
-                  <td className="py-4 px-4 text-gray-400 space-x-3 text-sm text-center">
-                     {row.status?.toLowerCase() === 'active' && (
-                       <span className="hover:text-green-500 cursor-pointer mr-2" title="Mark as Completed" onClick={(e) => { e.stopPropagation(); handleMarkAsCompleted(row.id); }}>✅</span>
-                     )}
-                     <span className="hover:text-blue-600 cursor-pointer">✏️</span>
-                     <span className="hover:text-red-500 cursor-pointer" onClick={(e) => { e.stopPropagation(); handleDeleteExam(row.id); }}>🗑</span>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      {/* Table */}
+      <Card style={{ overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: T.pageBg, borderBottom: `1px solid ${T.border}` }}>
+                {['Title', 'Subject', 'Class', 'Status', 'Duration', 'Date & Time', 'Actions'].map(h => (
+                  <th key={h} style={{ padding: '13px 16px', textAlign: h === 'Actions' ? 'center' : 'left', fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filteredExams.length === 0 ? (
+                <tr><td colSpan="7" style={{ textAlign: 'center', padding: '40px 0', color: T.textMuted, fontSize: 13, fontWeight: 600 }}>No exams found.</td></tr>
+              ) : filteredExams.map(row => {
+                const col = getSubjectColors(row.subject);
+                return (
+                  <tr key={row.id} style={{ borderBottom: `1px solid ${T.border}`, transition: 'background 0.12s' }}
+                    onMouseEnter={e => e.currentTarget.style.background = T.pageBg}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <td style={{ padding: '14px 16px' }}>
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: T.textDark }}>{row.title}</p>
+                      <p style={{ margin: '3px 0 0', fontSize: 11, color: T.textMuted }}>Created: {new Date(row.created_at).toLocaleDateString()}</p>
+                    </td>
+                    <td style={{ padding: '14px 16px' }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: col.bg, color: col.text }}>{row.subject}</span>
+                    </td>
+                    <td style={{ padding: '14px 16px', fontSize: 13, color: T.textMid, fontWeight: 500 }}>{row.class_name}</td>
+                    <td style={{ padding: '14px 16px' }}><Badge status={row.status} /></td>
+                    <td style={{ padding: '14px 16px' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: T.textMid, fontWeight: 500 }}>
+                        <Icons.Clock /> {row.duration_minutes}m
+                      </span>
+                    </td>
+                    <td style={{ padding: '14px 16px' }}>
+                      <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: T.textDark }}>{row.exam_date || 'TBD'}</p>
+                      {row.start_time && <p style={{ margin: '2px 0 0', fontSize: 11, color: T.textMuted }}>at {row.start_time}</p>}
+                    </td>
+                    <td style={{ padding: '14px 16px', textAlign: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+                        {row.status?.toLowerCase() === 'active' && (
+                          <ActionBtn icon={Icons.Check} color={T.success} title="Mark as Completed"
+                            onClick={e => { e.stopPropagation(); handleMarkAsCompleted(row.id); }} />
+                        )}
+                        <ActionBtn icon={Icons.Edit}  color={T.primary} title="Edit" onClick={() => {}} />
+                        <ActionBtn icon={Icons.Trash} color={T.danger}  title="Delete"
+                          onClick={e => { e.stopPropagation(); handleDeleteExam(row.id); }} />
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Card>
     </div>
   );
 
-  // =======================================
-  // 5. صفحة إنشاء امتحان (Create View)
-  // =======================================
+  // ══════════════════════════════════════════════════════════════════════════
+  // VIEW 3 — CREATE EXAM
+  // ══════════════════════════════════════════════════════════════════════════
   const renderCreateExam = () => (
-    <div className="animate-fade-in max-w-4xl mx-auto pb-10">
-      <div className="mb-10 border-b border-gray-200 pb-5">
-        <h2 className="text-3xl font-bold text-[#0A1128] mb-2">Create New Exam</h2>
-        <p className="text-sm text-gray-500">Create an exam by uploading a PDF and providing instructions</p>
+    <div style={{ maxWidth: 720, margin: '0 auto', paddingBottom: 40 }}>
+      <div style={{ marginBottom: 28 }}>
+        <SectionHeading title="Create New Exam" sub="Provide exam details then upload the question PDF" />
       </div>
 
-      <div className="flex items-center justify-center mb-12 space-x-6">
-        <div className="flex items-center text-blue-600 font-bold text-base">
-          <span className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center mr-3 text-sm">1</span>
-          Exam Details
-        </div>
-        <div className={`w-20 h-0.5 ${createStep === 2 ? 'bg-blue-600' : 'bg-gray-200'}`}></div>
-        <div className={`flex items-center text-base font-bold ${createStep === 2 ? 'text-blue-600' : 'text-gray-400'}`}>
-          <span className={`w-8 h-8 rounded-full flex items-center justify-center mr-3 text-sm ${createStep === 2 ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}>2</span>
-          Upload PDF
-        </div>
+      {/* Step indicator */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 32 }}>
+        {[{ n: 1, label: 'Exam Details' }, { n: 2, label: 'Upload PDF' }].map(({ n, label }, i) => {
+          const done = createStep > n;
+          const active = createStep === n;
+          return (
+            <React.Fragment key={n}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{
+                  width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 13, fontWeight: 800,
+                  background: active || done ? T.primary : T.borderMid,
+                  color: active || done ? '#fff' : T.textMuted,
+                  transition: 'all 0.2s',
+                }}>{done ? <Icons.Check /> : n}</div>
+                <span style={{ fontSize: 13, fontWeight: 700, color: active ? T.primary : T.textMuted }}>{label}</span>
+              </div>
+              {i === 0 && <div style={{ flex: 1, maxWidth: 80, height: 2, background: createStep === 2 ? T.primary : T.borderMid, borderRadius: 2, transition: 'background 0.2s' }} />}
+            </React.Fragment>
+          );
+        })}
       </div>
 
-      <div className="bg-gray-50/50 border border-gray-100 rounded-3xl p-10 shadow-sm">
+      <Card style={{ padding: '32px 36px' }}>
         {createStep === 1 ? (
-          <div className="animate-fade-in">
-            <h3 className="text-xl font-bold text-[#0A1128] mb-2">Step 1: Exam Information</h3>
-            <p className="text-sm text-gray-500 mb-8">Provide basic information about your exam</p>
+          <div>
+            <h3 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 700, color: T.textDark }}>Step 1 — Exam Information</h3>
+            <p style={{ margin: '0 0 24px', fontSize: 13, color: T.textMid }}>Provide the basic information about this exam.</p>
 
-            <div className="grid grid-cols-2 gap-x-10 gap-y-6 mb-8">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 20px', marginBottom: 16 }}>
+              {/* Title */}
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Exam Title <span className="text-red-500">*</span></label>
-                <input type="text" value={newExam.title} onChange={e=>setNewExam({...newExam, title: e.target.value})} placeholder="e.g. English Mid-Term" className="w-full bg-gray-100 border border-gray-200 rounded-xl px-5 py-3 outline-none focus:border-blue-500 text-sm font-bold" required/>
+                <FieldLabel required>Exam Title</FieldLabel>
+                <input type="text" value={newExam.title}
+                  onChange={e => setNewExam({ ...newExam, title: e.target.value })}
+                  onFocus={() => onFocus('title')} onBlur={() => onBlur('title')}
+                  placeholder="e.g. English Mid-Term"
+                  style={inputStyle(focused.title)} />
               </div>
+              {/* Subject */}
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Subject</label>
-                <select value={newExam.subject} onChange={e=>setNewExam({...newExam, subject: e.target.value})} className="w-full bg-gray-100 border border-gray-200 rounded-xl px-5 py-3 outline-none focus:border-blue-500 text-sm font-bold cursor-pointer">
-                  <option>English</option><option>French</option><option>German</option><option>Spanish</option><option>Physics</option><option>Mathematics</option>
+                <FieldLabel>Subject</FieldLabel>
+                <select value={newExam.subject}
+                  onChange={e => setNewExam({ ...newExam, subject: e.target.value })}
+                  onFocus={() => onFocus('subject')} onBlur={() => onBlur('subject')}
+                  style={selectStyle(focused.subject)}>
+                  <option>English</option><option>French</option><option>German</option>
+                  <option>Spanish</option><option>Physics</option><option>Mathematics</option>
                 </select>
               </div>
+              {/* Class */}
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Class / Group <span className="text-red-500">*</span></label>
-                <select value={newExam.class_name} onChange={e=>setNewExam({...newExam, class_name: e.target.value})} className="w-full bg-gray-100 border border-gray-200 rounded-xl px-5 py-3 outline-none focus:border-blue-500 text-sm font-bold cursor-pointer">
-                  <option value="">-- Select Class --</option>
-                  {classesData.map(c => (
-                    <option key={c.id} value={c.name}>{c.name}</option>
-                  ))}
+                <FieldLabel required>Class / Group</FieldLabel>
+                <select value={newExam.class_name}
+                  onChange={e => setNewExam({ ...newExam, class_name: e.target.value })}
+                  onFocus={() => onFocus('class')} onBlur={() => onBlur('class')}
+                  style={selectStyle(focused.class)}>
+                  <option value="">— Select Class —</option>
+                  {classesData.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                 </select>
               </div>
+              {/* Teacher */}
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Assign Teacher <span className="text-red-500">*</span></label>
-                <select value={newExam.teacher_id} onChange={e=>setNewExam({...newExam, teacher_id: e.target.value})} className="w-full bg-gray-100 border border-gray-200 rounded-xl px-5 py-3 outline-none focus:border-blue-500 text-sm font-bold cursor-pointer">
-                  <option value="">-- Select Teacher --</option>
-                  {teachersData.map(t => (
-                    <option key={t.id} value={t.id}>{t.first_name} {t.last_name}</option>
-                  ))}
+                <FieldLabel required>Assign Teacher</FieldLabel>
+                <select value={newExam.teacher_id}
+                  onChange={e => setNewExam({ ...newExam, teacher_id: e.target.value })}
+                  onFocus={() => onFocus('teacher')} onBlur={() => onBlur('teacher')}
+                  style={selectStyle(focused.teacher)}>
+                  <option value="">— Select Teacher —</option>
+                  {teachersData.map(t => <option key={t.id} value={t.id}>{t.first_name} {t.last_name}</option>)}
                 </select>
               </div>
-              
-              {/* 💡 هنا تمت إضافة حقول التاريخ والوقت الحقيقية */}
+              {/* Date */}
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Exam Date <span className="text-red-500">*</span></label>
-                <input type="date" value={newExam.date} onChange={e=>setNewExam({...newExam, date: e.target.value})} className="w-full bg-gray-100 border border-gray-200 rounded-xl px-5 py-3 outline-none focus:border-blue-500 text-sm font-bold" required/>
+                <FieldLabel required>Exam Date</FieldLabel>
+                <input type="date" value={newExam.date}
+                  onChange={e => setNewExam({ ...newExam, date: e.target.value })}
+                  onFocus={() => onFocus('date')} onBlur={() => onBlur('date')}
+                  style={inputStyle(focused.date)} />
               </div>
+              {/* Time */}
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">Start Time <span className="text-red-500">*</span></label>
-                <input type="time" value={newExam.time} onChange={e=>setNewExam({...newExam, time: e.target.value})} className="w-full bg-gray-100 border border-gray-200 rounded-xl px-5 py-3 outline-none focus:border-blue-500 text-sm font-bold" required/>
+                <FieldLabel required>Start Time</FieldLabel>
+                <input type="time" value={newExam.time}
+                  onChange={e => setNewExam({ ...newExam, time: e.target.value })}
+                  onFocus={() => onFocus('time')} onBlur={() => onBlur('time')}
+                  style={inputStyle(focused.time)} />
               </div>
-
-              <div className="col-span-2">
-                <label className="block text-sm font-bold text-gray-700 mb-2">Duration (minutes)</label>
-                <input type="number" value={newExam.duration} onChange={e=>setNewExam({...newExam, duration: e.target.value})} placeholder="60" className="w-full bg-gray-100 border border-gray-200 rounded-xl px-5 py-3 outline-none focus:border-blue-500 text-sm font-bold" />
+              {/* Duration */}
+              <div style={{ gridColumn: '1/-1' }}>
+                <FieldLabel>Duration (minutes)</FieldLabel>
+                <input type="number" value={newExam.duration}
+                  onChange={e => setNewExam({ ...newExam, duration: e.target.value })}
+                  onFocus={() => onFocus('duration')} onBlur={() => onBlur('duration')}
+                  placeholder="60" style={{ ...inputStyle(focused.duration), maxWidth: 200 }} />
               </div>
             </div>
-            
-            <div className="mb-10">
-              <label className="block text-sm font-bold text-gray-700 mb-2">Exam Instructions</label>
-              <textarea value={newExam.instructions} onChange={e=>setNewExam({...newExam, instructions: e.target.value})} rows="4" placeholder="Instructions here..." className="w-full bg-gray-100 border border-gray-200 rounded-xl px-5 py-3 outline-none focus:border-blue-500 text-sm font-bold resize-none"></textarea>
+
+            {/* Instructions */}
+            <div style={{ marginBottom: 28 }}>
+              <FieldLabel>Exam Instructions</FieldLabel>
+              <textarea
+                value={newExam.instructions}
+                onChange={e => setNewExam({ ...newExam, instructions: e.target.value })}
+                onFocus={() => onFocus('instr')} onBlur={() => onBlur('instr')}
+                rows={4} placeholder="Instructions for students..."
+                style={{
+                  width: '100%', padding: '12px 14px', resize: 'none',
+                  background: focused.instr ? T.white : T.pageBg,
+                  border: `1.5px solid ${focused.instr ? T.primary : T.borderMid}`,
+                  borderRadius: 10, fontSize: 13.5, outline: 'none',
+                  fontFamily: "'Inter','Segoe UI',sans-serif",
+                  color: T.textDark, lineHeight: 1.6, boxSizing: 'border-box',
+                  boxShadow: focused.instr ? '0 0 0 3px rgba(67,24,255,0.09)' : 'none',
+                  transition: 'all 0.2s',
+                }}
+              />
             </div>
-            <div className="flex justify-between border-t border-gray-200 pt-8">
-              <button className="text-gray-400 font-medium text-sm cursor-not-allowed">Previous</button>
-              <button onClick={() => {
-                if(!newExam.title || !newExam.class_name || !newExam.teacher_id) { alert("Title, Class, and Teacher are required!"); return; }
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: `1px solid ${T.border}`, paddingTop: 24 }}>
+              <PrimaryBtn onClick={() => {
+                if (!newExam.title || !newExam.class_name || !newExam.teacher_id) {
+                  alert('Title, Class, and Teacher are required!'); return;
+                }
                 setCreateStep(2);
-              }} className="bg-[#0A1128] text-white px-8 py-3 rounded-xl text-sm font-bold hover:bg-blue-900 transition-colors cursor-pointer">Next Step</button>
+              }}>
+                Next Step <Icons.ChevronRight />
+              </PrimaryBtn>
             </div>
           </div>
         ) : (
-          <div className="animate-fade-in py-6">
-            <h3 className="text-xl font-bold text-[#0A1128] mb-2">Step 2: Upload Exam PDF</h3>
-            <p className="text-sm text-gray-500 mb-8">Upload the PDF containing your exam questions</p>
-            
-            <div className="border-2 border-dashed border-blue-200 rounded-2xl p-20 mb-10 bg-blue-50/30 hover:bg-blue-50 transition-colors cursor-pointer flex flex-col items-center">
-               <span className="text-5xl text-blue-400 mb-6">📤</span>
-               <p className="font-bold text-[#0A1128] text-lg mb-2">Upload Exam PDF</p>
-               <p className="text-sm text-gray-500 mb-6">Upload the PDF containing the exam questions (Max 5MB)</p>
-               <button className="bg-white text-blue-600 px-6 py-2.5 rounded-xl text-sm font-bold border border-blue-200 flex items-center shadow-sm">
-                 <span className="mr-2 text-lg">↑</span> Choose PDF File
-               </button>
-            </div>
+          <div>
+            <h3 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 700, color: T.textDark }}>Step 2 — Upload Exam PDF</h3>
+            <p style={{ margin: '0 0 28px', fontSize: 13, color: T.textMid }}>Upload the PDF containing your exam questions (max 5 MB).</p>
 
-            <div className="flex justify-between border-t border-gray-200 pt-8">
-              <button onClick={() => setCreateStep(1)} className="text-gray-600 font-bold text-sm hover:text-black cursor-pointer">Previous</button>
-              <button onClick={handleSaveExam} disabled={loading} className="bg-[#2563eb] text-white px-10 py-3 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors cursor-pointer shadow-lg active:scale-95">
-                {loading ? 'Saving...' : 'Finish & Save Exam'}
+            {/* Upload zone */}
+            <label style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              border: `2px dashed ${T.primary}`, borderRadius: 14,
+              padding: '56px 32px', marginBottom: 32,
+              background: T.primaryLt, cursor: 'pointer',
+              transition: 'background 0.15s',
+            }}
+              onMouseEnter={e => e.currentTarget.style.background = '#e0e7ff'}
+              onMouseLeave={e => e.currentTarget.style.background = T.primaryLt}
+            >
+              <span style={{ color: T.primary, marginBottom: 14 }}><Icons.Upload /></span>
+              <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: T.textDark, marginBottom: 6 }}>Upload Exam PDF</p>
+              <p style={{ margin: 0, fontSize: 13, color: T.textMid, marginBottom: 16 }}>Drag & drop or click to browse</p>
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: 7,
+                padding: '8px 18px', borderRadius: 9,
+                border: `1.5px solid ${T.primary}`,
+                background: T.white, color: T.primary,
+                fontSize: 13, fontWeight: 700,
+              }}>
+                <Icons.Upload /> Choose PDF File
+              </span>
+              <input type="file" accept=".pdf" style={{ display: 'none' }} />
+            </label>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: `1px solid ${T.border}`, paddingTop: 24 }}>
+              <button onClick={() => setCreateStep(1)}
+                style={{ background: 'none', border: 'none', fontSize: 13, fontWeight: 600, color: T.textMid, cursor: 'pointer', padding: '8px 12px', borderRadius: 8 }}
+                onMouseEnter={e => e.currentTarget.style.color = T.textDark}
+                onMouseLeave={e => e.currentTarget.style.color = T.textMid}
+              >
+                ← Previous
               </button>
+              <PrimaryBtn onClick={handleSaveExam} disabled={loading}>
+                {loading ? 'Saving...' : 'Finish & Save Exam'}
+              </PrimaryBtn>
             </div>
           </div>
         )}
-      </div>
+      </Card>
     </div>
   );
 
-  // =======================================
-  // 6. صفحة نتائج الامتحانات (Results View)
-  // =======================================
+  // ══════════════════════════════════════════════════════════════════════════
+  // VIEW 4 — RESULTS
+  // ══════════════════════════════════════════════════════════════════════════
   const renderResults = () => {
     const completedExamsList = examsData.filter(e => e.status?.toLowerCase() === 'completed');
     const currentExamDetails = completedExamsList.find(e => e.title === selectedResultExam);
-
     return (
-      <div className="animate-fade-in pb-10">
-        <div className="mb-8 border-b border-gray-200 pb-5">
-          <h2 className="text-3xl font-bold text-[#0A1128] mb-2">Exam Results</h2>
-          <p className="text-sm text-gray-500">View and analyze student performance across all exams</p>
+      <div style={{ paddingBottom: 40 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24 }}>
+          <SectionHeading title="Exam Results" sub="View and analyze student performance" />
+          <div style={{ display: 'flex', gap: 10 }}>
+            <GhostBtn onClick={() => {}}><Icons.Download /> Export CSV</GhostBtn>
+            <GhostBtn onClick={() => {}}><Icons.Download /> Export PDF</GhostBtn>
+          </div>
         </div>
 
-        <div className="flex justify-between items-center mb-8">
-          <select 
+        {/* Exam selector */}
+        <Card style={{ padding: '12px 18px', marginBottom: 22, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>Showing results for</span>
+          <select
             value={selectedResultExam}
-            onChange={(e) => setSelectedResultExam(e.target.value)}
-            className="bg-transparent text-[#0A1128] font-bold text-base outline-none cursor-pointer w-80"
+            onChange={e => setSelectedResultExam(e.target.value)}
+            style={{ border: 'none', outline: 'none', fontSize: 14, fontWeight: 700, color: T.textDark, background: 'transparent', cursor: 'pointer', flex: 1, fontFamily: "'Inter','Segoe UI',sans-serif" }}
           >
-            {completedExamsList.length === 0 ? (
-               <option value="">No completed exams yet</option>
-            ) : (
-               completedExamsList.map(exam => (
-                 <option key={exam.id} value={exam.title}>{exam.title} - {exam.class_name}</option>
-               ))
-            )}
+            {completedExamsList.length === 0
+              ? <option value="">No completed exams yet</option>
+              : completedExamsList.map(e => <option key={e.id} value={e.title}>{e.title} — {e.class_name}</option>)
+            }
           </select>
-          <div className="flex space-x-6">
-            <button className="text-sm font-bold text-gray-600 hover:text-black flex items-center cursor-pointer transition-colors">
-              <span className="mr-2 text-lg">📥</span> Export CSV
-            </button>
-            <button className="text-sm font-bold text-gray-600 hover:text-black flex items-center cursor-pointer transition-colors">
-              <span className="mr-2 text-lg">📥</span> Export PDF
-            </button>
-          </div>
+        </Card>
+
+        {/* Result stats */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16, marginBottom: 22 }}>
+          <StatCard label="Total Students"  value={resultStats.total}     icon={Icons.Users}    iconBg="#eff6ff" iconColor="#2563eb"   loading={false} />
+          <StatCard label="Completed"        value={resultStats.completed} icon={Icons.FileText} iconBg="#eef2ff" iconColor={T.primary} loading={false} />
+          <StatCard label="Average Score"    value={`${resultStats.avg}%`} icon={Icons.BarChart} iconBg="#ecfdf5" iconColor={T.success} loading={false} />
+          <StatCard label="Pass Rate"        value={`${resultStats.passRate}%`} icon={Icons.Medal} iconBg="#fffbeb" iconColor={T.warning} loading={false} />
         </div>
 
-        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-6 mb-10 flex divide-x divide-gray-100">
-          <div className="flex-1 px-6 flex justify-between items-center">
-            <div>
-              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Total Students</p>
-              <p className="text-4xl font-bold text-[#0A1128] leading-none">{resultStats.total}</p>
-            </div>
-            <span className="text-blue-500 text-3xl opacity-90">👥</span>
-          </div>
-          <div className="flex-1 px-8 flex justify-between items-center">
-            <div>
-              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Completed</p>
-              <p className="text-4xl font-bold text-[#0A1128] leading-none">{resultStats.completed}</p>
-            </div>
-            <span className="text-blue-400 text-3xl opacity-90">📄</span>
-          </div>
-          <div className="flex-1 px-8 flex justify-between items-center">
-            <div>
-              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Average Score</p>
-              <p className="text-4xl font-bold text-[#0A1128] leading-none">{resultStats.avg}%</p>
-            </div>
-            <span className="text-green-500 text-3xl opacity-90">📊</span>
-          </div>
-          <div className="flex-1 px-8 flex justify-between items-center">
-            <div>
-              <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Pass Rate</p>
-              <p className="text-4xl font-bold text-[#0A1128] leading-none">{resultStats.passRate}%</p>
-            </div>
-            <span className="text-orange-500 text-3xl opacity-90">🏅</span>
-          </div>
-        </div>
-
+        {/* Exam details strip */}
         {currentExamDetails && (
-          <div className="mb-12 pl-2">
-            <h3 className="font-bold text-[#0A1128] text-xl mb-2">{currentExamDetails.title}</h3>
-            <p className="text-sm text-gray-500 mb-8">{currentExamDetails.subject} • {currentExamDetails.class_name} • Conducted on {currentExamDetails.exam_date}</p>
-            
-            <div className="grid grid-cols-3 gap-6 text-base max-w-3xl">
-              <div>
-                <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-2">Duration</p>
-                <p className="font-bold text-[#0A1128] text-lg">{currentExamDetails.duration_minutes} minutes</p>
+          <Card style={{ padding: '18px 24px', marginBottom: 22 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
+              <div style={{ flex: 1 }}>
+                <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: T.textDark }}>{currentExamDetails.title}</p>
+                <p style={{ margin: '3px 0 0', fontSize: 12, color: T.textMid }}>{currentExamDetails.subject} · {currentExamDetails.class_name} · {currentExamDetails.exam_date}</p>
               </div>
-              <div>
-                <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-2">Passing Score</p>
-                <p className="font-bold text-[#0A1128] text-lg">50%</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-2">Completion Rate</p>
-                <p className="font-bold text-[#0A1128] text-lg">
-                   {resultStats.total > 0 ? Math.round((resultStats.completed / resultStats.total) * 100) : 0}%
-                </p>
-              </div>
+              {[
+                { label: 'Duration',         value: `${currentExamDetails.duration_minutes} min` },
+                { label: 'Passing Score',    value: '50%' },
+                { label: 'Completion Rate',  value: `${resultStats.total > 0 ? Math.round((resultStats.completed / resultStats.total) * 100) : 0}%` },
+              ].map(item => (
+                <div key={item.label} style={{ textAlign: 'center', padding: '0 20px', borderLeft: `1px solid ${T.border}` }}>
+                  <p style={{ margin: 0, fontSize: 11, color: T.textMuted, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>{item.label}</p>
+                  <p style={{ margin: 0, fontSize: 18, fontWeight: 800, color: T.textDark }}>{item.value}</p>
+                </div>
+              ))}
             </div>
-          </div>
+          </Card>
         )}
 
-        <div className="mb-6 bg-white/50 rounded-2xl p-5 border border-gray-100">
-          <div className="mb-6 border-b border-gray-200 pb-4">
-            <h3 className="font-bold text-[#0A1128] text-lg mb-1">Student Results</h3>
-            <p className="text-sm text-gray-500">Detailed results for each student who attempted the exam</p>
+        {/* Results table */}
+        <Card style={{ overflow: 'hidden' }}>
+          <div style={{ padding: '18px 24px', borderBottom: `1px solid ${T.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: T.textDark }}>Student Results</h3>
+              <p style={{ margin: '3px 0 0', fontSize: 12, color: T.textMid }}>Detailed results for each student</p>
+            </div>
+            <Card style={{ padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 8, border: `1px solid ${T.borderMid}`, boxShadow: 'none' }}>
+              <span style={{ color: T.textMuted }}><Icons.Search /></span>
+              <input type="text" placeholder="Search students..." style={{ border: 'none', outline: 'none', fontSize: 13, color: T.textDark, background: 'transparent', width: 180, fontFamily: "'Inter','Segoe UI',sans-serif" }} />
+            </Card>
           </div>
-          
-          <div className="flex justify-between items-center mb-6">
-              <div className="relative w-80 bg-gray-50 rounded-lg">
-                <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-400 text-sm">🔍</span>
-                <input type="text" placeholder="Search students by name or ID..." className="w-full bg-transparent py-2.5 pl-10 pr-4 text-sm outline-none text-gray-600" />
-              </div>
-              <select className="bg-transparent border-none py-2 text-sm font-bold text-gray-600 outline-none cursor-pointer">
-                <option>All Grades</option>
-              </select>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-gray-200 text-[#0A1128] font-bold">
-                <tr>
-                  <th className="py-4 px-3">Student</th>
-                  <th className="py-4 px-3">Score</th>
-                  <th className="py-4 px-3">Percentage</th>
-                  <th className="py-4 px-3">Grade</th>
-                  <th className="py-4 px-3">Status</th>
-                  <th className="py-4 px-3 text-center">Actions</th>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: T.pageBg, borderBottom: `1px solid ${T.border}` }}>
+                  {['Student', 'Score', 'Percentage', 'Grade', 'Status', 'Actions'].map(h => (
+                    <th key={h} style={{ padding: '12px 16px', textAlign: h === 'Actions' ? 'center' : 'left', fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</th>
+                  ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody>
                 {resultsData.length === 0 ? (
-                   <tr><td colSpan="6" className="text-center py-8 text-gray-400 font-bold">No results recorded yet for this exam.</td></tr>
-                ) : (
-                  resultsData.map((s, i) => {
-                    const studentName = s.student_name || 'Unknown Student';
-                    const studentId = s.student_id || '-';
-                    const scoreNum = parseFloat(s.score) || 0;
-                    
-                    return (
-                      <tr key={i} className="hover:bg-gray-50/80 transition-colors">
-                        <td className="py-4 px-3">
-                          <p className="font-bold text-[#0A1128] text-base">{studentName}</p>
-                          <p className="text-xs text-gray-500 mt-1">{studentId}</p>
-                        </td>
-                        <td className="py-4 px-3 font-medium text-[#0A1128]">{s.score != null ? `${s.score}/100` : '-'}</td>
-                        <td className="py-4 px-3">
-                          <div className="flex items-center">
-                            <span className="font-bold text-[#0A1128] w-10">{scoreNum}%</span>
-                            <div className="w-10 h-2 bg-blue-600 rounded-full ml-2"></div>
+                  <tr><td colSpan="6" style={{ textAlign: 'center', padding: '40px 0', color: T.textMuted, fontSize: 13, fontWeight: 600 }}>No results recorded yet for this exam.</td></tr>
+                ) : resultsData.map((s, i) => {
+                  const name     = s.student_name || 'Unknown Student';
+                  const sid      = s.student_id   || '—';
+                  const scoreNum = parseFloat(s.score) || 0;
+                  const passed   = scoreNum >= 50 || s.status === 'Passed';
+                  return (
+                    <tr key={i} style={{ borderBottom: `1px solid ${T.border}`, transition: 'background 0.12s' }}
+                      onMouseEnter={e => e.currentTarget.style.background = T.pageBg}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <td style={{ padding: '14px 16px' }}>
+                        <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: T.textDark }}>{name}</p>
+                        <p style={{ margin: '2px 0 0', fontSize: 11, color: T.textMuted }}>{sid}</p>
+                      </td>
+                      <td style={{ padding: '14px 16px', fontSize: 13, fontWeight: 700, color: T.textDark }}>{s.score != null ? `${s.score}/100` : '—'}</td>
+                      <td style={{ padding: '14px 16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: T.textDark, minWidth: 38 }}>{scoreNum}%</span>
+                          <div style={{ flex: 1, maxWidth: 80, height: 6, background: T.border, borderRadius: 4, overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${Math.min(scoreNum, 100)}%`, background: passed ? T.success : T.danger, borderRadius: 4, transition: 'width 0.4s' }} />
                           </div>
-                        </td>
-                        <td className={`py-4 px-3 font-bold ${s.grade === 'F' ? 'text-red-500' : 'text-green-500'}`}>{s.grade || '-'}</td>
-                        <td className="py-4 px-3">
-                          <span className={`px-3 py-1 text-xs font-bold uppercase rounded ${s.status === 'Failed' || scoreNum < 50 ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
-                            {s.status || (scoreNum >= 50 ? 'Passed' : 'Failed')}
-                          </span>
-                        </td>
-                        <td className="py-4 px-3 text-center">
-                          <button className="text-gray-400 hover:text-[#0A1128] cursor-pointer text-lg">👁</button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
+                        </div>
+                      </td>
+                      <td style={{ padding: '14px 16px', fontSize: 13, fontWeight: 800, color: s.grade === 'F' ? T.danger : T.success }}>{s.grade || '—'}</td>
+                      <td style={{ padding: '14px 16px' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, textTransform: 'uppercase', letterSpacing: '0.05em', background: passed ? T.successBg : T.dangerBg, color: passed ? T.success : T.danger }}>
+                          {s.status || (passed ? 'Passed' : 'Failed')}
+                        </span>
+                      </td>
+                      <td style={{ padding: '14px 16px', textAlign: 'center' }}>
+                        <ActionBtn icon={Icons.Eye} color={T.primary} title="View" onClick={() => {}} />
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
-        </div>
+        </Card>
       </div>
     );
   };
 
-  // =======================================
-  // 7. صفحة جدول الامتحانات (Schedule View) الحقيقي
-  // =======================================
+  // ══════════════════════════════════════════════════════════════════════════
+  // VIEW 5 — SCHEDULE (weekly calendar)
+  // ══════════════════════════════════════════════════════════════════════════
   const renderSchedule = () => {
-    // بناء أيام الأسبوع الحالية للتقويم
     const weekDays = Array.from({ length: 5 }).map((_, i) => {
       const d = new Date(currentWeekStart);
       d.setDate(d.getDate() + i);
       return d;
     });
-
-    const START_HOUR = 8;
-    const HOUR_HEIGHT = 70; // ارتفاع السطر الواحد لتمثيل ساعة
-    
-    // تحويل الوقت من "HH:MM" الى رقم 
-    const timeToFloat = (timeString) => {
-      if (!timeString) return 10;
-      const [h, m] = timeString.split(':');
+    const START_HOUR  = 8;
+    const HOUR_HEIGHT = 70;
+    const timeToFloat = (t) => {
+      if (!t) return 10;
+      const [h, m] = t.split(':');
       return parseInt(h) + (parseInt(m || 0) / 60);
     };
 
     return (
-      <div className="animate-fade-in pb-10">
-        <div className="mb-8 border-b border-gray-200 pb-5 flex justify-between items-center">
-          <h2 className="text-3xl font-bold text-[#0A1128] mb-2">Exam Schedule</h2>
-          <div className="flex space-x-2">
-            <button onClick={() => {const d = new Date(currentWeekStart); d.setDate(d.getDate() - 7); setCurrentWeekStart(getStartOfWeek(d))}} className="w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center hover:bg-gray-50 cursor-pointer">{"<"}</button>
-            <button onClick={() => setCurrentWeekStart(getStartOfWeek(new Date()))} className="px-4 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center font-bold text-sm hover:bg-gray-50 cursor-pointer">This Week</button>
-            <button onClick={() => {const d = new Date(currentWeekStart); d.setDate(d.getDate() + 7); setCurrentWeekStart(getStartOfWeek(d))}} className="w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center hover:bg-gray-50 cursor-pointer">{">"}</button>
+      <div style={{ paddingBottom: 40 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24 }}>
+          <SectionHeading title="Exam Schedule" sub="Weekly overview of all scheduled exams" />
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <GhostBtn onClick={() => { const d = new Date(currentWeekStart); d.setDate(d.getDate() - 7); setCurrentWeekStart(getStartOfWeek(d)); }}>
+              <Icons.ChevronLeft />
+            </GhostBtn>
+            <GhostBtn onClick={() => setCurrentWeekStart(getStartOfWeek(new Date()))}>This Week</GhostBtn>
+            <GhostBtn onClick={() => { const d = new Date(currentWeekStart); d.setDate(d.getDate() + 7); setCurrentWeekStart(getStartOfWeek(d)); }}>
+              <Icons.ChevronRight />
+            </GhostBtn>
           </div>
         </div>
 
-        <div className="bg-white border border-gray-200 rounded-2xl p-8 shadow-sm overflow-x-auto">
-          <div className="min-w-[900px]">
-            <div className="grid grid-cols-6 gap-4 mb-6 text-center border-b border-gray-100 pb-6">
-              <div className="text-gray-400 font-bold text-sm flex items-end justify-center">🕒 Time</div>
+        <Card style={{ padding: '24px', overflowX: 'auto' }}>
+          <div style={{ minWidth: 860 }}>
+            {/* Header row */}
+            <div style={{ display: 'grid', gridTemplateColumns: '72px repeat(5,1fr)', gap: 8, marginBottom: 16, paddingBottom: 16, borderBottom: `1px solid ${T.border}` }}>
+              <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 4 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Time</span>
+              </div>
               {weekDays.map(date => {
                 const isToday = date.toDateString() === new Date().toDateString();
                 return (
-                  <div key={date.toISOString()}>
-                    <p className={`${isToday ? 'text-blue-600' : 'text-gray-500'} font-bold text-sm uppercase mb-1`}>{date.toLocaleDateString('en-US', { weekday: 'short' })}</p>
-                    <p className={`text-xl font-black ${isToday ? 'text-blue-600' : 'text-[#0A1128]'}`}>{date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+                  <div key={date.toISOString()} style={{ textAlign: 'center' }}>
+                    <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: isToday ? T.primary : T.textMuted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>
+                      {date.toLocaleDateString('en-US', { weekday: 'short' })}
+                    </p>
+                    <p style={{ margin: 0, fontSize: 20, fontWeight: 800, color: isToday ? T.primary : T.textDark }}>
+                      {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </p>
+                    {isToday && <div style={{ width: 6, height: 6, borderRadius: '50%', background: T.primary, margin: '4px auto 0' }} />}
                   </div>
                 );
               })}
             </div>
 
-            <div className="grid grid-cols-6 gap-4 text-base relative">
-              {/* عمود الأوقات */}
-              <div className="relative text-gray-400 font-bold text-sm text-center pt-6 min-h-[600px] border-r border-dashed border-gray-100">
-                {[8, 10, 12, 14, 16].map(hour => (
-                   <div key={hour} style={{ position: 'absolute', top: `${(hour - START_HOUR) * HOUR_HEIGHT + 24}px`, width: '100%' }}>
-                     {hour > 12 ? hour - 12 : hour}:00 {hour >= 12 ? 'PM' : 'AM'}
-                   </div>
+            {/* Calendar grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: '72px repeat(5,1fr)', gap: 8, position: 'relative' }}>
+              {/* Time column */}
+              <div style={{ position: 'relative', minHeight: 500 }}>
+                {[8, 9, 10, 11, 12, 13, 14, 15, 16].map(hour => (
+                  <div key={hour} style={{ position: 'absolute', top: (hour - START_HOUR) * HOUR_HEIGHT, right: 0, width: '100%', paddingRight: 8 }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: T.textMuted }}>
+                      {hour > 12 ? hour - 12 : hour}:00 {hour >= 12 ? 'PM' : 'AM'}
+                    </span>
+                  </div>
                 ))}
               </div>
 
-              {/* أعمدة الأيام الديناميكية */}
-              {weekDays.map((date, index) => {
-                const dateStr = date.toISOString().split('T')[0];
-                // نجيبو الامتحانات لي طايحين فهاد النهار
+              {/* Day columns */}
+              {weekDays.map((date, idx) => {
+                const dateStr  = date.toISOString().split('T')[0];
                 const dayExams = examsData.filter(e => e.exam_date === dateStr && e.status?.toLowerCase() !== 'draft');
-
+                const isToday  = date.toDateString() === new Date().toDateString();
                 return (
-                  <div key={dateStr} className={`relative min-h-[600px] border-dashed border-gray-200 ${index < 4 ? 'border-r' : ''}`}>
+                  <div key={dateStr} style={{
+                    position: 'relative', minHeight: 630,
+                    borderLeft: `1px dashed ${T.border}`,
+                    background: isToday ? 'rgba(67,24,255,0.015)' : 'transparent',
+                  }}>
+                    {/* Hour lines */}
+                    {[8, 9, 10, 11, 12, 13, 14, 15, 16].map(h => (
+                      <div key={h} style={{ position: 'absolute', top: (h - START_HOUR) * HOUR_HEIGHT, left: 0, right: 0, borderTop: `1px solid ${T.border}`, opacity: 0.6 }} />
+                    ))}
+
                     {dayExams.map(exam => {
-                      const startFloat = timeToFloat(exam.start_time);
-                      const topPosition = (startFloat - START_HOUR) * HOUR_HEIGHT + 24; 
-                      const colorClass = getSubjectColor(exam.subject);
-                      
+                      const col = getSubjectColors(exam.subject);
+                      const startFloat  = timeToFloat(exam.start_time);
+                      const topPosition = (startFloat - START_HOUR) * HOUR_HEIGHT;
                       return (
-                        <div key={exam.id} style={{ top: `${topPosition}px` }} className={`absolute w-[95%] left-[2.5%] ${colorClass.bg} border-l-4 ${colorClass.border} p-4 rounded-r-xl shadow-sm z-10 hover:shadow-md transition-shadow cursor-pointer`}>
-                          <p className={`text-[10px] font-bold ${colorClass.text} mb-1.5 uppercase tracking-wider`}>{exam.subject} • {exam.start_time || 'TBD'}</p>
-                          <p className="font-bold text-[#0A1128] text-sm mb-1 leading-tight">{exam.title}</p>
-                          <p className="text-xs text-gray-500 truncate">{exam.class_name}</p>
+                        <div
+                          key={exam.id}
+                          style={{
+                            position: 'absolute', top: topPosition,
+                            left: 4, right: 4,
+                            background: col.bg,
+                            borderLeft: `3px solid ${col.border}`,
+                            borderRadius: '0 8px 8px 0',
+                            padding: '8px 10px', zIndex: 10,
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                            cursor: 'pointer', transition: 'box-shadow 0.15s',
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.12)'}
+                          onMouseLeave={e => e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'}
+                        >
+                          <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: col.text, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>
+                            {exam.subject} · {exam.start_time || 'TBD'}
+                          </p>
+                          <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: T.textDark, lineHeight: 1.3 }}>{exam.title}</p>
+                          <p style={{ margin: '2px 0 0', fontSize: 11, color: T.textMid, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{exam.class_name}</p>
                         </div>
-                      )
+                      );
                     })}
-                    
+
                     {dayExams.length === 0 && (
-                      <div className="absolute top-48 w-[95%] left-[2.5%] bg-gray-50 p-5 rounded-xl text-center border border-gray-100">
-                        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">No Exams</p>
+                      <div style={{ position: 'absolute', top: '40%', left: 0, right: 0, textAlign: 'center' }}>
+                        <p style={{ fontSize: 11, fontWeight: 700, color: T.borderMid, textTransform: 'uppercase', letterSpacing: '0.07em' }}>No Exams</p>
                       </div>
                     )}
                   </div>
@@ -798,17 +989,22 @@ const Exams = ({ examView, setExamView }) => {
               })}
             </div>
           </div>
-        </div>
+        </Card>
       </div>
     );
   };
 
+  // ── Render routing ────────────────────────────────────────────────────────
   return (
-    <div className="p-8 h-full overflow-y-auto bg-transparent custom-scrollbar">
-      {examView === 'home' && renderHome()}
-      {examView === 'manage' && renderManageExams()}
-      {examView === 'results' && renderResults()}
-      {examView === 'create' && renderCreateExam()}
+    <div style={{
+      padding: '28px 32px', height: '100%',
+      overflowY: 'auto', background: T.pageBg,
+      fontFamily: "'Inter','Segoe UI',sans-serif",
+    }}>
+      {examView === 'home'     && renderHome()}
+      {examView === 'manage'   && renderManageExams()}
+      {examView === 'results'  && renderResults()}
+      {examView === 'create'   && renderCreateExam()}
       {examView === 'schedule' && renderSchedule()}
     </div>
   );

@@ -788,7 +788,7 @@ const StudentDashboard = () => {
                   { label: 'View Schedule',    tab: 'My Learning',     sub: null,       subKey: 'learningSubTab',  subVal: 'Schedule' },
                   { label: 'Submit Homework',   tab: 'Classroom Tasks', subKey: 'tasksSubTab', subVal: 'Homeworks' },
                   { label: 'Check Grades',      tab: 'Classroom Tasks', subKey: 'tasksSubTab', subVal: 'Grade Report' },
-                  { label: 'Make Payment',      tab: 'Payment',         subKey: null },
+                  { label: 'View Payment',      tab: 'Payment',         subKey: null },
                 ].map((action, idx) => (
                   <button key={idx} onClick={() => {
                     setActiveTab(action.tab);
