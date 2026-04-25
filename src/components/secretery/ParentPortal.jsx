@@ -141,6 +141,9 @@ const ParentPortal = () => {
     if (!announcementForm.title || !announcementForm.content) return showToast("⚠️ Please fill title and content");
 
     const targetAudience = getTargetAudienceString();
+    
+    // 💡 الذكاء هنا: يجبد الرول تاع لي مكونيكتي، وإذا مالقاش يدير admin كاحتياط
+    const activeRole = currentUser?.role?.toLowerCase() || 'admin';
 
     const { error } = await supabase.from('communications').insert([{
       subject: announcementForm.title,
@@ -149,7 +152,7 @@ const ParentPortal = () => {
       recipient_name: targetAudience, 
       recipient_id: 'all', 
       sender_id: currentUser?.id,
-      sender_role: 'secretary'
+      sender_role: activeRole 
     }]);
 
     if (!error) {
@@ -167,6 +170,7 @@ const ParentPortal = () => {
     if (!notificationForm.title || !notificationForm.content) return showToast("⚠️ Please fill title and content");
 
     const targetAudience = getTargetAudienceString();
+    const activeRole = currentUser?.role?.toLowerCase() || 'admin';
 
     const { error } = await supabase.from('communications').insert([{
       subject: notificationForm.title,
@@ -175,7 +179,7 @@ const ParentPortal = () => {
       recipient_name: targetAudience, 
       recipient_id: 'all', 
       sender_id: currentUser?.id,
-      sender_role: 'secretary'
+      sender_role: activeRole
     }]);
 
     if (!error) {
@@ -191,14 +195,18 @@ const ParentPortal = () => {
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !currentUser) return;
+    
+    const activeRole = currentUser?.role?.toLowerCase() || 'admin';
+
     const messageData = {
       content: newMessage,
       type: chatType,
       recipient_name: selectedRecipient?.name || 'Group Message',
       recipient_id: selectedRecipient?.id?.toString() || 'all',
       sender_id: currentUser.id,
-      sender_role: 'secretary'
+      sender_role: activeRole
     };
+    
     const { error } = await supabase.from('communications').insert([messageData]);
     if (!error) {
       setNewMessage('');
@@ -428,7 +436,7 @@ const ParentPortal = () => {
                 <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[10px] font-bold ml-4">Announcement</span>
               </div>
               <p className="text-sm text-orange-800/80 mb-4 leading-relaxed whitespace-pre-wrap">{ann.content}</p>
-              <p className="text-xs text-orange-600/70">Published by Secretary • {new Date(ann.created_at).toLocaleDateString()}</p>
+              <p className="text-xs text-orange-600/70">Published by <span className="capitalize font-bold">{ann.sender_role || 'System'}</span> • {new Date(ann.created_at).toLocaleDateString()}</p>
             </div>
             <div className="flex flex-col justify-between items-end">
               <div className="flex space-x-2 text-orange-400">
@@ -487,7 +495,7 @@ const ParentPortal = () => {
                 <tr key={comm.id} className="hover:bg-gray-50 transition-colors">
                   <td className="py-4 px-2">
                     <p className="font-bold text-[#0A1128] truncate max-w-xs">{comm.subject || comm.content}</p>
-                    <p className="text-[10px] text-gray-500 capitalize">To: {comm.recipient_name} • Type: {comm.type}</p>
+                    <p className="text-[10px] text-gray-500 capitalize">To: {comm.recipient_name} • Type: {comm.type} • By: {comm.sender_role}</p>
                   </td>
                   <td className="py-4 px-2 text-right text-xs text-gray-400 font-medium">
                     {new Date(comm.created_at).toLocaleString()}
