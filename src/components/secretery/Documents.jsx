@@ -688,7 +688,7 @@ const Documents = () => {
             </div>
          </div>
     </div>
-  );
+  </div>);
 };
 
 export default Documents;
