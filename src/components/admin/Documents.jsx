@@ -1,10 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../../supabaseClient';
+
+// ==========================================
+// 🔔 MODERN NOTIFICATION COMPONENT 
+// ==========================================
+const Toast = ({ message, onClose }) => (
+  <div className="fixed bottom-12 right-12 z-[1000] animate-in slide-in-from-right duration-500 text-left">
+    <div className="bg-[#1A2252] text-white px-10 py-6 rounded-[2.5rem] shadow-2xl flex items-center gap-6 border border-blue-400/30 backdrop-blur-xl min-w-[450px]">
+      <div className="w-14 h-14 bg-green-500 rounded-2xl flex items-center justify-center text-3xl shadow-lg shadow-green-500/40">
+        <span className="animate-pulse">✓</span>
+      </div>
+      <div className="flex-1">
+        <p className="text-xl font-black italic tracking-tight leading-none mb-1 text-white">System Log</p>
+        <p className="text-sm font-bold text-blue-200/80 italic">{message}</p>
+      </div>
+      <button onClick={onClose} className="ml-6 text-white/30 hover:text-white transition-colors text-2xl p-2 cursor-pointer">✕</button>
+    </div>
+  </div>
+);
 
 const Documents = () => {
   const [activeTab, setActiveTab] = useState('All');
   const [selectedDocId, setSelectedDocId] = useState('enrollment');
   const [isGenerated, setIsGenerated] = useState(false);
-  const [docSearchQuery, setDocSearchQuery] = useState(''); // Search for the list
+  const [docSearchQuery, setDocSearchQuery] = useState(''); 
+  const [toast, setToast] = useState({ show: false, message: '' });
+  const [currentUser, setCurrentUser] = useState(null);
 
   const [formData, setFormData] = useState({
     searchQuery: '',
@@ -12,6 +33,23 @@ const Documents = () => {
     courseLevel: '',
     date: ''
   });
+
+  // 💡 جلب الأدمين أو السكريتيرة لي راهم مكونيكتيين باش نسجلوهم في الـ Log
+  useEffect(() => {
+    const fetchUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user && user.email) {
+        const { data: staffData } = await supabase.from('staff').select('*').eq('email', user.email).single();
+        setCurrentUser(staffData || user);
+      }
+    };
+    fetchUser();
+  }, []);
+
+  const showNotification = (msg) => {
+    setToast({ show: true, message: msg });
+    setTimeout(() => setToast({ show: false, message: '' }), 4500);
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -32,7 +70,6 @@ const Documents = () => {
     { id: 'payslip', category: 'FACULTY DOCUMENTS', title: 'Payslip', desc: 'Monthly salary statement and breakdown', target: 'Faculty' },
   ];
 
-  // Logic for filtering the list by Tab AND Search Bar
   const filteredDocs = documentsList.filter(doc => {
     const matchesTab = activeTab === 'All' || doc.target === activeTab;
     const matchesSearch = doc.title.toLowerCase().includes(docSearchQuery.toLowerCase());
@@ -52,9 +89,34 @@ const Documents = () => {
     setIsGenerated(false);
   };
 
-  const handleGenerate = (e) => {
+  // 💡 تطبيق الـ Diagram: التحقق وإنشاء الوثيقة وتسجيل العملية (Log Action)
+  const handleGenerate = async (e) => {
     e.preventDefault();
+    
+    if (!formData.fullName) {
+      alert("⚠️ Please enter a name to generate the document.");
+      return;
+    }
+
     setIsGenerated(true);
+
+    try {
+      // 💡 تسجيل العملية (Logging) في الداتا باز
+      const logData = {
+        document_type: selectedDocDetails.title,
+        target_person: formData.fullName,
+        generated_by: currentUser ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() : 'System Admin',
+        generated_at: new Date().toISOString()
+      };
+
+      // إذا ما كانش عندك طابلو document_logs، كومنتي هاد السطرين باش ما يخرجلكش إيرور
+      const { error } = await supabase.from('document_logs').insert([logData]);
+      if (error) console.warn("Log warning: Make sure 'document_logs' table exists.", error.message);
+
+      showNotification(`Document generated and logged successfully for ${formData.fullName}.`);
+    } catch (err) {
+      console.error("Failed to log document generation:", err);
+    }
   };
 
   const handlePrint = () => {
@@ -179,7 +241,7 @@ const Documents = () => {
         </div>
       );
     }
-     
+      
      return (
         <div className="bg-white p-12 shadow-xl w-full max-w-2xl mx-auto border border-gray-200">
            <h2 className="text-2xl font-bold text-center mb-8 border-b pb-4">{selectedDocDetails?.title}</h2>
@@ -194,6 +256,7 @@ const Documents = () => {
 
   return (
     <div className="animate-fade-in w-full flex flex-col relative text-[#0A1128] bg-gray-50 min-h-[700px]">
+      {toast.show && <Toast message={toast.message} onClose={() => setToast({ show: false, message: '' })} />}
       <div className="flex w-full h-[800px] shadow-sm rounded-xl overflow-hidden border border-gray-200">
          
          <div className="w-[340px] bg-white border-r border-gray-200 flex flex-col h-full shrink-0">

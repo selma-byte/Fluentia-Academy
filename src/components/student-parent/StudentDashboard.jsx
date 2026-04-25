@@ -236,7 +236,6 @@ const StudentDashboard = () => {
   const [tasksSubTab, setTasksSubTab]       = useState('Attendance');
   const navigate = useNavigate();
 
-  // ── All original state — UNTOUCHED ────────────────────────────────────────
   const [studentInfo, setStudentInfo]         = useState({ full_name: 'Loading...', role: 'Student Account', level: '' });
   const [currentUser, setCurrentUser]         = useState(null);
   const [myClasses, setMyClasses]             = useState([]);
@@ -246,12 +245,16 @@ const StudentDashboard = () => {
   const [notificationsList, setNotificationsList] = useState([]);
   const notificationRef = useRef(null);
 
+  // 💡 States for the Justification Modal
+  const [isJustifyModalOpen, setIsJustifyModalOpen] = useState(false);
+  const [justifyData, setJustifyData] = useState({ date: '', reason: '' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const homeworkData = [
     { title: "Course Assignment", desc: "Project Presentation",  due: "Feb 10, 2026", status: "Pending",   color: "#6366f1" },
     { title: "Written Exercise",  desc: "Grammar Essay",         due: "Mar 5, 2026",  status: "Submitted", color: "#f59e0b" },
   ];
 
-  // ── All original Supabase logic — UNTOUCHED ───────────────────────────────
   useEffect(() => {
     const fetchStudentData = async () => {
       try {
@@ -317,7 +320,7 @@ const StudentDashboard = () => {
           if (commsData) {
             const myNotifs = commsData.filter(c => {
               const target = c.recipient_name?.toLowerCase() || '';
-              return target.includes('students') || target.includes('all community');
+              return target.includes('students') || target.includes('all community') || c.recipient_id === user.id;
             });
             setNotificationsList(myNotifs);
             setUnreadCount(myNotifs.length);
@@ -343,6 +346,35 @@ const StudentDashboard = () => {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate('/login');
+  };
+
+  // 💡 Submit Justification Function
+  const submitJustification = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      if (!currentUser) throw new Error("User not found");
+      
+      const { error } = await supabase.from('communications').insert([{
+        type: 'justification',
+        subject: `Absence Justification: ${studentInfo.full_name} (${justifyData.date})`,
+        content: justifyData.reason,
+        sender_id: currentUser.id,
+        sender_role: 'student',
+        recipient_name: 'secretary',
+        recipient_id: 'all'
+      }]);
+      
+      if (error) throw error;
+      
+      alert("✅ Justification submitted successfully. The administration will review it to schedule a recovery session.");
+      setIsJustifyModalOpen(false);
+      setJustifyData({date: '', reason: ''});
+    } catch (err) {
+      alert("❌ Error: " + err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // ── Calendar helper ───────────────────────────────────────────────────────
@@ -403,14 +435,12 @@ const StudentDashboard = () => {
     if (activeTab === 'Payment')  return <StudentPayment />;
     if (activeTab === 'Settings') return <AccountSettings />;
 
-    // 💡 التحقق من الترقية باش نبينولو التهنئة
     const needsGroup = currentUser && (!currentUser.group_name || currentUser.status === 'Pending Group');
 
     // ── Dashboard View ──────────────────────────────────────────────────────
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 28 }}>
 
-        {/* 💡 نافذة التهنئة بالترقية */}
         {needsGroup && (
           <div style={{
              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
@@ -781,19 +811,23 @@ const StudentDashboard = () => {
                 </div>
               </div>
 
-              {/* Quick Actions */}
+              {/* Quick Actions - 💡 Added Justification Button here */}
               <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #f1f5f9', padding: 20 }}>
                 <h4 style={{ margin: '0 0 14px', fontSize: 13, fontWeight: 800, color: '#1e293b' }}>Quick Actions</h4>
                 {[
-                  { label: 'View Schedule',    tab: 'My Learning',     sub: null,       subKey: 'learningSubTab',  subVal: 'Schedule' },
+                  { label: 'View Schedule',    tab: 'My Learning',     subKey: 'learningSubTab',  subVal: 'Schedule' },
                   { label: 'Submit Homework',   tab: 'Classroom Tasks', subKey: 'tasksSubTab', subVal: 'Homeworks' },
                   { label: 'Check Grades',      tab: 'Classroom Tasks', subKey: 'tasksSubTab', subVal: 'Grade Report' },
-                  { label: 'View Payment',      tab: 'Payment',         subKey: null },
+                  { label: 'Submit Justification', action: () => setIsJustifyModalOpen(true) },
                 ].map((action, idx) => (
                   <button key={idx} onClick={() => {
-                    setActiveTab(action.tab);
-                    if (action.subKey === 'tasksSubTab')   setTasksSubTab(action.subVal);
-                    if (action.subKey === 'learningSubTab') setLearningSubTab(action.subVal);
+                    if (action.action) {
+                      action.action();
+                    } else {
+                      setActiveTab(action.tab);
+                      if (action.subKey === 'tasksSubTab')   setTasksSubTab(action.subVal);
+                      if (action.subKey === 'learningSubTab') setLearningSubTab(action.subVal);
+                    }
                   }} style={{
                     width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                     padding: '10px 14px', borderRadius: 10, border: '1px solid #f1f5f9',
@@ -807,6 +841,41 @@ const StudentDashboard = () => {
           )}
         </div>
       </main>
+
+      {/* 💡 Justification Modal Component */}
+      {isJustifyModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(4px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', borderRadius: 20, padding: 32, width: '100%', maxWidth: 480, boxShadow: '0 20px 60px rgba(0,0,0,0.2)', position: 'relative' }}>
+            <button onClick={() => setIsJustifyModalOpen(false)} style={{ position: 'absolute', top: 18, right: 20, background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 20, fontWeight: 700 }}>✕</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24, paddingBottom: 20, borderBottom: '1px solid #f1f5f9' }}>
+              <span style={{ fontSize: 24 }}>📝</span>
+              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#1e293b' }}>Absence Justification</h2>
+            </div>
+            
+            <form onSubmit={submitJustification} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>If you were marked absent, submit your reason below. The administration will review it to schedule a recovery session.</p>
+              
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 8 }}>Date of Absence</label>
+                <input type="date" required value={justifyData.date} onChange={e => setJustifyData({...justifyData, date: e.target.value})} 
+                  style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1px solid #f1f5f9', background: '#f8fafc', fontSize: 13, outline: 'none', color: '#1e293b', fontFamily: 'inherit' }} />
+              </div>
+              
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 8 }}>Reason & Explanation</label>
+                <textarea required rows="4" placeholder="Explain your absence in detail..." value={justifyData.reason} onChange={e => setJustifyData({...justifyData, reason: e.target.value})} 
+                  style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1px solid #f1f5f9', background: '#f8fafc', fontSize: 13, outline: 'none', resize: 'none', color: '#1e293b', fontFamily: 'inherit' }} />
+              </div>
+              
+              <button type="submit" disabled={isSubmitting} 
+                style={{ marginTop: 8, background: '#4318FF', color: '#fff', padding: '14px', borderRadius: 10, border: 'none', fontSize: 14, fontWeight: 700, cursor: isSubmitting ? 'not-allowed' : 'pointer', opacity: isSubmitting ? 0.7 : 1, transition: 'all .2s' }}>
+                {isSubmitting ? 'Sending...' : 'Send to Administration'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

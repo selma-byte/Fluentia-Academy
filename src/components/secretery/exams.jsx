@@ -193,6 +193,9 @@ const Exams = ({ examView, setExamView }) => {
   const [statusFilter, setStatusFilter] = useState('All Status');
   const [classesData, setClassesData] = useState([]);
   const [teachersData, setTeachersData] = useState([]);
+  
+  // 💡 إضافة الستايت الخاصة بالقاعات
+  const [roomsData, setRoomsData] = useState([]);
 
   // ── Focused states for form inputs ──
   const [focused, setFocused] = useState({});
@@ -209,6 +212,7 @@ const Exams = ({ examView, setExamView }) => {
     title: '', subject: 'English', class_name: '',
     teacher_id: '', duration: 60,
     date: getTodayString(), time: '10:00', instructions: '',
+    room_name: '' // 💡 زدنا القاعة هنا
   });
 
   const [resultsData,         setResultsData]         = useState([]);
@@ -232,7 +236,7 @@ const Exams = ({ examView, setExamView }) => {
     setLoading(false);
   };
 
-  const fetchClassesAndTeachers = async () => {
+  const fetchClassesAndTeachersAndRooms = async () => {
     const { data: cData } = await supabase.from('classes').select('*');
     if (cData) {
       setClassesData(cData);
@@ -242,6 +246,12 @@ const Exams = ({ examView, setExamView }) => {
     if (tData) {
       setTeachersData(tData);
       if (tData.length > 0) setNewExam(prev => ({ ...prev, teacher_id: tData[0].id }));
+    }
+    // 💡 جلب القاعات (Rooms)
+    const { data: rData } = await supabase.from('rooms').select('*');
+    if (rData) {
+      setRoomsData(rData);
+      if (rData.length > 0) setNewExam(prev => ({ ...prev, room_name: rData[0].name || rData[0].room_name }));
     }
   };
 
@@ -268,7 +278,7 @@ const Exams = ({ examView, setExamView }) => {
     } catch (err) { console.log('Error fetching grades', err); }
   };
 
-  useEffect(() => { fetchExams(); fetchClassesAndTeachers(); }, []);
+  useEffect(() => { fetchExams(); fetchClassesAndTeachersAndRooms(); }, []);
 
   useEffect(() => {
     if (examView === 'results') {
@@ -283,29 +293,44 @@ const Exams = ({ examView, setExamView }) => {
   }, [examView, selectedResultExam, examsData]);
 
   const handleSaveExam = async () => {
-    if (!newExam.title || !newExam.class_name || !newExam.teacher_id) {
-      alert('Please fill all required fields (Title, Class, Teacher)!'); return;
+    if (!newExam.title || !newExam.class_name || !newExam.teacher_id || !newExam.room_name) {
+      alert('Please fill all required fields (Title, Class, Teacher, Room)!'); return;
     }
     setLoading(true);
     try {
-      const { data: existingExams, error: checkError } = await supabase
+      // 💡 التحقق من التداخل (Conflict Validation) للأستاذ والقاعة[cite: 1]
+      const { data: conflicts, error: checkError } = await supabase
         .from('exams').select('*')
-        .eq('class_name', newExam.class_name).eq('exam_date', newExam.date);
+        .eq('exam_date', newExam.date)
+        .eq('start_time', newExam.time)
+        .or(`teacher_id.eq.${newExam.teacher_id},room_name.eq.${newExam.room_name},class_name.eq.${newExam.class_name}`);
+
       if (checkError) throw checkError;
-      if (existingExams && existingExams.length > 0) {
-        alert(`Conflict! The class "${newExam.class_name}" already has an exam on this date.`);
+
+      if (conflicts && conflicts.length > 0) {
+        const conflict = conflicts[0];
+        let errorMsg = "Conflict detected! \n";
+        if (conflict.teacher_id === newExam.teacher_id) errorMsg += "• This teacher already has an exam at this time.\n";
+        if (conflict.room_name === newExam.room_name) errorMsg += `• The room "${newExam.room_name}" is already booked.\n`;
+        if (conflict.class_name === newExam.class_name) errorMsg += `• The class "${newExam.class_name}" already has an exam scheduled.`;
+        
+        alert(errorMsg);
         setLoading(false); return;
       }
+
+      // إذا ماكاش تداخل، نسجلو الامتحان
       const { error } = await supabase.from('exams').insert([{
         title: newExam.title, subject: newExam.subject,
         class_name: newExam.class_name, teacher_id: newExam.teacher_id,
+        room_name: newExam.room_name, // 💡 حفظ القاعة
         duration_minutes: parseInt(newExam.duration),
         status: 'Scheduled', exam_date: newExam.date,
         start_time: newExam.time, instructions: newExam.instructions,
       }]);
       if (error) throw error;
-      alert('Exam Created Successfully!');
-      setNewExam({ title: '', subject: 'English', class_name: classesData[0]?.name || '', teacher_id: teachersData[0]?.id || '', duration: 60, date: getTodayString(), time: '10:00', instructions: '' });
+      
+      alert('Exam Created Successfully! No conflicts detected.');
+      setNewExam({ title: '', subject: 'English', class_name: classesData[0]?.name || '', teacher_id: teachersData[0]?.id || '', room_name: roomsData[0]?.name || '', duration: 60, date: getTodayString(), time: '10:00', instructions: '' });
       setCreateStep(1); setExamView('manage'); fetchExams();
     } catch (err) { alert('Error: ' + err.message); }
     finally { setLoading(false); }
@@ -631,6 +656,17 @@ const Exams = ({ examView, setExamView }) => {
                   {teachersData.map(t => <option key={t.id} value={t.id}>{t.first_name} {t.last_name}</option>)}
                 </select>
               </div>
+              {/* 💡 Room Selection */}
+              <div>
+                <FieldLabel required>Assign Room</FieldLabel>
+                <select value={newExam.room_name}
+                  onChange={e => setNewExam({ ...newExam, room_name: e.target.value })}
+                  onFocus={() => onFocus('room')} onBlur={() => onBlur('room')}
+                  style={selectStyle(focused.room)}>
+                  <option value="">— Select Room —</option>
+                  {roomsData.map(r => <option key={r.id} value={r.name || r.room_name}>{r.name || r.room_name}</option>)}
+                </select>
+              </div>
               {/* Date */}
               <div>
                 <FieldLabel required>Exam Date</FieldLabel>
@@ -648,12 +684,12 @@ const Exams = ({ examView, setExamView }) => {
                   style={inputStyle(focused.time)} />
               </div>
               {/* Duration */}
-              <div style={{ gridColumn: '1/-1' }}>
+              <div>
                 <FieldLabel>Duration (minutes)</FieldLabel>
                 <input type="number" value={newExam.duration}
                   onChange={e => setNewExam({ ...newExam, duration: e.target.value })}
                   onFocus={() => onFocus('duration')} onBlur={() => onBlur('duration')}
-                  placeholder="60" style={{ ...inputStyle(focused.duration), maxWidth: 200 }} />
+                  placeholder="60" style={inputStyle(focused.duration)} />
               </div>
             </div>
 
@@ -680,8 +716,8 @@ const Exams = ({ examView, setExamView }) => {
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: `1px solid ${T.border}`, paddingTop: 24 }}>
               <PrimaryBtn onClick={() => {
-                if (!newExam.title || !newExam.class_name || !newExam.teacher_id) {
-                  alert('Title, Class, and Teacher are required!'); return;
+                if (!newExam.title || !newExam.class_name || !newExam.teacher_id || !newExam.room_name) {
+                  alert('Title, Class, Teacher, and Room are required!'); return;
                 }
                 setCreateStep(2);
               }}>

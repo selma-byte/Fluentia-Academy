@@ -65,7 +65,6 @@ const Card = ({ children, style = {} }) => (
 // ─────────────────────────────────────────────────────────────────
 const ClassroomTasks = () => {
 
-  // ── All original states — UNTOUCHED ──────────────────────────────
   const [activeTab, setActiveTab]               = useState('Attendance');
   const [selectedClass, setSelectedClass]       = useState('');
   const [timeSlot, setTimeSlot]                 = useState('08:00 - 10:00');
@@ -85,7 +84,6 @@ const ClassroomTasks = () => {
   const [selectedStudent, setSelectedStudent]   = useState(null);
   const [searchTerm, setSearchTerm]             = useState('');
 
-  // ── All original Supabase logic — UNTOUCHED ───────────────────────
   useEffect(() => {
     const fetchTeacherData = async () => {
       setLoading(true);
@@ -112,6 +110,7 @@ const ClassroomTasks = () => {
         }
 
         if (classNamesList.length > 0) {
+          // 💡 تأكدي بلي كولون absence_count راهو كاين فالداتا باز
           const { data } = await supabase.from('students').select('*').in('group_name', classNamesList);
           setStudents(data || []);
         }
@@ -211,10 +210,35 @@ const ClassroomTasks = () => {
       status: attendanceData[s.id] || 'Present',
       time_slot: timeSlot,
     }));
+    
     if (records.length === 0) { setLoading(false); return alert('No students found in this class!'); }
+    
     try {
       const { error } = await supabase.from('attendance').insert(records);
       if (error) throw error;
+      
+      // 💡 الميزة الذكية رقم 1: تتبع الغيابات وإنذار الإدارة
+      const absentRecords = records.filter(r => r.status === 'Absent');
+      for (let rec of absentRecords) {
+        const st = students.find(s => s.id === rec.student_id);
+        const newAbsenceCount = (st.absence_count || 0) + 1;
+
+        // تحديث عداد الغيابات في حساب الطالب
+        await supabase.from('students').update({ absence_count: newAbsenceCount }).eq('id', st.id);
+
+        // إذا وصل لغيابين أو أكثر، نبعثو إنذار للسكريتيرة
+        if (newAbsenceCount >= 2) {
+          await supabase.from('communications').insert([{
+            type: 'emergency',
+            subject: `⚠️ Repeated Absence Alert: ${st.first_name} ${st.last_name}`,
+            content: `Student ${st.first_name} ${st.last_name} has reached ${newAbsenceCount} absences in ${selectedClass}. Please contact them at ${st.phone} to justify their absence.`,
+            recipient_name: 'staff',
+            sender_id: currentTeacherId,
+            sender_role: 'system'
+          }]);
+        }
+      }
+
       if (activeClassObject) {
         const newCompleted = (activeClassObject.completed_sessions || 0) + 1;
         const total = activeClassObject.total_sessions || 24;
@@ -227,7 +251,7 @@ const ClassroomTasks = () => {
           }
         }
       }
-      alert('Attendance saved and class progress updated successfully.');
+      alert('✅ Attendance saved successfully! Alerts sent for repeated absences.');
     } catch (err) {
       alert(err.message);
     } finally {
@@ -273,12 +297,25 @@ const ClassroomTasks = () => {
             created_at: new Date().toISOString(),
           };
         });
+        
         if (records.length === 0) { setLoading(false); return alert('Please enter grades before submitting.'); }
+        
         const { error: gradesError } = await supabase.from('grades').insert(records);
         if (gradesError) throw gradesError;
+
+        // 💡 الميزة الذكية رقم 2: تحديث النقطة للسكريتيرة
+        // باش النقطة تولي تبان عند السكريتيرة كي تروح دير (Process Result)
+        const studentUpdates = Object.entries(gradesDataInput).map(async ([sId, gradeValue]) => {
+            await supabase.from('students').update({
+                test_score: gradeValue 
+            }).eq('id', sId);
+        });
+        await Promise.all(studentUpdates);
+
         const { error: examError } = await supabase.from('exams').update({ status: 'Completed' }).eq('id', selectedExamId);
         if (examError) throw examError;
-        alert('Grades submitted successfully.');
+        alert('✅ Grades submitted successfully! The administration can now process the results.');
+        
         const completedExam = { ...examObj, status: 'Completed' };
         setAssignedExams(assignedExams.filter(ex => ex.id.toString() !== selectedExamId));
         setCompletedExams([completedExam, ...completedExams]);
@@ -689,7 +726,7 @@ const ClassroomTasks = () => {
       )}
 
       {/* ══════════════════════════════════════
-          STUDENT PROFILE MODAL — UNTOUCHED logic, restyled
+          STUDENT PROFILE MODAL
       ══════════════════════════════════════ */}
       {selectedStudent && (
         <div style={{

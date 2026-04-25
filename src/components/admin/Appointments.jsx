@@ -1,20 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../supabaseClient';
+import { supabase } from '../../supabaseClient'; 
+
+// ==========================================
+// 🔔 MODERN NOTIFICATION COMPONENT (ENLARGED)
+// ==========================================
+const Toast = ({ message, onClose }) => (
+  <div className="fixed bottom-12 right-12 z-[250] animate-in slide-in-from-right duration-500 text-left">
+    <div className="bg-[#1A2252] text-white px-10 py-6 rounded-[2.5rem] shadow-2xl flex items-center gap-6 border border-blue-400/30 backdrop-blur-xl min-w-[400px]">
+      <div className="w-12 h-12 bg-blue-500 rounded-2xl flex items-center justify-center text-2xl shadow-lg shadow-blue-500/40 animate-pulse">✨</div>
+      <div className="flex-1">
+        <p className="text-lg font-black italic tracking-tight leading-none mb-1">System Update</p>
+        <p className="text-sm font-bold text-blue-200/80 italic">{message}</p>
+      </div>
+      <button onClick={onClose} className="ml-6 text-white/30 hover:text-white transition-colors text-2xl p-2 cursor-pointer">✕</button>
+    </div>
+  </div>
+);
 
 const Appointments = () => {
   const [activeTab, setActiveTab] = useState('calendar');
   const [sideModalView, setSideModalView] = useState(null); // null, 'details', 'new'
   const [filter, setFilter] = useState('All');
   const [loading, setLoading] = useState(false);
+  const [toast, setToast] = useState(null);
 
-  // =======================================
-  // 💡 NEW: Notification System (From Picture)
-  // =======================================
-  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
-
-  const showNotification = (msg, type = 'success') => {
-    setToast({ show: true, message: msg, type });
-    setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 4000);
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 4500);
   };
 
   // =======================================
@@ -44,14 +56,14 @@ const Appointments = () => {
 
     const parseDay = (d) => {
       if (!d) return 1;
-      if (!isNaN(d)) return Number(d);
+      if (!isNaN(d)) return Number(d); 
       const map = { 'mon': 1, 'tue': 2, 'wed': 3, 'thu': 4, 'fri': 5, 'sat': 6, 'sun': 7 };
-      return map[String(d).toLowerCase().substring(0, 3)] || 1;
+      return map[String(d).toLowerCase().substring(0,3)] || 1;
     };
-
+    
     const parseTime = (t) => {
       if (!t) return 10;
-      if (!isNaN(t)) return Number(t);
+      if (!isNaN(t)) return Number(t); 
       const [h, m] = String(t).split(':');
       return parseInt(h) + (parseInt(m || 0) / 60);
     };
@@ -72,7 +84,7 @@ const Appointments = () => {
         phone: ev.phone,
         email: ev.email,
         notes: ev.notes,
-        isClass: false
+        isClass: false 
       }));
       mergedEvents = [...mergedEvents, ...formattedApps];
     }
@@ -84,7 +96,7 @@ const Appointments = () => {
       const formattedClasses = classData.map(c => {
         const dayMatch = c.schedule.match(/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)/);
         const timeMatch = c.schedule.match(/\d{2}:\d{2}/);
-        let startFloat = 10;
+        let startFloat = 10; 
         if (timeMatch) {
           const [h, m] = timeMatch[0].split(':');
           startFloat = parseInt(h) + (parseInt(m) / 60);
@@ -95,8 +107,8 @@ const Appointments = () => {
           sub: `Language Course: ${c.language}`,
           day: dayMap[dayMatch ? dayMatch[0] : 'Mon'] || 1,
           start: startFloat,
-          duration: 120,
-          type: 'Class',
+          duration: 120, 
+          type: 'Class', 
           teacher: c.teacher_name,
           room: c.schedule.split('- ')[1] || 'TBD',
           isClass: true
@@ -114,13 +126,13 @@ const Appointments = () => {
   // 2. دوال التحكم (Save & Update)
   // =======================================
   const [selectedEvent, setSelectedEvent] = useState(null);
-  const [formData, setFormData] = useState({
-    title: '', sub: 'Placement Test', day: 1, start: 10, duration: 60,
-    teacher: '', room: '', phone: '', email: '', notes: ''
+  const [formData, setFormData] = useState({ 
+    title: '', sub: 'Placement Test', day: 1, start: 10, duration: 60, 
+    teacher: '', room: '', phone: '', email: '', notes: '' 
   });
 
   const handleSave = async (e) => {
-    e.preventDefault();
+    e.preventDefault(); 
     setLoading(true);
 
     try {
@@ -128,15 +140,15 @@ const Appointments = () => {
       const newStart = parseFloat(formData.start);
       const newRoom = formData.room.trim().toLowerCase();
 
-      const conflict = events.find(ev =>
-        ev.day === newDay &&
-        ev.start === newStart &&
+      const conflict = events.find(ev => 
+        ev.day === newDay && 
+        ev.start === newStart && 
         ev.room.trim().toLowerCase() === newRoom &&
-        ev.type !== 'Missed' && ev.type !== 'Completed'
+        ev.type !== 'Missed' && ev.type !== 'Completed' 
       );
 
       if (conflict) {
-        showNotification(`Conflict! Room ${formData.room} is occupied.`, 'error');
+        showToast(`⚠️ Conflict: Room "${formData.room}" is already booked for ${conflict.title}.`);
         setLoading(false);
         return;
       }
@@ -154,18 +166,14 @@ const Appointments = () => {
         notes: formData.notes,
         status: 'Upcoming'
       }]);
-
-      if (error) throw error;
       
+      if (error) throw error;
       fetchEvents();
       setSideModalView(null);
       setFormData({ title: '', sub: 'Placement Test', day: 1, start: 10, duration: 60, teacher: '', room: '', phone: '', email: '', notes: '' });
-      showNotification(`Student ${formData.title} registered successfully!`, 'success');
-    } catch (err) { 
-      showNotification(err.message, 'error'); 
-    } finally { 
-      setLoading(false); 
-    }
+      showToast("✅ Appointment successfully registered!");
+    } catch (err) { showToast("Error: " + err.message); }
+    finally { setLoading(false); }
   };
 
   const updateStatus = async (id, newStatus) => {
@@ -173,14 +181,11 @@ const Appointments = () => {
     try {
       const { error } = await supabase.from('appointments').update({ status: newStatus }).eq('id', id);
       if (error) throw error;
+      showToast(`Status updated to ${newStatus} ✓`);
       fetchEvents();
       setSideModalView(null);
-      showNotification(`Appointment marked as ${newStatus}`, 'success');
-    } catch (err) { 
-      showNotification(err.message, 'error'); 
-    } finally { 
-      setLoading(false); 
-    }
+    } catch (err) { showToast(err.message); }
+    finally { setLoading(false); }
   };
 
   // إعدادات بناء الشبكة
@@ -195,7 +200,7 @@ const Appointments = () => {
     if (t === 'upcoming') return 'bg-[#eff6ff] border-[#3b82f6] text-[#1e40af]';
     if (t === 'completed') return 'bg-[#f0fdf4] border-[#22c55e] text-[#166534]';
     if (t === 'pending' || t === 'missed') return 'bg-[#fefce8] border-[#eab308] text-[#854d0e]';
-    if (t === 'class') return 'bg-gray-100 border-gray-400 text-gray-500 opacity-90';
+    if (t === 'class') return 'bg-gray-100 border-gray-400 text-gray-500 opacity-90'; 
     return 'bg-gray-100 border-gray-400 text-gray-700';
   };
 
@@ -214,13 +219,13 @@ const Appointments = () => {
   const renderCalendarView = () => (
     <div className="flex-1 bg-white border border-gray-200 rounded-2xl p-6 shadow-sm flex flex-col min-w-0">
       <div className="flex justify-between items-center mb-6 shrink-0">
-        <h3 className="font-bold text-[#0A1128] text-lg">Weekly Calendar <span className="text-sm font-normal text-gray-500 ml-3">April 2026</span></h3>
-        <div className="flex items-center space-x-2">
-          <button className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-gray-600 hover:bg-gray-200 cursor-pointer transition-colors">{"<"}</button>
-          <button className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-gray-600 hover:bg-gray-200 cursor-pointer transition-colors">{">"}</button>
-        </div>
+          <h3 className="font-bold text-[#0A1128] text-lg">Weekly Calendar <span className="text-sm font-normal text-gray-500 ml-3">April 2026</span></h3>
+          <div className="flex items-center space-x-2">
+             <button className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-gray-600 hover:bg-gray-200 cursor-pointer transition-colors">{"<"}</button>
+             <button className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-gray-600 hover:bg-gray-200 cursor-pointer transition-colors">{">"}</button>
+          </div>
       </div>
-
+      
       <div className="flex-1 overflow-y-auto overflow-x-auto custom-scrollbar">
         <div className="min-w-[900px] pb-4">
           <div className="grid grid-cols-[70px_repeat(7,1fr)] gap-2 mb-2 text-center border-b border-gray-200 pb-4 sticky top-0 bg-white z-20 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
@@ -231,18 +236,18 @@ const Appointments = () => {
           <div className="grid grid-cols-[70px_1fr] gap-2">
             <div className="flex flex-col border-r border-gray-100 pr-3 pt-2">
               {hoursArray.map(hour => (
-                <div key={hour} style={{ height: `${HOUR_HEIGHT}px` }} className="text-xs font-medium text-gray-400 text-right">
+                <div key={hour} style={{height: `${HOUR_HEIGHT}px`}} className="text-xs font-medium text-gray-400 text-right">
                   {hour > 12 ? hour - 12 : hour}:00 {hour >= 12 ? 'PM' : 'AM'}
                 </div>
               ))}
             </div>
 
-            <div className="relative w-full border-t border-l border-gray-100" style={{ height: `${TOTAL_HEIGHT}px` }}>
+            <div className="relative w-full border-t border-l border-gray-100" style={{height: `${TOTAL_HEIGHT}px`}}>
               <div className="absolute inset-0 grid grid-cols-7 divide-x divide-gray-100 pointer-events-none">
-                {[...Array(7)].map((_, i) => <div key={i} />)}
+                {[...Array(7)].map((_, i) => <div key={i}/>)}
               </div>
               <div className="absolute inset-0 flex flex-col divide-y divide-gray-100 pointer-events-none">
-                {hoursArray.map(h => <div key={h} style={{ height: `${HOUR_HEIGHT}px` }}></div>)}
+                {hoursArray.map(h => <div key={h} style={{height: `${HOUR_HEIGHT}px`}}></div>)}
               </div>
 
               {events.filter(e => filter === 'All' || e.type === filter || e.type === 'Class').map((ev) => {
@@ -252,14 +257,14 @@ const Appointments = () => {
                 const width = (100 / 7) - 1;
 
                 return (
-                  <div
+                  <div 
                     key={ev.id}
                     onClick={() => { setSelectedEvent(ev); setSideModalView('details'); }}
                     style={{ top: `${top}px`, height: `${height}px`, left: `${left}%`, width: `${width}%` }}
                     className={`absolute p-3 rounded-xl shadow-sm border-l-4 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all overflow-hidden ${ev.isClass ? 'z-0' : 'z-10'} ${getEventStyles(ev.type)}`}
                   >
                     <p className="text-[11px] font-bold flex items-center mb-1 leading-tight truncate">
-                      <span className={`min-w-[6px] w-[6px] h-[6px] rounded-full mr-1.5 ${getDotColor(ev.type)}`}></span>
+                      <span className={`min-w-[6px] w-[6px] h-[6px] rounded-full mr-1.5 ${getDotColor(ev.type)}`}></span> 
                       {ev.title}
                     </p>
                     <p className="text-[10px] leading-tight opacity-80 line-clamp-2">{ev.sub}</p>
@@ -278,7 +283,7 @@ const Appointments = () => {
   // 4. عرض الطلبات المعلقة (Pending Requests)
   // =======================================
   const renderPendingRequests = () => (
-    <div className="flex-1 bg-white border border-gray-200 rounded-2xl p-8 shadow-sm flex flex-col min-w-0">
+    <div className="flex-1 bg-white border border-gray-200 rounded-2xl p-8 shadow-sm flex flex-col min-w-0 text-left">
       <div className="flex justify-between items-start border-b border-gray-100 pb-5 mb-8 shrink-0">
         <div>
           <h3 className="font-bold text-[#0A1128] text-xl mb-1.5">Pending Appointment Requests</h3>
@@ -322,7 +327,7 @@ const Appointments = () => {
   // 5. السايدبار (Today's Schedule)
   // =======================================
   const renderSidebar = () => (
-    <div className="w-[340px] shrink-0 bg-white border border-gray-200 rounded-2xl p-6 shadow-sm flex flex-col h-full">
+    <div className="w-[340px] shrink-0 bg-white border border-gray-200 rounded-2xl p-6 shadow-sm flex flex-col h-full text-left">
       <div className="mb-6 border-b border-gray-100 pb-5 shrink-0">
         <h3 className="font-bold text-[#0A1128] text-lg flex items-center mb-1.5">
           <span className="mr-2 text-blue-600">📅</span> Today's Schedule
@@ -344,29 +349,9 @@ const Appointments = () => {
   );
 
   return (
-    <div className="animate-fade-in w-full h-full flex flex-col p-2 relative">
-      
-      {/* =======================================
-           DYNAMIC TOAST (FROM SCREENSHOT)
-      ======================================= */}
-      {toast.show && (
-        <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[200] animate-bounce-in">
-          <div className="bg-[#1a233b] text-white px-6 py-4 rounded-[3rem] shadow-2xl flex items-center min-w-[420px] border border-white/10">
-            <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center mr-4 shadow-lg">
-               <span className="text-2xl">{toast.type === 'success' ? '🎊' : '⚠️'}</span>
-            </div>
-            <div className="flex-1">
-               <h4 className="text-sm font-black italic uppercase tracking-tighter leading-none">System Update</h4>
-               <p className="text-xs text-gray-300 font-bold mt-1 tracking-tight">
-                {toast.message}
-               </p>
-            </div>
-            <button onClick={() => setToast({ ...toast, show: false })} className="ml-4 text-gray-500 hover:text-white transition-colors text-xl">✕</button>
-          </div>
-        </div>
-      )}
+    <div className="animate-fade-in w-full h-full flex flex-col p-2 text-left">
+      {toast && <Toast message={toast} onClose={() => setToast(null)} />}
 
-      {/* Header Tabs & Filters */}
       <div className="flex justify-between items-center mb-8 border-b border-gray-200 pb-4 shrink-0 px-4">
         <div className="flex items-center space-x-8">
           <div className="flex bg-gray-100 p-1 rounded-xl">
@@ -395,7 +380,7 @@ const Appointments = () => {
         <div className="fixed inset-0 z-[100] flex justify-end bg-black/30 backdrop-blur-sm animate-fade-in">
           <div className="absolute inset-0 cursor-pointer" onClick={() => setSideModalView(null)}></div>
           <div className="w-[420px] bg-[#f8fafc] h-full shadow-2xl flex flex-col border-l border-gray-200 relative z-10 animate-slide-in">
-            <div className="p-8 border-b border-gray-200 flex justify-between items-center bg-white">
+            <div className="p-8 border-b border-gray-200 flex justify-between items-center bg-white text-left">
               <div>
                 <h3 className="font-black text-[#0A1128] text-xl uppercase tracking-tight">{sideModalView === 'details' ? 'Appointment Details' : 'New Appointment'}</h3>
                 <p className="text-xs text-gray-400 mt-1 font-bold tracking-widest uppercase">Admin Panel • SmanSys</p>
@@ -403,7 +388,7 @@ const Appointments = () => {
               <button onClick={() => setSideModalView(null)} className="text-gray-400 hover:text-black text-3xl font-light cursor-pointer">✕</button>
             </div>
 
-            <div className="p-8 overflow-y-auto custom-scrollbar flex-1">
+            <div className="p-8 overflow-y-auto custom-scrollbar flex-1 text-left">
               {sideModalView === 'details' && selectedEvent && (
                 <div className="space-y-8 animate-fade-in">
                   <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 relative overflow-hidden">
@@ -436,7 +421,7 @@ const Appointments = () => {
               )}
 
               {sideModalView === 'new' && (
-                <form onSubmit={handleSave} className="space-y-6 animate-fade-in">
+                <form onSubmit={handleSave} className="space-y-6 animate-fade-in text-left">
                   <div>
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Student/Parent Name</label>
                     <input type="text" placeholder="Full Name" className="w-full bg-white border border-gray-200 p-4 rounded-2xl text-sm font-bold outline-none focus:border-blue-500 shadow-sm" value={formData.title} onChange={e=>setFormData({...formData, title: e.target.value})} required/>
@@ -461,16 +446,28 @@ const Appointments = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Assigned Teacher</label>
-                      <select className="w-full bg-white border border-gray-200 p-4 rounded-2xl text-sm font-bold outline-none cursor-pointer" value={formData.teacher} onChange={e => setFormData({...formData, teacher: e.target.value})} required>
+                      <select 
+                        className="w-full bg-white border border-gray-200 p-4 rounded-2xl text-sm font-bold outline-none cursor-pointer" 
+                        value={formData.teacher} 
+                        onChange={e => setFormData({...formData, teacher: e.target.value})} 
+                        required
+                      >
                         <option value="">-- Select Teacher --</option>
                         {teachersList.map((t) => (
-                          <option key={t.id} value={`Prof. ${t.first_name} ${t.last_name}`}>Prof. {t.first_name} {t.last_name}</option>
+                          <option key={t.id} value={`Prof. ${t.first_name} ${t.last_name}`}>
+                            Prof. {t.first_name} {t.last_name}
+                          </option>
                         ))}
                       </select>
                     </div>
                     <div>
-                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Room / Lab</label>
-                      <select className="w-full bg-white border border-gray-200 p-4 rounded-2xl text-sm font-bold outline-none cursor-pointer" value={formData.room} onChange={e => setFormData({...formData, room: e.target.value})} required>
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Room / Lab</label>
+                      <select 
+                        className="w-full bg-white border border-gray-200 p-4 rounded-2xl text-sm font-bold outline-none cursor-pointer" 
+                        value={formData.room} 
+                        onChange={e => setFormData({...formData, room: e.target.value})} 
+                        required
+                      >
                         <option value="">-- Select Room --</option>
                         {roomsList.map((r) => (
                           <option key={r.id} value={r.name}>{r.name}</option>
@@ -479,7 +476,7 @@ const Appointments = () => {
                     </div>
                   </div>
 
-                  <textarea placeholder="Notes (Optional)..." className="w-full border border-gray-200 p-4 rounded-2xl text-sm font-bold h-32 resize-none" value={formData.notes} onChange={e=>setFormData({...formData, notes: e.target.value})}></textarea>
+                  <textarea placeholder="Notes (Optional)..." className="w-full border border-gray-200 p-4 rounded-2xl text-sm font-bold h-32 resize-none outline-none" value={formData.notes} onChange={e=>setFormData({...formData, notes: e.target.value})}></textarea>
                   
                   <button type="submit" disabled={loading} className="w-full bg-[#0A1128] hover:bg-blue-900 text-white py-5 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-2xl transition-all active:scale-95 mt-8 cursor-pointer">
                     {loading ? 'Processing...' : 'Confirm Appointment'}
