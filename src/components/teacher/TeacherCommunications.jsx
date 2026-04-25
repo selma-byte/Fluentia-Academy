@@ -1,68 +1,140 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabaseClient';
 
+// ─────────────────────────────────────────────────────────────────
+// SVG ICON SYSTEM
+// ─────────────────────────────────────────────────────────────────
+const Ico = ({ d, size = 16, color = 'currentColor', sw = 2, extra = null }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+    stroke={color} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+    {(Array.isArray(d) ? d : [d]).map((p, i) => <path key={i} d={p} />)}
+    {extra}
+  </svg>
+);
+
+const Icons = {
+  Search:    (c = '#94a3b8') => <Ico d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0" color={c} />,
+  Megaphone: (c = '#4318FF') => <Ico d={["M3 11l19-9-9 19-2-8-8-2z"]} color={c} />,
+  Message:   (c = '#4318FF') => <Ico d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" color={c} />,
+  Plus:      (c = '#fff')    => <Ico d={["M12 5v14","M5 12h14"]} color={c} sw={2.5} />,
+  ArrowLeft: (c = '#1e293b') => <Ico d={["M19 12H5","M12 19l-7-7 7-7"]} color={c} sw={2} />,
+  Send:      (c = '#4318FF') => <Ico d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" color={c} />,
+  Calendar:  (c = '#94a3b8') => <Ico d={["M8 2v4","M16 2v4","M3 10h18","M3 6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"]} color={c} />,
+  Bell:      (c = '#4318FF') => <Ico d={["M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9","M13.73 21a2 2 0 0 1-3.46 0"]} color={c} />,
+  Inbox:     (c = '#94a3b8') => <Ico d={["M22 12h-6l-2 3h-4l-2-3H2","M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"]} color={c} />,
+  User:      (c = '#4318FF') => <Ico d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" color={c} extra={<circle cx="12" cy="7" r="4" fill="none" stroke={c} strokeWidth="2"/>} />,
+  ChevronR:  (c = '#94a3b8') => <Ico d="M9 18l6-6-6-6" color={c} sw={2.5} />,
+  Paperclip: (c = '#94a3b8') => <Ico d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" color={c} />,
+};
+
+// ─── Reusable Tab Bar ─────────────────────────────────────────────
+const TabBar = ({ tabs, active, onChange }) => (
+  <div style={{ display: 'flex', borderBottom: '1px solid #f1f5f9', marginBottom: 28 }}>
+    {tabs.map(tab => (
+      <button key={tab} onClick={() => onChange(tab)} style={{
+        padding: '12px 20px', fontSize: 13, fontWeight: 700,
+        color: active === tab ? '#4318FF' : '#94a3b8',
+        background: 'none', border: 'none', cursor: 'pointer',
+        borderBottom: active === tab ? '2px solid #4318FF' : '2px solid transparent',
+        marginBottom: -1, transition: 'all .2s',
+      }}>{tab}</button>
+    ))}
+  </div>
+);
+
+// ─── Card wrapper ─────────────────────────────────────────────────
+const Card = ({ children, style = {} }) => (
+  <div style={{
+    background: '#fff', borderRadius: 16,
+    border: '1px solid #f1f5f9',
+    boxShadow: '0 1px 4px rgba(15,23,42,0.05)',
+    ...style
+  }}>{children}</div>
+);
+
+// ─── Avatar circle ────────────────────────────────────────────────
+const Avatar = ({ letter, bg = '#eef2ff', color = '#4318FF', size = 38 }) => (
+  <div style={{
+    width: size, height: size, borderRadius: '50%',
+    background: bg, color,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: size * 0.35, fontWeight: 800, textTransform: 'uppercase', flexShrink: 0,
+  }}>{letter}</div>
+);
+
+// ─── Type badge ───────────────────────────────────────────────────
+const TypeBadge = ({ type }) => {
+  const map = {
+    Event:        { bg: '#ecfdf5', color: '#059669' },
+    Reminder:     { bg: '#fffbeb', color: '#f59e0b' },
+    notification: { bg: '#fffbeb', color: '#f59e0b' },
+    emergency:    { bg: '#fef2f2', color: '#ef4444' },
+    Urgent:       { bg: '#fef2f2', color: '#ef4444' },
+    General:      { bg: '#eef2ff', color: '#4318FF' },
+    announcement: { bg: '#eef2ff', color: '#4318FF' },
+  };
+  const s = map[type] || { bg: '#eef2ff', color: '#4318FF' };
+  return (
+    <span style={{
+      fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em',
+      padding: '3px 10px', borderRadius: 20, background: s.bg, color: s.color,
+    }}>{type}</span>
+  );
+};
+
+// Avatar color palette (deterministic by index)
+const AVATAR_COLORS = [
+  { bg: '#fef3c7', color: '#92400e' },
+  { bg: '#d1fae5', color: '#065f46' },
+  { bg: '#dbeafe', color: '#1d4ed8' },
+  { bg: '#fce7f3', color: '#9d174d' },
+  { bg: '#ede9fe', color: '#6d28d9' },
+];
+
+// ─────────────────────────────────────────────────────────────────
+// MAIN COMPONENT
+// ─────────────────────────────────────────────────────────────────
 const TeacherCommunications = () => {
-  // 💡 التحكم الرئيسي في الواجهة
-  const [activeTab, setActiveTab] = useState('Announcements'); 
-  const [showAddForm, setShowAddForm] = useState(false); 
-  const [loading, setLoading] = useState(true);
 
-  // ==========================================
-  // STATES: Global & User
-  // ==========================================
-  const [currentUser, setCurrentUser] = useState(null);
-  const [teacherName, setTeacherName] = useState("Teacher Name");
+  // ── All original states — UNTOUCHED ──────────────────────────────
+  const [activeTab, setActiveTab]         = useState('Announcements');
+  const [showAddForm, setShowAddForm]     = useState(false);
+  const [loading, setLoading]             = useState(true);
+  const [currentUser, setCurrentUser]     = useState(null);
+  const [teacherName, setTeacherName]     = useState('Teacher Name');
   const [teacherClasses, setTeacherClasses] = useState([]);
-
-  // ==========================================
-  // STATES: Announcements
-  // ==========================================
   const [announcements, setAnnouncements] = useState([]);
-  const [newAnnouncement, setNewAnnouncement] = useState({
-    title: '', type: 'Event', description: '', targetGroup: 'All', 
-  });
-
-  // ==========================================
-  // STATES: Messages
-  // ==========================================
-  const [contacts, setContacts] = useState([]);
+  const [newAnnouncement, setNewAnnouncement] = useState({ title: '', type: 'Event', description: '', targetGroup: 'All' });
+  const [contacts, setContacts]           = useState([]);
   const [activeContact, setActiveContact] = useState(null);
-  const [messages, setMessages] = useState([]);
-  const [newMessage, setNewMessage] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [messages, setMessages]           = useState([]);
+  const [newMessage, setNewMessage]       = useState('');
+  const [searchQuery, setSearchQuery]     = useState('');
 
-  // ==========================================
-  // 1. Fetch Global Data (مع توحيد الهوية من طابلو staff)
-  // ==========================================
+  // ── All original Supabase logic — UNTOUCHED ───────────────────────
   useEffect(() => {
     const fetchGlobalData = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user && user.email) {
-          
-          // 💡 تسجيل الأستاذ بالـ ID تاع طابلو staff
           const { data: staffData } = await supabase.from('staff').select('*').eq('email', user.email).single();
-          
           if (staffData) {
-            setCurrentUser(staffData); 
+            setCurrentUser(staffData);
             let tName = `${staffData.first_name || ''} ${staffData.last_name || ''}`.trim();
             setTeacherName(tName);
-            
             const { data: clsData } = await supabase.from('classes').select('*').eq('teacher_name', tName);
             if (clsData) setTeacherClasses(clsData.map(c => c.name || c.class_name));
           } else {
-             setCurrentUser(user); 
+            setCurrentUser(user);
           }
-
-          // جلب الإدارة (بدون الأستاذ اللي راه مكونيكتي)
           const { data: adminStaff } = await supabase.from('staff').select('*').neq('email', user.email);
-          
           if (adminStaff && adminStaff.length > 0) {
-            const formattedContacts = adminStaff.map(s => ({
-              id: s.id, email: s.email, name: `${s.first_name || ''} ${s.last_name || ''}`.trim() || 'Admin',
+            const formattedContacts = adminStaff.map((s, i) => ({
+              id: s.id, email: s.email,
+              name: `${s.first_name || ''} ${s.last_name || ''}`.trim() || 'Admin',
               role: s.department || s.role || 'Administration',
               avatar: (s.first_name ? s.first_name.charAt(0) : 'A').toUpperCase(),
-              color: ['bg-[#F6AD55]', 'bg-[#4FD1C5]', 'bg-[#63B3ED]', 'bg-[#FC8181]', 'bg-[#B794F4]'][Math.floor(Math.random() * 5)]
+              colorIdx: i % AVATAR_COLORS.length,
             }));
             setContacts(formattedContacts);
             setActiveContact(formattedContacts[0]);
@@ -73,41 +145,30 @@ const TeacherCommunications = () => {
     fetchGlobalData();
   }, []);
 
-  // ==========================================
-  // 2. Fetch Announcements (تحديث الفلترة باش يشوف غير لي يخصوه)
-  // ==========================================
   const fetchAnnouncements = async () => {
     try {
       const { data } = await supabase
-        .from('communications')
-        .select('*')
+        .from('communications').select('*')
         .in('type', ['announcement', 'notification', 'emergency', 'Event', 'Reminder', 'General'])
         .order('created_at', { ascending: false });
 
       if (data && data.length > 0) {
-        
-        // 💡 الفلترة: الأستاذ يشوف غير الإعلانات الموجهة للكل أو للأساتذة أو اللي زادهم هو بحد ذاتو
         const filteredAnnouncements = data.filter(a => {
-           const target = a.recipient_name?.toLowerCase() || '';
-           return target.includes('all community') || 
-                  target.includes('teachers') || 
-                  target.includes('staff') ||
-                  target.includes('all') ||
-                  a.sender_id === currentUser?.id; // باش يشوف إعلاناتو هو ثاني
+          const target = a.recipient_name?.toLowerCase() || '';
+          return target.includes('all community') || target.includes('teachers') ||
+                 target.includes('staff') || target.includes('all') ||
+                 a.sender_id === currentUser?.id;
         });
-
         setAnnouncements(filteredAnnouncements.map(a => ({
-          id: a.id, 
-          title: a.subject || a.title || 'Announcement', 
-          content: a.content || a.message, 
-          type: a.type || 'General', 
-          author: a.sender_role === 'admin' ? 'Administration' : 'Teacher', 
-          date: new Date(a.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+          id: a.id,
+          title: a.subject || a.title || 'Announcement',
+          content: a.content || a.message,
+          type: a.type || 'General',
+          author: a.sender_role === 'admin' ? 'Administration' : 'Teacher',
+          date: new Date(a.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
         })));
       } else {
-        setAnnouncements([
-          { id: 1, title: 'Welcome to Utopia', content: 'We are happy to have you here.', type: 'General', author: 'System', date: 'Today' }
-        ]);
+        setAnnouncements([{ id: 1, title: 'Welcome', content: 'We are happy to have you here.', type: 'General', author: 'System', date: 'Today' }]);
       }
     } catch (e) { console.error(e); } finally { setLoading(false); }
   };
@@ -116,26 +177,20 @@ const TeacherCommunications = () => {
     if (activeTab === 'Announcements' && !showAddForm) fetchAnnouncements();
   }, [activeTab, showAddForm, currentUser]);
 
-  // ==========================================
-  // 3. Fetch Messages 
-  // ==========================================
   useEffect(() => {
     const fetchMessages = async () => {
       if (!currentUser || !activeContact || activeTab !== 'Messages') return;
       try {
         const { data: msgData, error } = await supabase
-          .from('communications')
-          .select('*')
+          .from('communications').select('*')
           .or(`and(sender_id.eq."${currentUser.id}",recipient_id.eq."${activeContact.id}"),and(sender_id.eq."${activeContact.id}",recipient_id.eq."${currentUser.id}")`)
           .order('created_at', { ascending: true });
-
         if (error) throw error;
-
         if (msgData && msgData.length > 0) {
           setMessages(msgData.map(m => ({
-            id: m.id, text: m.content, 
+            id: m.id, text: m.content,
             time: new Date(m.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
-            isMe: m.sender_id === currentUser.id
+            isMe: m.sender_id === currentUser.id,
           })));
         } else { setMessages([]); }
       } catch (err) { console.error(err); }
@@ -143,224 +198,414 @@ const TeacherCommunications = () => {
     fetchMessages();
   }, [activeContact, currentUser, activeTab]);
 
-  // ==========================================
-  // Handlers
-  // ==========================================
   const handleAddAnnouncement = async (e) => {
     e.preventDefault();
-    if (!newAnnouncement.title || !newAnnouncement.description) return alert("Fill all fields");
-    
+    if (!newAnnouncement.title || !newAnnouncement.description) return alert('Please fill in all fields.');
     try {
       await supabase.from('communications').insert([{
-        subject: newAnnouncement.title, content: newAnnouncement.description, type: newAnnouncement.type,
-        recipient_name: 'All Community', recipient_id: 'all', sender_id: currentUser?.id, sender_role: 'teacher',
-        created_at: new Date().toISOString()
+        subject: newAnnouncement.title, content: newAnnouncement.description,
+        type: newAnnouncement.type, recipient_name: 'All Community',
+        recipient_id: 'all', sender_id: currentUser?.id, sender_role: 'teacher',
+        created_at: new Date().toISOString(),
       }]);
-      alert("Announcement Added! ✅");
+      alert('Announcement published successfully.');
       setShowAddForm(false);
       setNewAnnouncement({ title: '', type: 'Event', description: '', targetGroup: 'All' });
-      fetchAnnouncements(); 
-    } catch (error) { alert("Error adding announcement."); }
+      fetchAnnouncements();
+    } catch (error) { alert('Error publishing announcement.'); }
   };
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (newMessage.trim() === '' || !activeContact || !currentUser) return;
-    
     const text = newMessage;
     setNewMessage('');
     setMessages(prev => [...prev, { id: Date.now(), text, time: 'Now', isMe: true }]);
-
     await supabase.from('communications').insert([{
-      sender_id: currentUser.id, recipient_id: activeContact.id, recipient_name: activeContact.name,
-      content: text, type: 'staff_individual', sender_role: 'teacher', created_at: new Date().toISOString()
+      sender_id: currentUser.id, recipient_id: activeContact.id,
+      recipient_name: activeContact.name, content: text,
+      type: 'staff_individual', sender_role: 'teacher',
+      created_at: new Date().toISOString(),
     }]);
   };
 
-  // ==========================================
-  // RENDER SECTIONS
-  // ==========================================
-
-  const renderAnnouncements = () => (
-    <div className="flex flex-col gap-6 animate-fadeIn h-full relative">
-      <div className="bg-white rounded-[24px] p-8 flex justify-between items-center shadow-sm border border-gray-100 shrink-0">
-        <div>
-          <h2 className="text-2xl font-bold text-[#1B254B] mb-2">Announcements</h2>
-          <p className="text-[#A3AED0] text-sm">Add and stay updated with the latest news, events, and important notices.</p>
-        </div>
-        <div className="hidden md:block text-6xl opacity-90 drop-shadow-md">📢</div>
-      </div>
-      <div className="flex-1 overflow-y-auto custom-scrollbar pb-24 min-h-0">
-        {announcements.length === 0 ? (
-           <div className="flex flex-col items-center justify-center h-full text-gray-400 opacity-70">
-              <span className="text-5xl mb-4">📭</span>
-              <p className="text-sm font-bold">No announcements for you yet.</p>
-           </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {announcements.map(a => {
-              let tagStyle = "bg-blue-50 text-[#4318FF]"; 
-              if (a.type === 'Event') tagStyle = "bg-[#e6fbf2] text-[#00a65e]"; 
-              if (a.type === 'Reminder' || a.type === 'notification') tagStyle = "bg-yellow-50 text-yellow-600";
-              if (a.type === 'Urgent' || a.type === 'emergency') tagStyle = "bg-red-50 text-red-500";
-              return (
-                <div key={a.id} className="bg-white p-6 rounded-[24px] shadow-sm border border-gray-100 flex flex-col h-[220px]">
-                  <div className="flex justify-between items-center mb-4">
-                    <span className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider ${tagStyle}`}>{a.type}</span>
-                    <span className="text-gray-400 text-xs font-bold flex items-center gap-1">📅 {a.date}</span>
-                  </div>
-                  <h3 className="text-lg font-bold text-[#1B254B] mb-2">{a.title}</h3>
-                  <p className="text-sm text-[#A3AED0] leading-relaxed flex-1 line-clamp-3">{a.content}</p>
-                  <div className="flex items-center gap-2 border-t border-gray-50 pt-3 mt-auto">
-                    <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 text-[10px] font-bold">
-                      {a.author.charAt(0).toUpperCase()}
-                    </div>
-                    <span className="text-[11px] font-bold text-gray-400">{a.author}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-      <div className="absolute bottom-6 right-6">
-        <button onClick={() => setShowAddForm(true)} className="bg-[#1B254B] text-white px-10 py-3.5 rounded-2xl text-sm font-bold shadow-md hover:bg-black transition-colors">
-          + Add New
-        </button>
-      </div>
-    </div>
-  );
-
-  const renderAddForm = () => (
-    <div className="animate-fadeIn h-full flex flex-col">
-      <div className="mb-8 flex items-center gap-4 shrink-0">
-        <button onClick={() => setShowAddForm(false)} className="text-2xl font-bold text-[#1B254B] border-2 border-[#1B254B] rounded-full w-10 h-10 flex items-center justify-center hover:bg-gray-100 transition-colors">←</button>
-        <h1 className="text-2xl font-bold text-[#1B254B]">Add Announcement</h1>
-      </div>
-      <div className="flex flex-1 gap-12 items-center min-h-0 overflow-y-auto custom-scrollbar">
-        <div className="w-1/2 flex justify-center">
-          <div className="w-full max-w-md aspect-[4/3] border-[3px] border-[#1B254B] rounded-[35px] flex items-center justify-center bg-white shadow-sm">
-            <h2 className="text-[32px] font-black text-[#1B254B] text-center leading-tight">Add Your<br/>Announcement</h2>
-          </div>
-        </div>
-        <div className="w-1/2 flex justify-start">
-          <form onSubmit={handleAddAnnouncement} className="space-y-6 w-full max-w-sm">
-            <div>
-              <label className="block text-lg font-bold text-[#1B254B] mb-2">Title:</label>
-              <input type="text" required value={newAnnouncement.title} onChange={e=>setNewAnnouncement({...newAnnouncement, title: e.target.value})} className="w-full border-[3px] border-[#1B254B] rounded-2xl px-4 py-3 text-[#1B254B] font-bold outline-none" placeholder="Next week trip" />
-            </div>
-            <div>
-              <label className="block text-lg font-bold text-[#1B254B] mb-2">Type:</label>
-              <select value={newAnnouncement.type} onChange={e=>setNewAnnouncement({...newAnnouncement, type: e.target.value})} className="w-full border-[3px] border-[#1B254B] rounded-2xl px-4 py-3 text-[#1B254B] font-bold outline-none cursor-pointer bg-white">
-                <option value="Event">Event</option>
-                <option value="Reminder">Reminder</option>
-                <option value="General">General</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-lg font-bold text-[#1B254B] mb-2">Description:</label>
-              <textarea required rows="4" value={newAnnouncement.description} onChange={e=>setNewAnnouncement({...newAnnouncement, description: e.target.value})} className="w-full border-[3px] border-[#1B254B] rounded-2xl px-4 py-3 text-[#1B254B] font-bold outline-none resize-none"></textarea>
-            </div>
-            <div className="flex justify-end pt-2">
-              <button type="submit" className="bg-[#1B254B] text-white px-10 py-3.5 rounded-2xl font-bold text-lg hover:bg-black transition-colors shadow-md">Submit</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderMessages = () => {
-    const filteredContacts = contacts.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()));
-
-    return (
-      <div className="flex-1 min-h-0 flex bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden animate-fadeIn">
-        <div className="w-[320px] border-r border-gray-100 flex flex-col bg-white shrink-0 min-h-0">
-          <div className="p-4 border-b border-gray-50 shrink-0">
-            <div className="bg-[#f8fafc] rounded-full flex items-center px-4 py-2 border border-gray-100">
-              <span className="text-gray-400 text-sm mr-2">🔍</span>
-              <input type="text" placeholder="Start chat" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-transparent border-none outline-none text-sm w-full text-[#1B254B] placeholder-gray-400 font-medium" />
-            </div>
-          </div>
-          <div className="flex-1 overflow-y-auto custom-scrollbar">
-            {filteredContacts.map((contact) => (
-              <div key={contact.id} onClick={() => setActiveContact(contact)} className={`flex items-center gap-4 p-4 cursor-pointer transition-colors border-b border-gray-50 ${activeContact?.id === contact.id ? 'bg-[#f4f7fe]' : 'hover:bg-gray-50'}`}>
-                <div className={`w-11 h-11 rounded-full ${contact.color} text-white flex items-center justify-center font-bold text-lg shrink-0`}>{contact.avatar}</div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-baseline mb-0.5">
-                    <h4 className="text-[13px] font-bold text-[#1B254B] truncate">{contact.name}</h4>
-                    <span className="text-[10px] text-gray-400 whitespace-nowrap">15 min</span>
-                  </div>
-                  <p className="text-xs text-gray-500 truncate">Tap to message...</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex-1 flex flex-col min-h-0 bg-white relative">
-          {activeContact ? (
-            <>
-              <div className="h-[72px] bg-white border-b border-gray-100 flex items-center justify-between px-8 shrink-0 z-10">
-                <div className="flex items-center gap-3">
-                   <h3 className="font-bold text-[#1B254B] text-lg">{activeContact.name}</h3>
-                </div>
-              </div>
-              <div className="flex-1 overflow-y-auto p-8 space-y-6 custom-scrollbar bg-[#f8fafc]">
-                <div className="text-center my-2">
-                  <span className="text-[10px] font-bold text-gray-400">Today</span>
-                </div>
-                {messages.length === 0 ? (
-                  <p className="text-center text-gray-400 font-medium mt-10">Start the conversation 👋</p>
-                ) : (
-                  messages.map((msg) => (
-                    <div key={msg.id} className={`flex ${msg.isMe ? 'justify-end' : 'justify-start'}`}>
-                      <div className="flex items-end gap-3 max-w-[65%]">
-                        {!msg.isMe && <div className={`w-8 h-8 rounded-full ${activeContact.color} text-white flex items-center justify-center text-xs font-bold mb-1 shrink-0`}>{activeContact.avatar}</div>}
-                        <div className={`px-5 py-3 shadow-sm text-[13px] leading-relaxed break-words ${msg.isMe ? 'bg-white border border-gray-100 text-[#1B254B] rounded-[20px] rounded-br-sm shadow-sm' : 'bg-gray-100/80 text-[#1B254B] rounded-[20px] rounded-bl-sm'}`}>
-                          {msg.text}
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-              <div className="p-6 bg-white shrink-0">
-                <form onSubmit={handleSendMessage} className="flex items-center gap-3 bg-white border border-gray-200 rounded-full px-5 py-3 focus-within:border-[#4318FF] transition-colors shadow-sm">
-                  <button type="button" className="text-gray-400 hover:text-[#1B254B] text-xl">☺</button>
-                  <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Text message to admin..." className="flex-1 bg-transparent border-none outline-none text-sm text-[#1B254B] placeholder-gray-400 mx-2" />
-                  <div className="flex items-center gap-4 text-gray-400 text-lg">
-                     <button type="button" className="hover:text-[#1B254B]">📎</button>
-                     <button type="button" className="hover:text-[#1B254B]">📷</button>
-                     <button type="submit" disabled={!newMessage.trim()} className="text-[#1B254B] disabled:opacity-50 ml-1">➤</button>
-                  </div>
-                </form>
-              </div>
-            </>
-          ) : (
-            <div className="flex-1 flex items-center justify-center text-gray-400 bg-[#f8fafc]">Select a chat to start messaging</div>
-          )}
-        </div>
-      </div>
-    );
+  // ── Shared input style ────────────────────────────────────────────
+  const inputStyle = {
+    width: '100%', background: '#f8fafc',
+    border: '1px solid #f1f5f9', borderRadius: 10,
+    padding: '10px 14px', fontSize: 13, color: '#1e293b',
+    outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box',
   };
 
+  const labelStyle = {
+    display: 'block', fontSize: 11, fontWeight: 700,
+    color: '#94a3b8', textTransform: 'uppercase',
+    letterSpacing: '0.07em', marginBottom: 6,
+  };
+
+  const filteredContacts = contacts.filter(c =>
+    c.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // ─────────────────────────────────────────────────────────────────
+  // RENDER
+  // ─────────────────────────────────────────────────────────────────
   return (
-    <div className="h-full w-full p-4 md:p-8 bg-[#F4F7FE] flex flex-col overflow-hidden">
-      <div className="flex justify-between items-center mb-8 shrink-0">
-        <h1 className="text-2xl font-bold text-[#1B254B] flex items-center gap-2">👋 Communications Hub</h1>
-        {!showAddForm && (
-          <div className="flex bg-white p-1 rounded-xl shadow-sm border border-gray-100">
-            <button onClick={() => setActiveTab('Announcements')} className={`px-8 py-2 rounded-lg font-bold text-xs transition-all ${activeTab === 'Announcements' ? 'text-[#4318FF] shadow-sm bg-gray-50/50' : 'text-gray-500 hover:text-gray-700'}`}>Announcements</button>
-            <button onClick={() => setActiveTab('Messages')} className={`px-8 py-2 rounded-lg font-bold text-xs transition-all ${activeTab === 'Messages' ? 'text-[#4318FF] shadow-sm bg-gray-50/50' : 'text-gray-500 hover:text-gray-700'}`}>Messages</button>
+    <div style={{ width: '100%', fontFamily: "'Inter', 'Segoe UI', sans-serif", display: 'flex', flexDirection: 'column' }}>
+
+      {/* ── Page header ── */}
+      {!showAddForm && (
+        <div style={{ marginBottom: 4 }}>
+          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#1e293b' }}>Communications Hub</h1>
+          <p style={{ margin: '5px 0 0', fontSize: 13, color: '#94a3b8' }}>
+            Manage announcements and messages with your administration team.
+          </p>
+        </div>
+      )}
+
+      {/* ── Tab bar (hidden when add form is open) ── */}
+      {!showAddForm && (
+        <TabBar
+          tabs={['Announcements', 'Messages']}
+          active={activeTab}
+          onChange={setActiveTab}
+        />
+      )}
+
+      {/* ══════════════════════════════════════
+          ANNOUNCEMENTS LIST
+      ══════════════════════════════════════ */}
+      {activeTab === 'Announcements' && !showAddForm && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+          {/* Section header + Add button */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#1e293b' }}>Announcements</h2>
+              <p style={{ margin: '4px 0 0', fontSize: 11, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                Latest news, events and important notices
+              </p>
+            </div>
+            <button
+              onClick={() => setShowAddForm(true)}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                padding: '10px 20px', borderRadius: 10, border: 'none',
+                background: '#4318FF', color: '#fff',
+                fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'background .15s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = '#3730a3'}
+              onMouseLeave={e => e.currentTarget.style.background = '#4318FF'}
+            >
+              {Icons.Plus()}
+              Add Announcement
+            </button>
           </div>
-        )}
-      </div>
-      <div className="flex-1 flex flex-col overflow-hidden min-h-0 relative">
-        {activeTab === 'Announcements' && !showAddForm && renderAnnouncements()}
-        {activeTab === 'Announcements' && showAddForm && renderAddForm()}
-        {activeTab === 'Messages' && renderMessages()}
-      </div>
+
+          {/* Cards grid */}
+          {loading ? (
+            <p style={{ color: '#94a3b8', fontSize: 13, padding: '40px 0', textAlign: 'center' }}>Loading announcements...</p>
+          ) : announcements.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '60px 0', color: '#94a3b8' }}>
+              {Icons.Inbox()}
+              <p style={{ marginTop: 12, fontSize: 13, fontWeight: 600 }}>No announcements yet.</p>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+              {announcements.map(a => (
+                <Card key={a.id} style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', minHeight: 180 }}>
+                  {/* Top row */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                    <TypeBadge type={a.type} />
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>
+                      {Icons.Calendar()}
+                      {a.date}
+                    </span>
+                  </div>
+
+                  {/* Title + content */}
+                  <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 700, color: '#1e293b' }}>{a.title}</h3>
+                  <p style={{
+                    margin: 0, fontSize: 13, color: '#64748b', lineHeight: 1.6, flex: 1,
+                    display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                  }}>{a.content}</p>
+
+                  {/* Author row */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderTop: '1px solid #f8fafc', paddingTop: 12, marginTop: 14 }}>
+                    <div style={{
+                      width: 26, height: 26, borderRadius: '50%', background: '#eef2ff',
+                      color: '#4318FF', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 10, fontWeight: 800, textTransform: 'uppercase',
+                    }}>{a.author.charAt(0)}</div>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8' }}>{a.author}</span>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════
+          ADD ANNOUNCEMENT FORM
+      ══════════════════════════════════════ */}
+      {activeTab === 'Announcements' && showAddForm && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+          {/* Back + title */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <button
+              onClick={() => setShowAddForm(false)}
+              style={{
+                width: 38, height: 38, borderRadius: 10, border: '1px solid #f1f5f9',
+                background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', color: '#1e293b', transition: 'background .15s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = '#eef2ff'}
+              onMouseLeave={e => e.currentTarget.style.background = '#f8fafc'}
+            >
+              {Icons.ArrowLeft()}
+            </button>
+            <div>
+              <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#1e293b' }}>New Announcement</h1>
+              <p style={{ margin: '3px 0 0', fontSize: 13, color: '#94a3b8' }}>Publish a notice to all community members.</p>
+            </div>
+          </div>
+
+          {/* Form card */}
+          <Card style={{ padding: '28px 32px', maxWidth: 600 }}>
+            <form onSubmit={handleAddAnnouncement} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+              <div>
+                <label style={labelStyle}>Title</label>
+                <input type="text" required placeholder="e.g. Next week field trip"
+                  value={newAnnouncement.title}
+                  onChange={e => setNewAnnouncement({ ...newAnnouncement, title: e.target.value })}
+                  style={inputStyle}
+                  onFocus={e => e.target.style.borderColor = '#4318FF'}
+                  onBlur={e => e.target.style.borderColor = '#f1f5f9'}
+                />
+              </div>
+
+              <div>
+                <label style={labelStyle}>Type</label>
+                <select value={newAnnouncement.type}
+                  onChange={e => setNewAnnouncement({ ...newAnnouncement, type: e.target.value })}
+                  style={{ ...inputStyle, cursor: 'pointer' }}
+                  onFocus={e => e.target.style.borderColor = '#4318FF'}
+                  onBlur={e => e.target.style.borderColor = '#f1f5f9'}
+                >
+                  <option value="Event">Event</option>
+                  <option value="Reminder">Reminder</option>
+                  <option value="General">General</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={labelStyle}>Description</label>
+                <textarea required rows={5} placeholder="Write your announcement here..."
+                  value={newAnnouncement.description}
+                  onChange={e => setNewAnnouncement({ ...newAnnouncement, description: e.target.value })}
+                  style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6 }}
+                  onFocus={e => e.target.style.borderColor = '#4318FF'}
+                  onBlur={e => e.target.style.borderColor = '#f1f5f9'}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 4 }}>
+                <button type="button" onClick={() => setShowAddForm(false)}
+                  style={{
+                    padding: '10px 20px', borderRadius: 10, border: '1px solid #f1f5f9',
+                    background: '#f8fafc', color: '#64748b', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  }}>
+                  Cancel
+                </button>
+                <button type="submit"
+                  style={{
+                    padding: '10px 24px', borderRadius: 10, border: 'none',
+                    background: '#4318FF', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                    transition: 'background .15s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#3730a3'}
+                  onMouseLeave={e => e.currentTarget.style.background = '#4318FF'}
+                >
+                  Publish Announcement
+                </button>
+              </div>
+            </form>
+          </Card>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════
+          MESSAGES
+      ══════════════════════════════════════ */}
+      {activeTab === 'Messages' && (
+        <Card style={{ display: 'flex', overflow: 'hidden', height: 580, padding: 0 }}>
+
+          {/* ── Contacts sidebar ── */}
+          <div style={{
+            width: 280, borderRight: '1px solid #f1f5f9',
+            display: 'flex', flexDirection: 'column', flexShrink: 0,
+          }}>
+            {/* Search */}
+            <div style={{ padding: '16px', borderBottom: '1px solid #f8fafc' }}>
+              <div style={{ position: 'relative' }}>
+                <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
+                  {Icons.Search()}
+                </span>
+                <input type="text" placeholder="Search contacts..."
+                  value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                  style={{
+                    ...inputStyle,
+                    paddingLeft: 36, borderRadius: 8,
+                    fontSize: 12,
+                  }}
+                  onFocus={e => e.target.style.borderColor = '#4318FF'}
+                  onBlur={e => e.target.style.borderColor = '#f1f5f9'}
+                />
+              </div>
+            </div>
+
+            {/* Contact list */}
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {filteredContacts.map((contact) => {
+                const ac = AVATAR_COLORS[contact.colorIdx];
+                const isActive = activeContact?.id === contact.id;
+                return (
+                  <div key={contact.id} onClick={() => setActiveContact(contact)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '12px 16px', cursor: 'pointer',
+                      borderBottom: '1px solid #f8fafc',
+                      background: isActive ? '#f5f3ff' : 'transparent',
+                      transition: 'background .15s',
+                    }}
+                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = '#f8fafc'; }}
+                    onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    <Avatar letter={contact.avatar} bg={ac.bg} color={ac.color} size={40} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {contact.name}
+                      </p>
+                      <p style={{ margin: '2px 0 0', fontSize: 11, color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {contact.role}
+                      </p>
+                    </div>
+                    {isActive && (
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#4318FF', flexShrink: 0 }} />
+                    )}
+                  </div>
+                );
+              })}
+              {filteredContacts.length === 0 && (
+                <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, padding: '32px 0' }}>No contacts found.</p>
+              )}
+            </div>
+          </div>
+
+          {/* ── Chat area ── */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+            {activeContact ? (
+              <>
+                {/* Chat header */}
+                <div style={{
+                  height: 64, padding: '0 24px',
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  borderBottom: '1px solid #f1f5f9', flexShrink: 0, background: '#fff',
+                }}>
+                  {(() => {
+                    const ac = AVATAR_COLORS[activeContact.colorIdx || 0];
+                    return <Avatar letter={activeContact.avatar} bg={ac.bg} color={ac.color} size={36} />;
+                  })()}
+                  <div>
+                    <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#1e293b' }}>{activeContact.name}</p>
+                    <p style={{ margin: 0, fontSize: 11, color: '#94a3b8' }}>{activeContact.role}</p>
+                  </div>
+                </div>
+
+                {/* Messages */}
+                <div style={{
+                  flex: 1, overflowY: 'auto', padding: '20px 24px',
+                  display: 'flex', flexDirection: 'column', gap: 12,
+                  background: '#f8fafc',
+                }}>
+                  {messages.length === 0 ? (
+                    <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, marginTop: 40 }}>
+                      <p style={{ margin: 0, fontWeight: 600 }}>No messages yet.</p>
+                      <p style={{ margin: '4px 0 0', fontSize: 12 }}>Start the conversation below.</p>
+                    </div>
+                  ) : messages.map(msg => {
+                    const ac = AVATAR_COLORS[activeContact.colorIdx || 0];
+                    return (
+                      <div key={msg.id} style={{ display: 'flex', justifyContent: msg.isMe ? 'flex-end' : 'flex-start' }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, maxWidth: '65%' }}>
+                          {!msg.isMe && <Avatar letter={activeContact.avatar} bg={ac.bg} color={ac.color} size={28} />}
+                          <div>
+                            <div style={{
+                              padding: '10px 14px', borderRadius: 14,
+                              borderBottomRightRadius: msg.isMe ? 4 : 14,
+                              borderBottomLeftRadius: msg.isMe ? 14 : 4,
+                              background: msg.isMe ? '#4318FF' : '#fff',
+                              color: msg.isMe ? '#fff' : '#1e293b',
+                              fontSize: 13, lineHeight: 1.5,
+                              boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+                              border: msg.isMe ? 'none' : '1px solid #f1f5f9',
+                            }}>
+                              {msg.text}
+                            </div>
+                            <p style={{ margin: '4px 0 0', fontSize: 10, color: '#94a3b8', textAlign: msg.isMe ? 'right' : 'left' }}>{msg.time}</p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Message input */}
+                <div style={{ padding: '14px 20px', borderTop: '1px solid #f1f5f9', background: '#fff', flexShrink: 0 }}>
+                  <form onSubmit={handleSendMessage}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      background: '#f8fafc', border: '1px solid #f1f5f9',
+                      borderRadius: 12, padding: '8px 14px',
+                    }}
+                  >
+                    <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex' }}>
+                      {Icons.Paperclip()}
+                    </button>
+                    <input type="text" value={newMessage}
+                      onChange={e => setNewMessage(e.target.value)}
+                      placeholder="Type a message..."
+                      style={{
+                        flex: 1, background: 'none', border: 'none', outline: 'none',
+                        fontSize: 13, color: '#1e293b', fontFamily: 'inherit',
+                      }}
+                    />
+                    <button type="submit" disabled={!newMessage.trim()}
+                      style={{
+                        width: 34, height: 34, borderRadius: 8, border: 'none',
+                        background: newMessage.trim() ? '#4318FF' : '#f1f5f9',
+                        color: newMessage.trim() ? '#fff' : '#94a3b8',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        cursor: newMessage.trim() ? 'pointer' : 'default', transition: 'all .15s', flexShrink: 0,
+                      }}>
+                      {Icons.Send(newMessage.trim() ? '#fff' : '#94a3b8')}
+                    </button>
+                  </form>
+                </div>
+              </>
+            ) : (
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', color: '#94a3b8', fontSize: 13, fontWeight: 600 }}>
+                Select a contact to start messaging.
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+
+      <style>{`* { box-sizing: border-box; }`}</style>
     </div>
   );
 };

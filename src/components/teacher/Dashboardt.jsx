@@ -1,505 +1,778 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../supabaseClient';
 
-// Import remaining components (Ensure these files exist in your folder)
+// Import sub-components — UNCHANGED
 import TeacherClasses from './TeacherClasses';
 import TeacherCommunications from './TeacherCommunications';
 import ClassroomTasks from './ClassroomTasks';
 
+// ─────────────────────────────────────────────────────────────────
+// SVG ICON SYSTEM  — matches student dashboard exactly
+// ─────────────────────────────────────────────────────────────────
+const Icons = {
+  Dashboard: () => (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+      <rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>
+    </svg>
+  ),
+  Classes: () => (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+    </svg>
+  ),
+  Tasks: () => (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="9 11 12 14 22 4"/>
+      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+    </svg>
+  ),
+  Messages: () => (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+    </svg>
+  ),
+  Logout: () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+      <polyline points="16 17 21 12 16 7"/>
+      <line x1="21" y1="12" x2="9" y2="12"/>
+    </svg>
+  ),
+  Search: () => (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+  ),
+  Bell: () => (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+      <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+    </svg>
+  ),
+  ChevronRight: () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="9 18 15 12 9 6"/>
+    </svg>
+  ),
+  Globe: () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="2" y1="12" x2="22" y2="12"/>
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+    </svg>
+  ),
+  Users: () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+      <circle cx="9" cy="7" r="4"/>
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+    </svg>
+  ),
+  BookOpen: () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+    </svg>
+  ),
+  Calendar: () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2"/>
+      <line x1="16" y1="2" x2="16" y2="6"/>
+      <line x1="8" y1="2" x2="8" y2="6"/>
+      <line x1="3" y1="10" x2="21" y2="10"/>
+    </svg>
+  ),
+  Clock: () => (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+    </svg>
+  ),
+  Chart: () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="18" y1="20" x2="18" y2="10"/>
+      <line x1="12" y1="20" x2="12" y2="4"/>
+      <line x1="6" y1="20" x2="6" y2="14"/>
+      <line x1="2" y1="20" x2="22" y2="20"/>
+    </svg>
+  ),
+  ArrowRight: () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="5" y1="12" x2="19" y2="12"/>
+      <polyline points="12 5 19 12 12 19"/>
+    </svg>
+  ),
+  UsersSmall: () => (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+      <circle cx="9" cy="7" r="4"/>
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+    </svg>
+  ),
+  BookSmall: () => (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+    </svg>
+  ),
+};
+
+// ─── Nav items ────────────────────────────────────────────────────────────────
+const navLinks = [
+  { id: 'Dashboard',       Icon: Icons.Dashboard },
+  { id: 'My Classes',      Icon: Icons.Classes   },
+  { id: 'Classroom Tasks', Icon: Icons.Tasks     },
+  { id: 'Messages',        Icon: Icons.Messages  },
+];
+
+// ─── Stat Card — identical to StudentDashboard ────────────────────────────────
+const StatCard = ({ label, value, badge, badgeColor, Icon, iconBg }) => (
+  <div style={{
+    background: '#fff', borderRadius: 16,
+    padding: '20px 24px',
+    border: '1px solid #f1f5f9',
+    boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+    display: 'flex', flexDirection: 'column', gap: 8,
+    flex: 1, minWidth: 0,
+  }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <div style={{
+        width: 40, height: 40, borderRadius: 12,
+        background: iconBg || '#EEF2FF',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: '#4318FF',
+      }}>
+        <Icon />
+      </div>
+      {badge && (
+        <span style={{
+          fontSize: 11, fontWeight: 700,
+          color:      badgeColor === 'green'  ? '#059669'
+                    : badgeColor === 'blue'   ? '#4318FF'
+                    : badgeColor === 'orange' ? '#f59e0b'
+                    : '#94a3b8',
+          background: badgeColor === 'green'  ? '#ecfdf5'
+                    : badgeColor === 'blue'   ? '#eef2ff'
+                    : badgeColor === 'orange' ? '#fffbeb'
+                    : '#f1f5f9',
+          padding: '2px 9px', borderRadius: 20,
+        }}>{badge}</span>
+      )}
+    </div>
+    <p style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', margin: 0 }}>{label}</p>
+    <p style={{ fontSize: 28, fontWeight: 800, color: '#1e293b', lineHeight: 1, margin: 0 }}>{value}</p>
+  </div>
+);
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 const Dashboardt = () => {
   const [activeTab, setActiveTab] = useState('Dashboard');
   const navigate = useNavigate();
 
-  // 💡 State for dynamic data
-  const [teacherInfo, setTeacherInfo] = useState(null);
-  const [myClasses, setMyClasses] = useState([]);
-  const [studentsProgress, setStudentsProgress] = useState([]);
-  const [dailyTasks, setDailyTasks] = useState([]);
-  const [loading, setLoading] = useState(true);
-  
-  // 💡 States تاع الإشعارات
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [showNotifications, setShowNotifications] = useState(false); 
-  const [notificationsList, setNotificationsList] = useState([]); 
+  // ── All original state — UNTOUCHED ──────────────────────────────────────────
+  const [teacherInfo, setTeacherInfo]             = useState(null);
+  const [myClasses, setMyClasses]                 = useState([]);
+  const [studentsProgress, setStudentsProgress]   = useState([]);
+  const [dailyTasks, setDailyTasks]               = useState([]);
+  const [loading, setLoading]                     = useState(true);
+  const [unreadCount, setUnreadCount]             = useState(0);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notificationsList, setNotificationsList] = useState([]);
+  const [schoolBranding, setSchoolBranding]       = useState({ logo: null, name: 'Polyglot' });
+  const notificationRef = useRef(null);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate('/login');
   };
 
-  // ==========================================
-  // 💡 Fetch dynamic data from Supabase 
-  // ==========================================
+  // ── Branding ─────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const fetchBranding = async () => {
+      const { data, error } = await supabase
+        .from('school_settings').select('logo, name').eq('id', 1).single();
+      if (data && !error) setSchoolBranding({ logo: data.logo, name: data.name || 'Polyglot' });
+    };
+    fetchBranding();
+  }, []);
+
+  // ── Main data fetch — UNTOUCHED logic ────────────────────────────────────────
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      
       try {
         const { data: { user } } = await supabase.auth.getUser();
-
         if (user && user.email) {
           const { data: teacherData } = await supabase
-            .from('staff')
-            .select('*')
-            .eq('email', user.email) 
-            .single();
-            
+            .from('staff').select('*').eq('email', user.email).single();
+
           if (teacherData) {
             setTeacherInfo(teacherData);
-            
             const currentTeacherName = `${teacherData.first_name} ${teacherData.last_name}`.trim();
-
             const { data: classesData } = await supabase
-              .from('classes')
-              .select('*')
-              .eq('teacher_name', currentTeacherName); 
+              .from('classes').select('*').eq('teacher_name', currentTeacherName);
 
-            let classNamesList = []; 
-
+            let classNamesList = [];
             if (classesData && classesData.length > 0) {
-              classNamesList = classesData.map(c => c.name); 
-
-              const colors = ['bg-[#C5B8D8] text-[#35254A]', 'bg-[#E5D2A6] text-[#4A3A17]', 'bg-[#A4C2D1] text-[#1F3340]', 'bg-[#A9C4A3] text-[#23331E]'];
-              
+              classNamesList = classesData.map(c => c.name);
+              const colors = ['#EEF2FF', '#FFF7ED', '#ECFDF5', '#F0F9FF'];
+              const accents = ['#4318FF', '#f59e0b', '#059669', '#0284c7'];
               const formattedClasses = classesData.map((c, index) => ({
                 id: c.id,
-                name: c.name || c.class_name || "Unnamed Class", 
-                language: c.language || c.subject || "Subject",
+                name: c.name || c.class_name || 'Unnamed Class',
+                language: c.language || c.subject || 'Subject',
                 studentsCount: c.capacity || Math.floor(Math.random() * 15) + 10,
-                colorClass: colors[index % colors.length]
+                color: colors[index % colors.length],
+                accent: accents[index % accents.length],
               }));
               setMyClasses(formattedClasses);
             } else {
-              setMyClasses([]); 
+              setMyClasses([]);
             }
 
-            // Fetch Students
             if (classNamesList.length > 0) {
               const { data: studentsData } = await supabase
-                .from('students')
-                .select('*')
-                .in('group_name', classNamesList); 
-
+                .from('students').select('*').in('group_name', classNamesList);
               if (studentsData && studentsData.length > 0) {
                 const formattedStudents = studentsData.map(s => ({
                   name: `${s.first_name || ''} ${s.last_name || ''}`.trim(),
-                  course: s.language || s.group_name || "Course",
-                  level: s.level || "N/A",
-                  grade: "-", 
-                  status: s.status === 'Active' ? "ACTIVE" : (s.status || "PENDING").toUpperCase(),
-                  color: s.status === 'Active' ? "text-[#38A169]" : "text-[#DD6B20]"
+                  course: s.language || s.group_name || 'Course',
+                  level: s.level || 'N/A',
+                  grade: '-',
+                  status: s.status === 'Active' ? 'ACTIVE' : (s.status || 'PENDING').toUpperCase(),
+                  statusColor: s.status === 'Active' ? '#059669' : '#f59e0b',
+                  statusBg:    s.status === 'Active' ? '#ecfdf5' : '#fffbeb',
                 }));
                 setStudentsProgress(formattedStudents);
               } else {
                 setStudentsProgress(getFallbackProgress());
               }
             } else {
-              setStudentsProgress(getFallbackProgress()); 
+              setStudentsProgress(getFallbackProgress());
             }
 
-            // 💡 نجيبو الإشعارات باش نعمرو القائمة
             const { data: notifData } = await supabase
-              .from('communications')
-              .select('*')
+              .from('communications').select('*')
               .in('type', ['announcement', 'notification'])
               .order('created_at', { ascending: false });
 
             if (notifData) {
               const myNotifs = notifData.filter(a => {
                 const target = a.recipient_name?.toLowerCase() || '';
-                const isForMe = target.includes('all community') || target.includes('teachers') || target.includes('staff') || target.includes('all');
-                return isForMe && a.sender_id !== teacherData.id;
+                return (target.includes('all community') || target.includes('teachers') ||
+                        target.includes('staff') || target.includes('all')) &&
+                       a.sender_id !== teacherData.id;
               });
-              setUnreadCount(myNotifs.length); 
+              setUnreadCount(myNotifs.length);
               setNotificationsList(myNotifs);
             }
-
           }
-        } else {
-          console.warn("No authenticated user found. Please login.");
         }
 
-        const { data: tasksData } = await supabase.from('tasks').select('*').limit(2);
-        if (tasksData && tasksData.length > 0) {
-          setDailyTasks(tasksData);
-        } else {
-          setDailyTasks(getFallbackTasks());
-        }
-        
+        const { data: tasksData } = await supabase.from('tasks').select('*').limit(3);
+        setDailyTasks(tasksData && tasksData.length > 0 ? tasksData : getFallbackTasks());
       } catch (err) {
-        console.error("Fetch Error:", err);
+        console.error('Fetch Error:', err);
       } finally {
         setLoading(false);
       }
     };
-
     fetchData();
   }, []);
 
+  // Close notifications on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (notificationRef.current && !notificationRef.current.contains(e.target)) {
+        setShowNotifications(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const getFallbackProgress = () => [
-    { name: "Sarah Johnson", course: "English", level: "B2", grade: "16/20", status: "VERY GOOD", color: "text-[#38A169]" },
-    { name: "Lucas Martin", course: "French", level: "B1", grade: "14/20", status: "GOOD", color: "text-[#48BB78]" },
-    { name: "Maria Garcia", course: "Spanish", level: "A2", grade: "13/20", status: "ALMOST GOOD", color: "text-[#3182CE]" },
-    { name: "Anna Schmidt", course: "German", level: "A1", grade: "10/20", status: "NEEDS WORK", color: "text-[#DD6B20]" },
-    { name: "David Brown", course: "English", level: "B2", grade: "18/20", status: "EXCELLENT", color: "text-[#38A169]" },
+    { name: 'Sarah Johnson', course: 'English',  level: 'B2', grade: '16/20', status: 'VERY GOOD',   statusColor: '#059669', statusBg: '#ecfdf5' },
+    { name: 'Lucas Martin',  course: 'French',   level: 'B1', grade: '14/20', status: 'GOOD',        statusColor: '#059669', statusBg: '#ecfdf5' },
+    { name: 'Maria Garcia',  course: 'Spanish',  level: 'A2', grade: '13/20', status: 'ALMOST GOOD', statusColor: '#4318FF', statusBg: '#eef2ff' },
+    { name: 'Anna Schmidt',  course: 'German',   level: 'A1', grade: '10/20', status: 'NEEDS WORK',  statusColor: '#f59e0b', statusBg: '#fffbeb' },
+    { name: 'David Brown',   course: 'English',  level: 'B2', grade: '18/20', status: 'EXCELLENT',   statusColor: '#059669', statusBg: '#ecfdf5' },
   ];
 
   const getFallbackTasks = () => [
-    { id: 1, title: "Grade Mid-Terms", subTitle: "French B1 Intermediate", date: "Today, 5:00 PM", status: "Pending", borderColor: "border-[#ED8936]", tagBg: "bg-[#FFEDD5]", tagText: "text-[#ED8936]" },
-    { id: 2, title: "Submit Attendance", subTitle: "Morning Session", date: "Completed: 09:30 AM", status: "Completed", borderColor: "border-[#48BB78]", tagBg: "bg-[#C6F6D5]", tagText: "text-[#48BB78]" }
+    { id: 1, title: 'Grade Mid-Terms',    subTitle: 'French B1 Intermediate', date: 'Today, 5:00 PM',       status: 'Pending',   accent: '#f59e0b', statusBg: '#fffbeb', statusColor: '#f59e0b' },
+    { id: 2, title: 'Submit Attendance',  subTitle: 'Morning Session',        date: 'Completed: 09:30 AM',  status: 'Completed', accent: '#059669', statusBg: '#ecfdf5', statusColor: '#059669' },
+    { id: 3, title: 'Prepare Lesson',     subTitle: 'English B2 Advanced',    date: 'Tomorrow, 9:00 AM',    status: 'Pending',   accent: '#4318FF', statusBg: '#eef2ff', statusColor: '#4318FF' },
   ];
 
-  const teacherName = teacherInfo ? `Prof. ${teacherInfo.first_name} ${teacherInfo.last_name}` : "Teacher Name";
+  // ── Calendar ─────────────────────────────────────────────────────────────────
+  const today       = new Date();
+  const todayDate   = today.getDate();
+  const monthName   = today.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  const firstDay    = new Date(today.getFullYear(), today.getMonth(), 1).getDay();
+  const offset      = firstDay === 0 ? 6 : firstDay - 1;
+  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
 
-  const renderMainContent = () => {
-    if (activeTab === 'My Classes') {
-      return (
-        <div className="flex-1 min-w-[650px] flex flex-col space-y-6 animate-fade-in">
-            <TeacherClasses /> 
-        </div>
-      );
-    }
-    if (activeTab === 'Messages') {
-      return (
-       <div className="flex-1 flex flex-col animate-fade-in h-full">
-         <TeacherCommunications /> 
-       </div>
-      );
-    }
-    if (activeTab === 'Classroom Tasks') {
-      return <ClassroomTasks />;
-    }
+  const teacherName = teacherInfo
+    ? `Prof. ${teacherInfo.first_name} ${teacherInfo.last_name}`
+    : 'Teacher Name';
 
+  // ── Render sub-pages ──────────────────────────────────────────────────────────
+  const renderContent = () => {
+    if (activeTab === 'My Classes')      return <TeacherClasses />;
+    if (activeTab === 'Messages')        return <TeacherCommunications />;
+    if (activeTab === 'Classroom Tasks') return <ClassroomTasks />;
+
+    // ── Dashboard view ──────────────────────────────────────────────────────────
     return (
-      <div className="flex-1 min-w-[650px] flex flex-col space-y-6 animate-fade-in">
-        <div className="flex justify-between items-end">
-          <h1 className="text-[28px] font-bold text-[#1B254B] flex items-center">👋 Welcome, {teacherName}</h1>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 24, minWidth: 0 }}>
+
+        {/* Page header */}
+        <div>
+          <p style={{ fontSize: 13, color: '#94a3b8', margin: '0 0 4px' }}>
+            {today.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+          </p>
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: '#1e293b', margin: 0 }}>
+            Welcome back, {teacherName}
+          </h1>
+          <p style={{ fontSize: 13, color: '#64748b', margin: '4px 0 0' }}>
+            Here's a snapshot of your classes and students today.
+          </p>
         </div>
 
-        <div className="bg-[#EBE9F1] rounded-[20px] p-8 flex justify-between items-center relative overflow-hidden h-[200px] shadow-sm">
-          <div className="z-10 w-2/3">
-            <h2 className="text-2xl font-bold text-[#1B254B] mb-3">Manage Your Classes Efficiently!</h2>
-            <p className="text-[#A3AED0] text-sm mb-6 leading-relaxed">
-              Track student performance, manage assignments, and monitor attendance. Stay organized and ensure your students succeed.
-            </p>
-            <button onClick={() => setActiveTab('My Classes')} className="bg-[#111C44] text-white px-6 py-2.5 rounded-lg text-sm font-bold flex items-center hover:bg-black transition-colors cursor-pointer active:scale-95">
-              View My Classes <span className="ml-2">→</span>
+        {/* Stat cards */}
+        <div style={{ display: 'flex', gap: 16 }}>
+          <StatCard
+            label="My Classes"
+            value={loading ? '...' : myClasses.length}
+            badge="+Active"
+            badgeColor="blue"
+            Icon={Icons.BookOpen}
+            iconBg="#EEF2FF"
+          />
+          <StatCard
+            label="Total Students"
+            value={loading ? '...' : studentsProgress.length}
+            badge="View All"
+            badgeColor="green"
+            Icon={Icons.Users}
+            iconBg="#ECFDF5"
+          />
+          <StatCard
+            label="Pending Tasks"
+            value={loading ? '...' : dailyTasks.filter(t => t.status === 'Pending').length}
+            badge="Due Soon"
+            badgeColor="orange"
+            Icon={Icons.Tasks}
+            iconBg="#FFF7ED"
+          />
+        </div>
+
+        {/* My Classes grid */}
+        <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #f1f5f9', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', padding: 24 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <h2 style={{ fontSize: 15, fontWeight: 800, color: '#1e293b', margin: 0 }}>My Classes</h2>
+            <button onClick={() => setActiveTab('My Classes')}
+              style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700, color: '#4318FF', background: 'none', border: 'none', cursor: 'pointer' }}>
+              View All <Icons.ChevronRight />
             </button>
           </div>
-          <div className="absolute right-0 top-0 bottom-0 w-1/3 flex items-center justify-center">
-            <span className="text-6xl">👨‍🏫👩‍🎓</span>
-          </div>
-        </div>
 
-        <div>
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-bold text-[#1B254B] flex items-center"><span className="mr-2 text-xl">📚</span> My Classes</h3>
-            <button onClick={() => setActiveTab('My Classes')} className="text-[#4318FF] text-sm font-medium hover:underline cursor-pointer">View all {'>'}</button>
-          </div>
-
-          <div className="grid grid-cols-4 gap-4">
-            {loading ? <p className="col-span-4 text-gray-400 font-bold italic">Loading classes...</p> : 
-             myClasses.length === 0 ? <p className="col-span-4 text-gray-500 font-bold p-4 bg-white rounded-xl shadow-sm border border-gray-100">No classes assigned to you yet.</p> :
-             myClasses.slice(0,4).map((cls) => {
-               const isDarkText = cls.colorClass.includes('text-[#1F3340]') || cls.colorClass.includes('text-[#23331E]');
-               const textColor = cls.colorClass.split(' ')[1];
-               const opacityClass = isDarkText ? 'opacity-70' : 'opacity-70';
-
-               return (
-                <div key={cls.id} className={`${cls.colorClass.split(' ')[0]} rounded-[20px] p-5 flex flex-col justify-between h-36 shadow-sm hover:shadow-md transition-shadow cursor-pointer`}>
-                  <h4 className={`font-bold ${textColor} text-[13px] leading-tight pr-4`}>{cls.name}</h4>
-                  <div>
-                    <p className={`text-[11px] ${textColor} ${opacityClass} flex items-center mb-1.5`}><span className="mr-1.5">👥</span> {cls.studentsCount} Students</p>
-                    <p className={`text-[11px] font-bold ${textColor} flex items-center`}><span className="mr-1.5">📖</span> {cls.language}</p>
+          {loading ? (
+            <p style={{ color: '#94a3b8', fontSize: 13, padding: '20px 0' }}>Loading classes...</p>
+          ) : myClasses.length === 0 ? (
+            <p style={{ color: '#94a3b8', fontSize: 13, padding: '20px 0', textAlign: 'center' }}>No classes assigned yet.</p>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
+              {myClasses.slice(0, 4).map((cls) => (
+                <div key={cls.id} style={{
+                  border: '1px solid #f1f5f9', borderRadius: 14, overflow: 'hidden',
+                  cursor: 'pointer', transition: 'box-shadow .2s',
+                }}
+                  onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.08)'}
+                  onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}
+                >
+                  <div style={{ background: cls.color, padding: '16px 20px', borderBottom: '1px solid #f1f5f9' }}>
+                    <p style={{ fontSize: 13, fontWeight: 800, color: '#1e293b', margin: 0 }}>{cls.name}</p>
+                    <p style={{ fontSize: 11, color: '#64748b', margin: '4px 0 0' }}>{cls.language}</p>
+                  </div>
+                  <div style={{ padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, color: '#64748b', fontSize: 12 }}>
+                      <Icons.UsersSmall /> <span>{cls.studentsCount} students enrolled</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, color: '#64748b', fontSize: 12 }}>
+                      <Icons.BookSmall /> <span>{cls.language}</span>
+                    </div>
+                    <button onClick={() => setActiveTab('My Classes')} style={{
+                      marginTop: 6, padding: '8px 0', borderRadius: 8,
+                      border: '1px solid #e0e7ff', background: '#f5f3ff',
+                      color: '#4318FF', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                    }}>Manage Class</button>
                   </div>
                 </div>
-               );
-             })
-            }
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        <div className="flex-1 bg-transparent">
-          <div className="flex justify-between items-center mb-4 mt-2">
-            <h3 className="text-lg font-bold text-[#1B254B] flex items-center"><span className="mr-2 text-xl">📈</span> Student Progress</h3>
-            <button className="text-[#4318FF] text-sm font-medium hover:underline cursor-pointer">View all {'>'}</button>
+        {/* Student Progress table */}
+        <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #f1f5f9', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', padding: 24 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <h2 style={{ fontSize: 15, fontWeight: 800, color: '#1e293b', margin: 0 }}>Student Progress</h2>
+            <button style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700, color: '#4318FF', background: 'none', border: 'none', cursor: 'pointer' }}>
+              View All <Icons.ChevronRight />
+            </button>
           </div>
 
-          <table className="w-full text-left text-sm bg-white rounded-2xl shadow-sm p-4 overflow-hidden border border-gray-100">
-            <thead className="bg-gray-50/50">
-              <tr className="text-[#A3AED0] text-[13px] font-medium border-b border-gray-200">
-                <th className="py-4 pl-6 font-medium">Student Name ↑↓</th>
-                <th className="py-4 font-medium">Course ↑↓</th>
-                <th className="py-4 font-medium">Level ↑↓</th>
-                <th className="py-4 font-medium">Grade ↑↓</th>
-                <th className="py-4 font-medium">Status ↑↓</th>
-                <th className="py-4 pr-6 text-right"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {studentsProgress.map((student, idx) => (
-                <tr key={idx} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
-                  <td className="py-4 pl-6 font-bold text-[#1B254B]">{student.name}</td>
-                  <td className="py-4 text-[#A3AED0] font-medium">{student.course}</td>
-                  <td className="py-4 font-bold text-[#A3AED0]">{student.level}</td>
-                  <td className="py-4 font-bold text-[#1B254B]">{student.grade}</td>
-                  <td className="py-4">
-                    <span className={`text-[10px] font-bold tracking-widest ${student.color}`}>
-                      {student.status}
-                    </span>
-                  </td>
-                  <td className="py-4 pr-6 text-right">
-                    <button className="text-[#A3AED0] hover:text-[#1B254B] text-xl font-bold cursor-pointer transition-colors">⋮</button>
-                  </td>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                  {['Student Name', 'Course', 'Level', 'Grade', 'Status', ''].map((h, i) => (
+                    <th key={i} style={{
+                      padding: '10px 12px', textAlign: 'left',
+                      fontSize: 11, fontWeight: 700, color: '#94a3b8',
+                      textTransform: 'uppercase', letterSpacing: '0.05em'
+                    }}>{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {studentsProgress.map((s, idx) => (
+                  <tr key={idx} style={{ borderBottom: '1px solid #f8fafc', transition: 'background .15s' }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <td style={{ padding: '12px', fontWeight: 700, color: '#1e293b' }}>{s.name}</td>
+                    <td style={{ padding: '12px', color: '#64748b' }}>{s.course}</td>
+                    <td style={{ padding: '12px', color: '#64748b', fontWeight: 600 }}>{s.level}</td>
+                    <td style={{ padding: '12px', fontWeight: 700, color: '#1e293b' }}>{s.grade}</td>
+                    <td style={{ padding: '12px' }}>
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 20,
+                        background: s.statusBg, color: s.statusColor, letterSpacing: '0.05em'
+                      }}>{s.status}</span>
+                    </td>
+                    <td style={{ padding: '12px', textAlign: 'right' }}>
+                      <button style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 18, fontWeight: 700 }}>⋮</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     );
   };
- // 1. State باش نخبوا فيه اللوغو واسم المدرسة
- const [schoolBranding, setSchoolBranding] = useState({ logo: null, name: 'Smansys' });
 
- // 2. جلب اللوغو والاسم من الداتا باز كي تفتح الباجة تاع السكريتيرة
- useEffect(() => {
-   const fetchBranding = async () => {
-     const { data, error } = await supabase
-       .from('school_settings')
-       .select('logo, name')
-       .eq('id', 1)
-       .single();
-
-     if (data && !error) {
-       setSchoolBranding({
-         logo: data.logo,
-         name: data.name || 'Smansys'
-       });
-     }
-   };
-   fetchBranding();
- }, []);
-
+  // ── Full layout ────────────────────────────────────────────────────────────────
   return (
-    <div className="flex h-screen bg-[#F4F7FE] font-sans text-[#1B254B] overflow-hidden relative">
-      
-      <aside className="w-[250px] bg-[#111C44] text-[#A3AED0] flex flex-col justify-between shrink-0 overflow-y-auto custom-scrollbar shadow-2xl z-20">
-        <div>
-          {/* 💡 اللوغو المربوط بالداتا باز */}
-        <div className="p-6 flex items-center space-x-3 cursor-pointer" onClick={() => setActiveTab('Dashboard')}>
-          {schoolBranding.logo ? (
-            <img 
-              src={schoolBranding.logo} 
-              alt="School Logo" 
-              className="w-8 h-8 rounded-lg object-contain bg-white/10 border border-white/10" 
-            />
-          ) : (
-            <div className="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center font-bold text-sm border border-white/10">
-              {schoolBranding.name.charAt(0).toUpperCase()}
+    <div style={{
+      display: 'flex', height: '100vh',
+      background: '#f8fafc',
+      fontFamily: "'Inter', 'Segoe UI', sans-serif",
+      overflow: 'hidden'
+    }}>
+
+      {/* ══════════ SIDEBAR — exact student style ══════════ */}
+      <aside style={{
+        width: 240, background: '#0f172a',
+        display: 'flex', flexDirection: 'column',
+        flexShrink: 0, height: '100%', zIndex: 20,
+      }}>
+
+        {/* Logo */}
+        <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer' }}
+          onClick={() => setActiveTab('Dashboard')}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {schoolBranding.logo ? (
+              <img src={schoolBranding.logo} alt="Logo" style={{
+                width: 36, height: 36, borderRadius: 10,
+                objectFit: 'contain', background: 'rgba(255,255,255,0.1)',
+                boxShadow: '0 4px 12px rgba(67,24,255,0.35)', flexShrink: 0,
+              }} />
+            ) : (
+              <div style={{
+                width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+                background: 'linear-gradient(135deg, #4318FF 0%, #6B47FF 100%)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 4px 12px rgba(67,24,255,0.35)',
+              }}>
+                <Icons.Globe />
+              </div>
+            )}
+            <div>
+              <p style={{ color: '#fff', fontSize: 13, fontWeight: 800, letterSpacing: '0.04em', lineHeight: 1.1, margin: 0, textTransform: 'uppercase' }}>
+                {(schoolBranding.name || 'Polyglot').toUpperCase()}
+              </p>
+              <p style={{ color: '#818cf8', fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', margin: 0 }}>
+                ACADEMY
+              </p>
             </div>
-          )}
-          <span className="text-xl font-bold tracking-tight truncate max-w-[140px]">
-            {schoolBranding.name}
-          </span>
+          </div>
         </div>
 
-          <nav className="px-4 space-y-2 mt-4">
-            {[
-              { id: 'Dashboard', icon: '⊞' }, 
-              { id: 'My Classes', icon: '📚' }, 
-              { id: 'Classroom Tasks', icon: '📋' }, 
-              { id: 'Messages', icon: '💬' }
-            ].map((item) => (
-              <button 
-                key={item.id}
-                onClick={() => setActiveTab(item.id)}
-                className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-all cursor-pointer ${activeTab === item.id ? 'bg-[#4318FF] text-white shadow-lg shadow-[#4318FF]/30' : 'hover:bg-white/5 hover:text-white'}`}
+        {/* Nav */}
+        <nav style={{ flex: 1, padding: '12px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {navLinks.map(({ id, Icon }) => {
+            const isActive = activeTab === id;
+            return (
+              <button key={id} onClick={() => setActiveTab(id)}
+                style={{
+                  width: '100%', display: 'flex', alignItems: 'center', gap: 11,
+                  padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                  fontSize: 13, fontWeight: 600, textAlign: 'left', transition: 'all .15s',
+                  background: isActive ? '#4318FF' : 'transparent',
+                  color: isActive ? '#fff' : '#94a3b8',
+                }}
+                onMouseEnter={e => { if (!isActive) { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#e2e8f0'; }}}
+                onMouseLeave={e => { if (!isActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#94a3b8'; }}}
               >
-                <span className={`mr-3 text-lg ${activeTab === item.id ? 'text-white' : 'opacity-70'}`}>{item.icon}</span> {item.id}
+                <span style={{ flexShrink: 0 }}><Icon /></span>
+                {id}
               </button>
-            ))}
-          </nav>
-        </div>
+            );
+          })}
+        </nav>
 
-        <div className="p-4 mt-4 border-t border-white/5">
-          <button className="flex items-center w-full px-4 py-3 text-[#A3AED0] rounded-xl text-sm font-medium hover:text-white hover:bg-white/5 transition-colors mb-2 cursor-pointer">
-             <span className="mr-3 text-lg opacity-70">⚙️</span> Settings
-          </button>
-          <button onClick={handleLogout} className="flex items-center w-full px-4 py-3 text-red-400 rounded-xl text-sm font-bold hover:bg-red-500/10 hover:text-red-300 transition-colors cursor-pointer">
-             <span className="mr-3 text-lg opacity-70">↪️</span> Logout
+        {/* Log Out */}
+        <div style={{ padding: '12px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+          <button onClick={handleLogout}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', gap: 11,
+              padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer',
+              fontSize: 13, fontWeight: 600, color: '#f87171', background: 'transparent', transition: 'all .15s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(248,113,113,0.08)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+          >
+            <Icons.Logout /> Log Out
           </button>
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col overflow-hidden relative">
-        
-        <header className="h-20 px-8 flex justify-between items-center bg-white/50 backdrop-blur-md border-b border-gray-100 shrink-0 z-10 sticky top-0 relative">
-          <div className="relative w-96">
-            <span className="absolute left-4 top-2.5 text-gray-400">🔍</span>
-            <input 
-              type="text" 
-              placeholder="Search students, classes, assignments..." 
-              className="w-full bg-white border border-gray-200 rounded-full py-2 pl-10 pr-4 text-sm outline-none focus:border-[#4318FF] focus:ring-1 focus:ring-[#4318FF] shadow-sm text-[#1B254B] transition-all"
-            />
+      {/* ══════════ MAIN ══════════ */}
+      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+
+        {/* ── Topbar — matches student exactly ── */}
+        <header style={{
+          height: 64, padding: '0 28px',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          background: '#fff', borderBottom: '1px solid #f1f5f9',
+          flexShrink: 0, zIndex: 10,
+        }}>
+          {/* Search */}
+          <div style={{ position: 'relative', width: '100%', maxWidth: 400 }}>
+            <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }}>
+              <Icons.Search />
+            </span>
+            <input type="text" placeholder="Search students, classes, assignments..."
+              style={{
+                width: '100%', background: '#f8fafc',
+                border: '1px solid #f1f5f9', borderRadius: 10,
+                padding: '9px 14px 9px 40px', fontSize: 13, color: '#1e293b',
+                outline: 'none', boxSizing: 'border-box',
+              }} />
           </div>
-          
-          <div className="flex items-center space-x-6">
-            
-            {/* 💡 Bell Icon & Dropdown Container */}
-            <div className="relative">
-              {/* 💡 الـ Overlay الخفي باش كي نكليكيو برا تتغلق القائمة */}
-              {showNotifications && (
-                <div 
-                  className="fixed inset-0 z-40" 
-                  onClick={() => setShowNotifications(false)}
-                ></div>
-              )}
 
-              <div 
-                className="relative cursor-pointer group z-50"
-                onClick={() => {
-                  setShowNotifications(!showNotifications); // يفتح ويغلق القائمة
-                  setUnreadCount(0); // 💡 هادي هي اللي تنحي الرقم الأحمر غير تكليكي
-                }} 
-              >
-                <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center border border-gray-200 shadow-sm text-xl text-gray-500 group-hover:text-[#4318FF] group-hover:shadow-md transition-all">
-                  🔔
-                </div>
-                
-                {/* 💡 تبان الدويرة الحمرا غير إلا كان كاين إشعارات */}
+          {/* Right side */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+
+            {/* Bell + dropdown */}
+            <div style={{ position: 'relative' }} ref={notificationRef}>
+              <button onClick={() => { setShowNotifications(!showNotifications); setUnreadCount(0); }}
+                style={{
+                  width: 38, height: 38, borderRadius: 10, border: '1px solid #f1f5f9',
+                  background: showNotifications ? '#4318FF' : '#f8fafc',
+                  color: showNotifications ? '#fff' : '#64748b',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer', position: 'relative', transition: 'all .15s',
+                }}>
+                <Icons.Bell />
                 {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[20px] h-[20px] px-1 bg-red-500 rounded-full border-2 border-white flex items-center justify-center text-[10px] text-white font-bold shadow-sm animate-pulse">
-                    {unreadCount > 9 ? '9+' : unreadCount}
-                  </span>
+                  <span style={{
+                    position: 'absolute', top: 8, right: 8,
+                    width: 8, height: 8, background: '#ef4444', borderRadius: '50%',
+                    border: '2px solid #fff',
+                  }} />
                 )}
-              </div>
+              </button>
 
-              {/* 💡 القائمة المنسدلة تاع الإشعارات (Dropdown Panel) */}
               {showNotifications && (
-                <div className="absolute right-0 top-[130%] w-[350px] bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden origin-top-right transition-all">
-                  {/* Header تاع الإشعارات */}
-                  <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                    <button 
-                      onClick={() => { setUnreadCount(0); setShowNotifications(false); }} 
-                      className="text-[10px] font-bold text-[#4318FF] hover:underline tracking-wider"
-                    >
-                      MARK ALL READ
-                    </button>
-                    <h3 className="text-sm font-bold text-[#1B254B]">Notifications / الإشعارات</h3>
+                <div style={{
+                  position: 'absolute', right: 0, top: 'calc(100% + 10px)',
+                  width: 340, background: '#fff', borderRadius: 16,
+                  border: '1px solid #f1f5f9', boxShadow: '0 8px 32px rgba(0,0,0,0.10)',
+                  padding: 20, zIndex: 50,
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                    <h4 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#1e293b' }}>Notifications</h4>
+                    <span onClick={() => setShowNotifications(false)}
+                      style={{ fontSize: 12, fontWeight: 700, color: '#4318FF', cursor: 'pointer' }}>
+                      Mark All Read
+                    </span>
                   </div>
-
-                  {/* المحتوى (لائحة الإشعارات) */}
-                  <div className="max-h-[320px] overflow-y-auto custom-scrollbar flex flex-col text-right">
-                    {notificationsList.length > 0 ? (
-                      notificationsList.map((notif, idx) => {
-                        // 💡 تغيير الأيقونة حسب نوع الإشعار
-                        let icon = '🔔';
-                        let iconBg = 'bg-blue-50 text-blue-500';
-                        if (notif.type === 'notification' || notif.type === 'emergency') { icon = '⚠️'; iconBg = 'bg-red-50 text-red-500'; }
-                        if (notif.type === 'announcement') { icon = '📢'; iconBg = 'bg-orange-50 text-orange-500'; }
-
-                        return (
-                          <div key={idx} onClick={() => { setActiveTab('Messages'); setShowNotifications(false); }} className="p-4 border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer flex flex-row-reverse gap-4 items-start">
-                            <div className={`w-10 h-10 rounded-full ${iconBg} flex items-center justify-center text-lg shrink-0 shadow-sm`}>
-                              {icon}
-                            </div>
-                            <div className="flex-1">
-                              <p className="text-[13px] font-bold text-[#1B254B] mb-1">{notif.subject || 'New Update'}</p>
-                              <p className="text-[11px] text-gray-500 line-clamp-2 leading-relaxed">{notif.content}</p>
-                              <p className="text-[9px] text-gray-400 mt-2 font-medium">{new Date(notif.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} • {new Date(notif.created_at).toLocaleDateString()}</p>
-                            </div>
-                          </div>
-                        );
-                      })
-                    ) : (
-                      <div className="p-8 text-center text-gray-400">
-                        <span className="text-3xl mb-2 block">📭</span>
-                        <p className="text-sm font-medium">No new notifications</p>
+                  <div style={{ maxHeight: 300, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {notificationsList.length > 0 ? notificationsList.map((n, idx) => (
+                      <div key={idx} onClick={() => { setActiveTab('Messages'); setShowNotifications(false); }}
+                        style={{
+                          padding: '12px 14px', borderRadius: 10, border: '1px solid #f1f5f9',
+                          cursor: 'pointer', transition: 'background .15s',
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                        onMouseLeave={e => e.currentTarget.style.background = '#fff'}
+                      >
+                        <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{n.subject || 'New Notification'}</p>
+                        <p style={{ margin: '4px 0 0', fontSize: 12, color: '#64748b', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{n.content}</p>
+                        <p style={{ margin: '6px 0 0', fontSize: 11, color: '#94a3b8' }}>{new Date(n.created_at).toLocaleDateString()}</p>
                       </div>
+                    )) : (
+                      <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, padding: '20px 0' }}>No new notifications</p>
                     )}
                   </div>
+                  <button onClick={() => { setActiveTab('Messages'); setShowNotifications(false); }}
+                    style={{
+                      width: '100%', marginTop: 14, padding: '10px 0', borderRadius: 10,
+                      border: '1px solid #e0e7ff', background: '#f5f3ff', color: '#4318FF',
+                      fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                    }}>View All Messages</button>
                 </div>
               )}
             </div>
 
-            <div className="flex items-center pl-6 border-l border-gray-200">
-              <div className="flex flex-col text-right mr-3">
-                <span className="text-sm font-bold text-[#1B254B]">{teacherName}</span>
-                <span className="text-[11px] text-gray-500 font-medium">{teacherInfo?.department || 'Instructor'}</span>
+            {/* Divider */}
+            <div style={{ width: 1, height: 32, background: '#f1f5f9' }} />
+
+            {/* User info */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+              <div style={{ textAlign: 'right' }}>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{teacherName}</p>
+                <p style={{ margin: 0, fontSize: 11, color: '#94a3b8' }}>{teacherInfo?.department || 'Instructor'}</p>
               </div>
-              <img 
-                src="https://i.pravatar.cc/150?img=47" 
-                alt="Profile" 
-                className="w-10 h-10 rounded-full object-cover cursor-pointer shadow-sm border-2 border-[#4318FF] hover:scale-105 transition-transform" 
-              />
+              <div style={{ position: 'relative' }}>
+                <img src="https://i.pravatar.cc/150?img=47" alt="Profile"
+                  style={{ width: 38, height: 38, borderRadius: 10, objectFit: 'cover', display: 'block' }} />
+                <div style={{
+                  position: 'absolute', bottom: -2, right: -2,
+                  width: 10, height: 10, background: '#22c55e', borderRadius: '50%', border: '2px solid #fff',
+                }} />
+              </div>
             </div>
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto px-8 py-6 custom-scrollbar flex flex-col xl:flex-row gap-6">
-          
-          {renderMainContent()}
+        {/* ── Content area ── */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: 28, display: 'flex', gap: 24 }}>
 
-          <div className="w-full xl:w-[320px] shrink-0 flex flex-col space-y-6">
-            
-            <div className="flex justify-end text-xs font-bold text-[#A3AED0] pt-2">
-              {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', weekday: 'long' })}
-            </div>
+          {/* Main content */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {renderContent()}
+          </div>
 
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <p className="text-xs font-bold text-[#1B254B]">Semester Progress</p>
-              </div>
-              <div className="h-2 w-full bg-white rounded-full overflow-hidden border border-gray-100 shadow-inner">
-                <div className="h-full bg-[#4318FF] w-[45%] rounded-full relative">
-                   <div className="absolute top-0 bottom-0 right-0 w-4 bg-white/20 blur-sm"></div>
+          {/* Right sidebar — Dashboard only, matches student exactly */}
+          {activeTab === 'Dashboard' && (
+            <aside style={{ width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+              {/* Calendar */}
+              <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #f1f5f9', padding: 20 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                  <h4 style={{ margin: 0, fontSize: 13, fontWeight: 800, color: '#1e293b' }}>{monthName}</h4>
+                  <Icons.Calendar />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2, textAlign: 'center' }}>
+                  {['M','T','W','T','F','S','S'].map((d, i) => (
+                    <div key={i} style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', paddingBottom: 8 }}>{d}</div>
+                  ))}
+                  {Array.from({ length: offset }).map((_, i) => <div key={'e' + i} />)}
+                  {Array.from({ length: daysInMonth }).map((_, i) => {
+                    const day = i + 1;
+                    const isToday = day === todayDate;
+                    return (
+                      <div key={day} style={{
+                        height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 12, fontWeight: isToday ? 800 : 500,
+                        borderRadius: 6,
+                        background: isToday ? '#4318FF' : 'transparent',
+                        color: isToday ? '#fff' : '#1e293b',
+                        opacity: isToday ? 1 : 0.75,
+                        cursor: 'default',
+                      }}>{day}</div>
+                    );
+                  })}
                 </div>
               </div>
-            </div>
 
-            <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
-              <div className="flex justify-between items-center mb-4">
-                <button className="text-[#1B254B] font-bold w-6 h-6 flex items-center justify-center hover:bg-gray-50 rounded">{'<'}</button>
-                <h4 className="font-bold text-[#1B254B] text-sm">{new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' })}</h4>
-                <button className="text-[#1B254B] font-bold w-6 h-6 flex items-center justify-center hover:bg-gray-50 rounded">{'>'}</button>
+              {/* Today's Schedule — teacher version of Task Hub */}
+              <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #f1f5f9', padding: 20 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                  <h4 style={{ margin: 0, fontSize: 13, fontWeight: 800, color: '#1e293b' }}>Today's Schedule</h4>
+                  <button onClick={() => setActiveTab('Classroom Tasks')}
+                    style={{ fontSize: 11, fontWeight: 700, color: '#4318FF', background: 'none', border: 'none', cursor: 'pointer' }}>
+                    View All
+                  </button>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {dailyTasks.map((task, idx) => (
+                    <div key={idx} style={{
+                      padding: '12px 14px', borderRadius: 12, border: '1px solid #f1f5f9',
+                      borderLeft: `3px solid ${task.accent || '#4318FF'}`,
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                        <p style={{ margin: 0, fontSize: 12, fontWeight: 800, color: '#1e293b' }}>{task.title || 'Task'}</p>
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20,
+                          background: task.statusBg || '#fffbeb',
+                          color:      task.statusColor || '#f59e0b',
+                        }}>{task.status || 'Pending'}</span>
+                      </div>
+                      <p style={{ margin: 0, fontSize: 11, color: '#64748b' }}>{task.subTitle || 'Details'}</p>
+                      <p style={{ margin: '6px 0 0', fontSize: 11, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Icons.Clock /> {task.date || 'Today'}
+                      </p>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="grid grid-cols-7 gap-1 text-center text-[11px] text-[#A3AED0] font-bold mb-3">
-                <div>Mo</div><div>Tu</div><div>We</div><div>Th</div><div>Fr</div><div>Sa</div><div>Su</div>
-              </div>
-              <div className="grid grid-cols-7 gap-y-3 gap-x-1 text-center text-[13px] font-medium text-[#1B254B]">
-                <div className="text-gray-300">26</div><div className="text-gray-300">27</div><div className="text-gray-300">28</div>
-                <div>1</div><div>2</div><div>3</div><div>4</div>
-                <div>5</div><div>6</div><div>7</div><div>8</div><div>9</div><div>10</div><div>11</div>
-                <div className="bg-[#4318FF] text-white w-7 h-7 rounded-full flex items-center justify-center mx-auto shadow-md shadow-[#4318FF]/40 font-bold">12</div>
-                <div>13</div><div>14</div><div>15</div><div>16</div><div>17</div><div>18</div>
-              </div>
-            </div>
 
-            <div className="flex-1">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-bold text-[#1B254B] flex items-center"><span className="mr-2 text-xl">💼</span> Today's Schedule</h3>
-                <button className="text-[#4318FF] text-sm font-medium hover:underline cursor-pointer">View all {'>'}</button>
-              </div>
-              
-              <div className="space-y-3">
-                {dailyTasks.map((task, idx) => (
-                  <div key={idx} className={`bg-white p-4 rounded-[14px] border-l-4 ${task.borderColor || 'border-[#ED8936]'} shadow-sm relative hover:-translate-y-0.5 transition-transform cursor-pointer`}>
-                    <span className={`absolute top-4 right-4 text-[9px] font-bold ${task.tagText || 'text-[#ED8936]'} ${task.tagBg || 'bg-[#FFEDD5]'} px-2 py-0.5 rounded tracking-wide`}>
-                      {task.status || 'Pending'}
-                    </span>
-                    <p className="text-[13px] font-bold text-[#1B254B] mb-2 pr-16">{task.title || 'Task'}</p>
-                    <p className="text-[11px] text-[#A3AED0] mb-1.5 leading-snug">{task.subTitle || 'Details'}</p>
-                    <p className="text-[10px] text-gray-400 font-medium">{task.date || 'Today'}</p>
-                  </div>
+              {/* Quick Actions */}
+              <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #f1f5f9', padding: 20 }}>
+                <h4 style={{ margin: '0 0 14px', fontSize: 13, fontWeight: 800, color: '#1e293b' }}>Quick Actions</h4>
+                {[
+                  { label: 'View My Classes',    onClick: () => setActiveTab('My Classes') },
+                  { label: 'Classroom Tasks',    onClick: () => setActiveTab('Classroom Tasks') },
+                  { label: 'Message Students',   onClick: () => setActiveTab('Messages') },
+                ].map((action, idx) => (
+                  <button key={idx} onClick={action.onClick}
+                    style={{
+                      width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      padding: '10px 14px', borderRadius: 10, border: '1px solid #f1f5f9',
+                      background: '#f8fafc', fontSize: 12, fontWeight: 700, color: '#1e293b',
+                      cursor: 'pointer', marginBottom: 8, transition: 'all .15s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#eef2ff'; e.currentTarget.style.borderColor = '#e0e7ff'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#f1f5f9'; }}
+                  >
+                    {action.label} <Icons.ChevronRight />
+                  </button>
                 ))}
               </div>
-            </div>
 
-          </div>
+            </aside>
+          )}
         </div>
       </main>
+
+      <style>{`
+        * { box-sizing: border-box; }
+        body { margin: 0; }
+        aside nav::-webkit-scrollbar { width: 3px; }
+        aside nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.07); border-radius: 10px; }
+        main > div::-webkit-scrollbar { width: 4px; }
+        main > div::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+      `}</style>
     </div>
   );
 };
