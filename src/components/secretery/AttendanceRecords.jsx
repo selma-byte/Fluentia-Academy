@@ -28,8 +28,22 @@ const AttendanceRecords = () => {
 
   const [studentsData, setStudentsData] = useState([]);
   const [attendanceHistory, setAttendanceHistory] = useState([]);
-  const [classesData, setClassesData] = useState([]); // 💡 جبنا بيانات الأقسام
+  const [classesData, setClassesData] = useState([]); 
   const [attendanceState, setAttendanceState] = useState({});
+
+  // 💡 States for Justifications & Recovery Session
+  const [justifications, setJustifications] = useState([]);
+  const [roomsData, setRoomsData] = useState([]);
+  const [staffData, setStaffData] = useState([]);
+  const [showRecoveryModal, setShowRecoveryModal] = useState(false);
+  const [selectedJustification, setSelectedJustification] = useState(null);
+  
+  const [recoveryForm, setRecoveryForm] = useState({
+    date: getTodayString(),
+    time: '14:00',
+    teacher: '',
+    room: ''
+  });
 
   // ==========================================
   // 💡 جلب البيانات من السوبابيز
@@ -44,6 +58,7 @@ const AttendanceRecords = () => {
           firstName: s.first_name || '',
           lastName: s.last_name || '',
           email: s.email || '',
+          phone: s.phone || '',
           language: s.language || '',
           level: s.level || '',
           group: s.group_name || ''
@@ -51,11 +66,25 @@ const AttendanceRecords = () => {
         setStudentsData(formattedStudents);
       }
 
-      // ب. جلب سجلات الغياب
-      const { data: attendanceLogs } = await supabase.from('attendance').select('*').order('date', { ascending: true }); 
-      if (attendanceLogs) {
+      // ب. جلب سجلات الغياب مع إصلاح التكرار (Deduplication) 💡🔥
+      const { data: rawLogs } = await supabase.from('attendance').select('*').order('created_at', { ascending: false }); 
+      if (rawLogs) {
+        // فلترة التكرار (نحكمو غير التسجيل الأخير لكل طالب في نفس اليوم والوقت)
+        const uniqueLogsMap = new Map();
+        rawLogs.forEach(a => {
+           const cleanDate = a.date ? new Date(a.date).toISOString().split('T')[0] : '';
+           const cleanTimeSlot = a.time_slot ? a.time_slot.trim() : '';
+           const key = `${a.student_id}_${cleanDate}_${cleanTimeSlot}`;
+           if (!uniqueLogsMap.has(key)) {
+               uniqueLogsMap.set(key, a);
+           }
+        });
+
+        // ترتيب السجلات زمنياً باش حساب الحصص يجي صحيح
+        const sortedLogs = Array.from(uniqueLogsMap.values()).sort((a, b) => new Date(a.date) - new Date(b.date));
+
         let groupSessionsCount = {};
-        const formattedLogs = attendanceLogs.map(a => {
+        const formattedLogs = sortedLogs.map(a => {
           const cleanDate = a.date ? new Date(a.date).toISOString().split('T')[0] : '';
           const cleanTimeSlot = a.time_slot ? a.time_slot.trim() : '';
           const cleanStatus = a.status ? a.status.charAt(0).toUpperCase() + a.status.slice(1).toLowerCase() : '';
@@ -63,7 +92,7 @@ const AttendanceRecords = () => {
           const groupKey = `${a.course}_${cleanDate}_${cleanTimeSlot}`;
           if (!groupSessionsCount[a.course]) groupSessionsCount[a.course] = [];
           if (!groupSessionsCount[a.course].includes(groupKey)) {
-             groupSessionsCount[a.course].push(groupKey);
+              groupSessionsCount[a.course].push(groupKey);
           }
           const sessionNum = groupSessionsCount[a.course].indexOf(groupKey) + 1;
 
@@ -80,9 +109,20 @@ const AttendanceRecords = () => {
         setAttendanceHistory(formattedLogs);
       }
 
-      // ج. جلب الأقسام لمعرفة الأوقات (Schedule) 💡
+      // ج. جلب الأقسام لمعرفة الأوقات (Schedule)
       const { data: classes } = await supabase.from('classes').select('*');
       if (classes) setClassesData(classes);
+
+      // د. جلب الأساتذة والقاعات (للبرمجة الاستدراكية)
+      const { data: staff } = await supabase.from('staff').select('*');
+      if (staff) setStaffData(staff.filter(s => s.role === 'Teacher' || s.department === 'English' || s.department === 'French'));
+      
+      const { data: rooms } = await supabase.from('rooms').select('*');
+      if (rooms) setRoomsData(rooms);
+
+      // هـ. جلب التبريرات (Justifications) من جدول communications
+      const { data: comms } = await supabase.from('communications').select('*').eq('type', 'justification').order('created_at', { ascending: false });
+      if (comms) setJustifications(comms);
 
     } catch (error) {
       console.error("Error fetching attendance data:", error);
@@ -120,7 +160,6 @@ const AttendanceRecords = () => {
   const uniqueLevels = [...new Set(studentsData.map(s => s.level).filter(Boolean))];
   const uniqueGroups = [...new Set(studentsData.map(s => s.group).filter(Boolean))];
 
-  // حساب الأوقات المتاحة بناءً على الفوج المختار واليوم
   const availableTimeSlots = useMemo(() => {
     let slots = [];
     
@@ -129,15 +168,12 @@ const AttendanceRecords = () => {
       const daysMap = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       const dayName = daysMap[selectedDayIndex];
 
-      // 1. نحوسو في جدول الأقسام (Classes) اذا الفوج يقرى فهاد اليوم
       const groupClass = classesData.find(c => c.name === filterGroup);
       if (groupClass && groupClass.schedule && groupClass.schedule.includes(dayName)) {
-        // استخراج الوقت، مثال: "10:00 - 12:00"
         const timeMatch = groupClass.schedule.match(/\d{2}:\d{2}\s*-\s*\d{2}:\d{2}/);
         if (timeMatch) slots.push(timeMatch[0]);
       }
       
-      // 2. إذا ملقيناهاش في الجدول، نجيبو الأوقات اللي سجلوا فيهم من قبل من السجل (History)
       if (slots.length === 0) {
         const histTimes = attendanceHistory
           .filter(l => l.language === filterGroup || l.group === filterGroup)
@@ -146,11 +182,9 @@ const AttendanceRecords = () => {
         slots = [...new Set(histTimes)];
       }
     } else {
-      // 3. إذا مكانش فوج محدد، نجيبو كل الأوقات الموجودة
       slots = [...new Set(attendanceHistory.map(a => a.timeSlot).filter(Boolean))];
     }
 
-    // 4. أوقات احتياطية إذا مالقينا والو
     if (slots.length === 0) {
       slots = ['08:00 - 10:00', '10:00 - 12:00', '14:00 - 16:00', '16:00 - 18:00'];
     }
@@ -158,16 +192,14 @@ const AttendanceRecords = () => {
     return slots;
   }, [filterGroup, attendanceDate, classesData, attendanceHistory]);
 
-  // تحديد الوقت أوتوماتيكيا كي نبدلو الفوج أو اليوم 💡
   useEffect(() => {
     if (filterGroup !== 'All' && availableTimeSlots.length > 0) {
       if (!availableTimeSlots.includes(filterTime)) {
-        setFilterTime(availableTimeSlots[0]); // يختار أول وقت مباشرة
+        setFilterTime(availableTimeSlots[0]); 
       }
     }
   }, [filterGroup, attendanceDate, availableTimeSlots]);
 
-  // الفلترة
   const filteredStudents = studentsData.filter(s => 
     (filterLang === 'All' || s.language === filterLang) &&
     (filterLevel === 'All' || s.level === filterLevel) &&
@@ -182,7 +214,6 @@ const AttendanceRecords = () => {
     (activeMode === 'daily' ? log.date === attendanceDate : true) 
   );
 
-  // إحصائيات
   const totalStudents = filteredStudents.length;
   const presentCount = filteredStudents.filter(s => attendanceState[`id_${s.id}`] === 'Present' || attendanceState[`name_${s.firstName.toLowerCase()} ${s.lastName.toLowerCase()}`] === 'Present').length;
   const absentCount = filteredStudents.filter(s => attendanceState[`id_${s.id}`] === 'Absent' || attendanceState[`name_${s.firstName.toLowerCase()} ${s.lastName.toLowerCase()}`] === 'Absent').length;
@@ -190,6 +221,79 @@ const AttendanceRecords = () => {
   const attendancePercentage = totalStudents === 0 ? 0 : Math.round(((presentCount + lateCount) / totalStudents) * 100);
 
   const openStudentProfile = (student) => { setSelectedStudent(student); setCurrentView('profile'); };
+
+  // ==========================================
+  // 💡 برمجة حصة استدراكية (Recovery Session)
+  // ==========================================
+  const handleApproveJustification = (justif) => {
+    setSelectedJustification(justif);
+    setShowRecoveryModal(true);
+  };
+
+  const handleRejectJustification = async (justif) => {
+    if (window.confirm("Are you sure you want to reject this justification?")) {
+      await supabase.from('communications').update({ subject: `[REJECTED] ${justif.subject}` }).eq('id', justif.id);
+      alert("Justification rejected.");
+      fetchAttendanceData();
+    }
+  };
+
+  const handleSaveRecoverySession = async (e) => {
+    e.preventDefault();
+    if (!recoveryForm.teacher || !recoveryForm.room || !recoveryForm.date || !recoveryForm.time) {
+      return alert("⚠️ Please fill in all fields (Teacher, Room, Date, Time).");
+    }
+
+    try {
+      // 1. Check Conflicts (Room / Teacher)
+      const dateObj = new Date(recoveryForm.date);
+      const daysMap = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const dayName = daysMap[dateObj.getDay()];
+      const hourOnly = recoveryForm.time.substring(0, 2);
+
+      const { data: conflicts } = await supabase.from('classes').select('*')
+        .ilike('schedule', `%${dayName}%`)
+        .ilike('schedule', `%${hourOnly}%`)
+        .ilike('schedule', `%${recoveryForm.room}%`)
+        .limit(1);
+
+      if (conflicts && conflicts.length > 0) {
+        return alert(`⚠️ Conflict! The room [${recoveryForm.room}] is booked by class: ${conflicts[0].name} at this time.`);
+      }
+
+      const { data: appConflicts } = await supabase.from('appointments').select('*')
+        .eq('appointment_date', recoveryForm.date)
+        .eq('start_time', recoveryForm.time)
+        .or(`sub_title.ilike.%${recoveryForm.teacher}%,sub_title.ilike.%${recoveryForm.room}%`);
+
+      if (appConflicts && appConflicts.length > 0) {
+        return alert(`⚠️ Conflict! The teacher or room is already scheduled for another appointment.`);
+      }
+
+      // 2. Save the Recovery Session
+      const studentName = selectedJustification.subject.split(':')[1].split('(')[0].trim();
+      const stdObj = studentsData.find(s => `${s.firstName} ${s.lastName}`.includes(studentName));
+
+      await supabase.from('appointments').insert([{
+        title: studentName,
+        sub_title: `Recovery Session (Prof: ${recoveryForm.teacher}, Room: ${recoveryForm.room})`,
+        appointment_date: recoveryForm.date,
+        start_time: recoveryForm.time,
+        status: 'Upcoming',
+        phone: stdObj ? stdObj.phone : ''
+      }]);
+
+      // 3. Mark Justification as Approved
+      await supabase.from('communications').update({ subject: `[APPROVED] ${selectedJustification.subject}` }).eq('id', selectedJustification.id);
+
+      alert(`✅ Recovery session successfully scheduled for ${studentName}!`);
+      setShowRecoveryModal(false);
+      fetchAttendanceData();
+
+    } catch (err) {
+      alert("Error scheduling recovery session: " + err.message);
+    }
+  };
 
   // ==========================================
   // 1. واجهة قائمة الحضور (Daily)
@@ -335,7 +439,121 @@ const AttendanceRecords = () => {
   );
 
   // ==========================================
-  // 3. ملف حضور الطالب الفردي (Profile View)
+  // 3. 💡 واجهة التبريرات (Justifications & Recovery) 
+  // ==========================================
+  const renderJustifications = () => (
+    <div className="space-y-6 animate-fade-in">
+      <div className="bg-white border border-gray-100 rounded-3xl shadow-sm p-8">
+        <h3 className="font-bold text-xl text-[#0A1128] mb-2">Pending Justifications</h3>
+        <p className="text-sm text-gray-500 mb-8">Review student absence excuses and schedule recovery sessions if approved.</p>
+        
+        <div className="space-y-4">
+          {justifications.length === 0 ? (
+             <div className="py-12 text-center border-2 border-dashed border-gray-200 rounded-2xl">
+               <span className="text-4xl">📬</span>
+               <p className="mt-4 text-gray-400 font-bold">No pending justifications.</p>
+             </div>
+          ) : (
+            justifications.map((justif) => {
+              const isApproved = justif.subject.includes('[APPROVED]');
+              const isRejected = justif.subject.includes('[REJECTED]');
+              const isPending = !isApproved && !isRejected;
+
+              return (
+                <div key={justif.id} className={`p-6 rounded-2xl border ${isApproved ? 'bg-green-50/50 border-green-100' : isRejected ? 'bg-red-50/50 border-red-100' : 'bg-white border-gray-200'} shadow-sm`}>
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                       <h4 className={`font-bold text-lg ${isApproved ? 'text-green-800' : isRejected ? 'text-red-800' : 'text-[#0A1128]'}`}>
+                         {justif.subject.replace(/\[.*?\]\s*/, '')}
+                       </h4>
+                       <p className="text-xs text-gray-400 mt-1 font-bold">{new Date(justif.created_at).toLocaleString()}</p>
+                    </div>
+                    {isPending ? (
+                      <div className="flex space-x-2">
+                        <button onClick={() => handleApproveJustification(justif)} className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition-colors cursor-pointer">
+                           ✓ Approve & Schedule
+                        </button>
+                        <button onClick={() => handleRejectJustification(justif)} className="bg-gray-100 hover:bg-red-100 hover:text-red-600 text-gray-600 px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer">
+                           ✕ Reject
+                        </button>
+                      </div>
+                    ) : (
+                      <span className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-widest border ${isApproved ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200'}`}>
+                        {isApproved ? 'Approved' : 'Rejected'}
+                      </span>
+                    )}
+                  </div>
+                  <div className="bg-gray-50/80 p-4 rounded-xl text-sm text-gray-700 leading-relaxed border border-gray-100">
+                    <span className="font-bold text-gray-400 text-[10px] uppercase block mb-1">Student Message:</span>
+                    {justif.content}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+
+      {/* نافذة الحصة الاستدراكية (Recovery Session Modal) */}
+      {showRecoveryModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-[#F8F9FA] w-full max-w-lg rounded-3xl shadow-2xl p-8 font-sans">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-[#0A1128]">Schedule Recovery Session</h2>
+              <button onClick={() => setShowRecoveryModal(false)} className="text-gray-400 hover:text-red-500 font-bold text-xl cursor-pointer">✕</button>
+            </div>
+            
+            <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl mb-6">
+               <p className="text-xs text-blue-800 font-bold">Scheduling for: {selectedJustification?.subject.replace(/\[.*?\]\s*/, '')}</p>
+            </div>
+
+            <form onSubmit={handleSaveRecoverySession} className="grid grid-cols-2 gap-x-6 gap-y-6">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Date</label>
+                <input 
+                  type="date" 
+                  value={recoveryForm.date} 
+                  onChange={(e) => setRecoveryForm({...recoveryForm, date: e.target.value})} 
+                  className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold text-[#0A1128] outline-none focus:border-blue-500 cursor-pointer shadow-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Time</label>
+                <input 
+                  type="time" 
+                  value={recoveryForm.time} 
+                  onChange={(e) => setRecoveryForm({...recoveryForm, time: e.target.value})} 
+                  className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold text-[#0A1128] outline-none focus:border-blue-500 cursor-pointer shadow-sm"
+                />
+              </div>
+              <div className="space-y-1.5 col-span-2">
+                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Assign Teacher</label>
+                <select value={recoveryForm.teacher} onChange={(e) => setRecoveryForm({...recoveryForm, teacher: e.target.value})} className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold text-[#0A1128] outline-none focus:border-blue-500 cursor-pointer shadow-sm">
+                  <option value="">-- Select Teacher --</option>
+                  {staffData.map(staff => <option key={staff.id} value={`${staff.first_name} ${staff.last_name}`}>{staff.first_name} {staff.last_name}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1.5 col-span-2">
+                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Assign Room</label>
+                <select value={recoveryForm.room} onChange={(e) => setRecoveryForm({...recoveryForm, room: e.target.value})} className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-sm font-bold text-[#0A1128] outline-none focus:border-blue-500 cursor-pointer shadow-sm">
+                  <option value="">-- Select Room --</option>
+                  {roomsData.map(room => <option key={room.id} value={room.name || room.room_name || room.id}>{room.name || room.room_name || `Room ${room.id}`}</option>)}
+                </select>
+              </div>
+
+              <div className="col-span-2 flex justify-end items-center gap-4 mt-4 pt-4 border-t border-gray-200">
+                <button type="button" onClick={() => setShowRecoveryModal(false)} className="text-sm font-bold text-gray-500 hover:text-gray-900 cursor-pointer px-4">Cancel</button>
+                <button type="submit" className="bg-[#2563eb] text-white px-8 py-3 rounded-xl text-sm font-bold shadow-md hover:bg-blue-700 transition-colors cursor-pointer">Save & Schedule Session</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  // ==========================================
+  // 4. ملف حضور الطالب الفردي (Profile View)
   // ==========================================
   const renderStudentProfile = () => {
     if (!selectedStudent) return null;
@@ -431,6 +649,13 @@ const AttendanceRecords = () => {
             <div className="flex bg-gray-200/50 p-1 rounded-xl">
               <button onClick={() => setActiveMode('daily')} className={`px-6 py-2 rounded-lg text-sm font-bold transition-all cursor-pointer ${activeMode === 'daily' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}>Daily Tracking</button>
               <button onClick={() => setActiveMode('history')} className={`px-6 py-2 rounded-lg text-sm font-bold transition-all cursor-pointer ${activeMode === 'history' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}>Absence History Log</button>
+              {/* 💡 Button الجديد تاع التبريرات */}
+              <button onClick={() => setActiveMode('justifications')} className={`px-6 py-2 rounded-lg text-sm font-bold transition-all cursor-pointer flex items-center ${activeMode === 'justifications' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}>
+                 Justifications 
+                 {justifications.filter(j => !j.subject.includes('[APPROVED]') && !j.subject.includes('[REJECTED]')).length > 0 && (
+                   <span className="ml-2 bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{justifications.filter(j => !j.subject.includes('[APPROVED]') && !j.subject.includes('[REJECTED]')).length}</span>
+                 )}
+              </button>
             </div>
           </div>
 
@@ -462,7 +687,6 @@ const AttendanceRecords = () => {
             </div>
             <div>
                <label className="block text-[10px] font-bold text-blue-500 uppercase mb-2">Time Slot *</label>
-               {/* 💡 هادي ولات dynamic: كي تخيري جروب يجيبلك الأوقات تاعو برك */}
                <select value={filterTime} onChange={(e) => setFilterTime(e.target.value)} className="w-full bg-transparent border-b-2 border-blue-400 py-2 text-sm font-bold text-blue-700 outline-none cursor-pointer">
                  <option value="All">- Select Time -</option>
                  {availableTimeSlots.map(time => <option key={time} value={time}>{time}</option>)}
@@ -470,7 +694,9 @@ const AttendanceRecords = () => {
             </div>
           </div>
 
-          {activeMode === 'daily' ? renderDailyTracking() : renderGlobalHistory()}
+          {activeMode === 'daily' && renderDailyTracking()}
+          {activeMode === 'history' && renderGlobalHistory()}
+          {activeMode === 'justifications' && renderJustifications()}
         </div>
       )}
     </div>

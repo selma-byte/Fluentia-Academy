@@ -1,4 +1,3 @@
-// All imports — UNTOUCHED
 import React, { useState, useEffect } from 'react';
 import Payment from './payment';
 import Topbar from './Topbar';
@@ -257,6 +256,9 @@ const SecretaryDashboard = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState('Dashboard');
   const navigate = useNavigate();
 
+  // 💡 State للغيابات الحرجة (الطلبة المهددين)
+  const [atRiskStudents, setAtRiskStudents] = useState(0);
+
   // ── All original Supabase logic — UNTOUCHED ──────────────────────────────
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -279,6 +281,18 @@ const SecretaryDashboard = ({ onLogout }) => {
       }
     };
     fetchBranding();
+
+    // 💡 جلب عدد الطلبة اللي فاتو زوج غيابات (تطبيق المخطط الذكي للغيابات)
+    const fetchAtRiskStudents = async () => {
+      const { data, error } = await supabase
+        .from('students')
+        .select('absence_count')
+        .gte('absence_count', 2); // اللي عندهم غيابات >= 2
+      if (data && !error) {
+        setAtRiskStudents(data.length);
+      }
+    };
+    fetchAtRiskStudents();
   }, []);
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -356,7 +370,7 @@ const SecretaryDashboard = ({ onLogout }) => {
             {/* Page header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24 }}>
               <div>
-                <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#1e293b' }}>Welcome back, Marwa</h1>
+                <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#1e293b' }}>Welcome back, Admin</h1>
                 <p style={{ margin: '4px 0 0', fontSize: 13, color: '#64748b' }}>
                   Here's a snapshot of the Polyglot Academy performance today.
                 </p>
@@ -440,7 +454,7 @@ const SecretaryDashboard = ({ onLogout }) => {
                 </div>
               </div>
 
-              {/* Quick Actions */}
+              {/* Quick Actions & Action Required */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #f1f5f9', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', padding: '20px' }}>
                   <h2 style={{ margin: '0 0 14px', fontSize: 15, fontWeight: 800, color: '#1e293b' }}>Quick Actions</h2>
@@ -451,31 +465,33 @@ const SecretaryDashboard = ({ onLogout }) => {
                   </div>
                 </div>
 
-                {/* Action Required */}
-                <div style={{
-                  background: '#fef2f2', border: '1px solid #fecaca',
-                  borderRadius: 16, padding: '18px 20px',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                    <span style={{ color: '#dc2626' }}><Icons.Alert /></span>
-                    <h4 style={{ margin: 0, fontSize: 13, fontWeight: 800, color: '#991b1b' }}>Action Required</h4>
+                {/* 💡 Action Required (Dynamic Alert from Database) */}
+                {atRiskStudents > 0 && (
+                  <div style={{
+                    background: '#fef2f2', border: '1px solid #fecaca',
+                    borderRadius: 16, padding: '18px 20px',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                      <span style={{ color: '#dc2626' }}><Icons.Alert /></span>
+                      <h4 style={{ margin: 0, fontSize: 13, fontWeight: 800, color: '#991b1b' }}>Action Required</h4>
+                    </div>
+                    <p style={{ margin: '0 0 14px', fontSize: 12, color: '#b91c1c', lineHeight: 1.5 }}>
+                      <strong>{atRiskStudents} students</strong> have exceeded the maximum absence limit. Immediate contact is required.
+                    </p>
+                    <button
+                      onClick={() => setActiveTab('Communicate Parents')}
+                      style={{
+                        width: '100%', padding: '10px 0', borderRadius: 10, border: 'none',
+                        background: '#dc2626', color: '#fff', fontSize: 12, fontWeight: 700,
+                        cursor: 'pointer', transition: 'background .15s',
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#b91c1c'}
+                      onMouseLeave={e => e.currentTarget.style.background = '#dc2626'}
+                    >
+                      NOTIFY NOW
+                    </button>
                   </div>
-                  <p style={{ margin: '0 0 14px', fontSize: 12, color: '#b91c1c', lineHeight: 1.5 }}>
-                    3 teachers have not submitted their monthly attendance reports.
-                  </p>
-                  <button
-                    onClick={() => {}}
-                    style={{
-                      width: '100%', padding: '10px 0', borderRadius: 10, border: 'none',
-                      background: '#dc2626', color: '#fff', fontSize: 12, fontWeight: 700,
-                      cursor: 'pointer', transition: 'background .15s',
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#b91c1c'}
-                    onMouseLeave={e => e.currentTarget.style.background = '#dc2626'}
-                  >
-                    NOTIFY NOW
-                  </button>
-                </div>
+                )}
               </div>
             </div>
           </div>

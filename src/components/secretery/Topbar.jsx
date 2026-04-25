@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { supabase } from '../../supabaseClient';
 
 // ─── Icon System ──────────────────────────────────────────────────────────────
 const Icons = {
@@ -123,7 +124,6 @@ const Modal = ({ isOpen, onClose, accentColor, title, children }) => {
         background: '#fff', borderRadius: 20, width: '100%', maxWidth: 460,
         boxShadow: '0 24px 64px rgba(0,0,0,0.18)', overflow: 'hidden',
       }}>
-        {/* Modal header */}
         <div style={{
           padding: '18px 24px', background: accentColor,
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -165,15 +165,16 @@ const TabToggle = ({ value, onChange, options }) => (
 // ─── Main Component ───────────────────────────────────────────────────────────
 const Topbar = ({ setActiveTab }) => {
   const [activeDropdown, setActiveDropdown]         = useState(null);
-  const [hasUnread, setHasUnread]                   = useState(true);
+  const [hasUnread, setHasUnread]                   = useState(false); 
   const [isAttendanceModalOpen, setIsAttendanceModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedData, setSelectedData]             = useState({ name: '', amount: '', course: '', hasParent: true });
+  
+  const [notifications, setNotifications]           = useState([]); 
 
   const notifRef  = useRef(null);
   const profileRef = useRef(null);
 
-  // Close dropdowns on outside click — preserves original logic
   useEffect(() => {
     const handler = e => {
       if (notifRef.current  && !notifRef.current.contains(e.target))  setActiveDropdown(prev => prev === 'notifications' ? null : prev);
@@ -183,7 +184,79 @@ const Topbar = ({ setActiveTab }) => {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // ── All original logic — UNTOUCHED ──────────────────────────────────────
+  // 💡 الحساب المباشر من جدول الحضور (attendance)
+  const fetchDynamicNotifications = async () => {
+    try {
+      let alerts = [];
+
+      // 1. حساب الغيابات مباشرة من attendance! 🔥 مستحيل يغلط
+      const { data: absLogs } = await supabase.from('attendance').select('student_id, student_name').eq('status', 'Absent');
+      
+      if (absLogs && absLogs.length > 0) {
+        const absenceCounts = {};
+        absLogs.forEach(log => {
+          if (!absenceCounts[log.student_id]) {
+            absenceCounts[log.student_id] = { count: 0, name: log.student_name };
+          }
+          absenceCounts[log.student_id].count += 1;
+        });
+
+        Object.keys(absenceCounts).forEach(studentId => {
+          if (absenceCounts[studentId].count >= 2) {
+            alerts.push({
+              id: `abs_${studentId}`,
+              type: 'absence',
+              title: 'Repeated absence detected',
+              desc: `${absenceCounts[studentId].name} missed ${absenceCounts[studentId].count} sessions.`,
+              badge: 'Send alert',
+              name: absenceCounts[studentId].name,
+              hasParent: true 
+            });
+          }
+        });
+      }
+
+      // 2. الدفعات المتأخرة
+      const { data: overdueStudents } = await supabase.from('students').select('*').eq('status', 'Overdue');
+      if (overdueStudents && overdueStudents.length > 0) {
+        overdueStudents.forEach(s => {
+          alerts.push({
+            id: `pay_${s.id}`,
+            type: 'payment',
+            title: `Late payment — ${s.first_name} ${s.last_name}`,
+            desc: `3000 DZD outstanding for ${s.language} ${s.level || ''}.`,
+            name: `${s.first_name} ${s.last_name}`,
+            course: `${s.language} ${s.level || ''}`,
+            amount: '3000 DZD',
+            hasParent: !!s.parent_email
+          });
+        });
+      }
+
+      // 3. طلبات تسجيل جديدة
+      const { data: pendingRegs } = await supabase.from('students').select('*').eq('status', 'Pending');
+      if (pendingRegs && pendingRegs.length > 0) {
+        alerts.push({
+          id: 'pending_reg',
+          type: 'registration',
+          title: 'New student registrations',
+          desc: `You have ${pendingRegs.length} new enrollment requests waiting.`,
+          tabTarget: 'Students Management'
+        });
+      }
+
+      setNotifications(alerts);
+      if (alerts.length > 0) setHasUnread(true);
+
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchDynamicNotifications();
+  }, []);
+
   const toggleDropdown = (e, name) => {
     e.stopPropagation();
     setActiveDropdown(activeDropdown === name ? null : name);
@@ -194,8 +267,9 @@ const Topbar = ({ setActiveTab }) => {
     setActiveDropdown(null);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setActiveDropdown(null);
+    await supabase.auth.signOut(); 
     if (setActiveTab) setActiveTab('Landing');
   };
 
@@ -217,7 +291,6 @@ const Topbar = ({ setActiveTab }) => {
     setActiveDropdown(null);
   };
 
-  // ─────────────────────────────────────────────────────────────────────────
   return (
     <>
       <header style={{
@@ -228,7 +301,6 @@ const Topbar = ({ setActiveTab }) => {
         boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
       }}>
 
-        {/* ── Search ── */}
         <div style={{ position: 'relative', width: '100%', maxWidth: 400 }}>
           <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }}>
             <Icons.Search />
@@ -247,10 +319,8 @@ const Topbar = ({ setActiveTab }) => {
           />
         </div>
 
-        {/* ── Right side ── */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
 
-          {/* ── Bell / Notifications ── */}
           <div ref={notifRef} style={{ position: 'relative' }}>
             <button
               onClick={e => toggleDropdown(e, 'notifications')}
@@ -272,7 +342,6 @@ const Topbar = ({ setActiveTab }) => {
               )}
             </button>
 
-            {/* Notifications dropdown */}
             {activeDropdown === 'notifications' && (
               <div style={{
                 position: 'absolute', top: 'calc(100% + 10px)', right: 0,
@@ -280,7 +349,6 @@ const Topbar = ({ setActiveTab }) => {
                 border: '1px solid #f1f5f9', boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
                 zIndex: 60, overflow: 'hidden',
               }}>
-                {/* Dropdown header */}
                 <div style={{
                   padding: '14px 16px', borderBottom: '1px solid #f1f5f9',
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -294,39 +362,25 @@ const Topbar = ({ setActiveTab }) => {
                   </button>
                 </div>
 
-                {/* Items — all original triggers preserved */}
                 <div style={{ maxHeight: 380, overflowY: 'auto' }}>
-                  <NotifItem
-                    icon={Icons.AlertTriangle} iconBg="#fee2e2" iconColor="#dc2626"
-                    title="Repeated absence detected"
-                    desc="Omar Al-Khalil missed 3 consecutive sessions."
-                    badge="Send alert"
-                    onClick={() => triggerAttendanceAlert('Omar Al-Khalil', true)}
-                  />
-                  <NotifItem
-                    icon={Icons.DollarSign} iconBg="#fff7ed" iconColor="#f97316"
-                    title="Late payment — Amine Ben Ali"
-                    desc="4500 DZD outstanding for English B1."
-                    onClick={() => triggerPaymentAlert('Amine Ben Ali', '4500 DZD', 'English B1', false)}
-                  />
-                  <NotifItem
-                    icon={Icons.Clock} iconBg="#fff7ed" iconColor="#f97316"
-                    title="Teacher Ben Mohamed late (15 min)"
-                    desc="Attendance record updated automatically."
-                    onClick={() => handleNavigation('Attendance Records')}
-                  />
-                  <NotifItem
-                    icon={Icons.UserPlus} iconBg="#f5f3ff" iconColor="#7c3aed"
-                    title="New student registered"
-                    desc="New enrollment in English A1."
-                    onClick={() => handleNavigation('Students Management')}
-                  />
-                  <NotifItem
-                    icon={Icons.GraduationCap} iconBg="#eff6ff" iconColor="#2563eb"
-                    title="Results ready — Group 4"
-                    desc="Exam results have been published."
-                    onClick={() => handleNavigation('Exams')}
-                  />
+                  {notifications.length === 0 ? (
+                     <div style={{ padding: '24px', textAlign: 'center', color: '#94a3b8', fontSize: 13, fontWeight: 600 }}>
+                        No new notifications.
+                     </div>
+                  ) : (
+                     notifications.map(n => {
+                        if (n.type === 'absence') {
+                           return <NotifItem key={n.id} icon={Icons.AlertTriangle} iconBg="#fee2e2" iconColor="#dc2626" title={n.title} desc={n.desc} badge={n.badge} onClick={() => triggerAttendanceAlert(n.name, n.hasParent)} />
+                        }
+                        if (n.type === 'payment') {
+                           return <NotifItem key={n.id} icon={Icons.DollarSign} iconBg="#fff7ed" iconColor="#f97316" title={n.title} desc={n.desc} onClick={() => triggerPaymentAlert(n.name, n.amount, n.course, n.hasParent)} />
+                        }
+                        if (n.type === 'registration') {
+                           return <NotifItem key={n.id} icon={Icons.UserPlus} iconBg="#f5f3ff" iconColor="#7c3aed" title={n.title} desc={n.desc} onClick={() => handleNavigation(n.tabTarget)} />
+                        }
+                        return null;
+                     })
+                  )}
                 </div>
 
                 <div style={{ padding: '10px 16px', borderTop: '1px solid #f1f5f9' }}>
@@ -337,17 +391,15 @@ const Topbar = ({ setActiveTab }) => {
                       border: '1px solid #e0e7ff', background: '#f5f3ff',
                       color: '#4318FF', fontSize: 12, fontWeight: 700, cursor: 'pointer',
                     }}>
-                    View All Activity
+                    Close Menu
                   </button>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Divider */}
           <div style={{ width: 1, height: 28, background: '#f1f5f9' }} />
 
-          {/* ── Profile ── */}
           <div ref={profileRef} style={{ position: 'relative' }}>
             <div
               onClick={e => toggleDropdown(e, 'profile')}
@@ -366,7 +418,6 @@ const Topbar = ({ setActiveTab }) => {
               </div>
             </div>
 
-            {/* Profile dropdown */}
             {activeDropdown === 'profile' && (
               <div style={{
                 position: 'absolute', top: 'calc(100% + 10px)', right: 0,
@@ -434,7 +485,7 @@ const Topbar = ({ setActiveTab }) => {
         <textarea
           readOnly
           value={selectedData.hasParent
-            ? `Dear Parent, we would like to inform you that ${selectedData.name} has been absent for 3 consecutive sessions. Please provide justification.`
+            ? `Dear Parent, we would like to inform you that ${selectedData.name} has been absent for 2 or more consecutive sessions. Please provide justification.`
             : `Dear ${selectedData.name}, we have noticed repeated absences from your sessions. Please contact the administration.`}
           style={{
             width: '100%', height: 104, background: '#f8fafc', borderRadius: 10,
