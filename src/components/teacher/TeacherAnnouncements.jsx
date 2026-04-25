@@ -1,26 +1,75 @@
 import React, { useState } from 'react';
 
-const TeacherAnnouncements = () => {
-  // State تاع النافذة المنبثقة (Modal)
-  const [showModal, setShowModal] = useState(false);
-  
-  // State تاع الفورميلار
-  const [newTitle, setNewTitle] = useState('');
-  const [newContent, setNewContent] = useState('');
-  const [newPriority, setNewPriority] = useState('General');
-  const [newExpiry, setNewExpiry] = useState('');
-  const [selectedAudience, setSelectedAudience] = useState(['Students']); // Default selection
+// ─────────────────────────────────────────────────────────────────
+// SVG ICON SYSTEM — no emojis
+// ─────────────────────────────────────────────────────────────────
+const Ico = ({ d, size = 16, color = 'currentColor', sw = 2, extra = null }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+    stroke={color} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+    {(Array.isArray(d) ? d : [d]).map((p, i) => <path key={i} d={p} />)}
+    {extra}
+  </svg>
+);
 
-  // داتا تجريبية للإعلانات
+const Icons = {
+  Plus:     (c = '#fff')     => <Ico d={["M12 5v14","M5 12h14"]} color={c} sw={2.5} />,
+  Calendar: (c = '#94a3b8')  => <Ico d={["M8 2v4","M16 2v4","M3 10h18","M3 6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"]} color={c} />,
+  X:        (c = '#94a3b8')  => <Ico d={["M18 6L6 18","M6 6l12 12"]} color={c} sw={2.5} />,
+  User:     (c = '#4318FF')  => <Ico d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" color={c} extra={<circle cx="12" cy="7" r="4" fill="none" stroke={c} strokeWidth="2"/>} />,
+  Megaphone:(c = '#4318FF')  => <Ico d={["M3 11l19-9-9 19-2-8-8-2z"]} color={c} />,
+  ChevronL: (c = '#1e293b')  => <Ico d="M15 18l-6-6 6-6" color={c} sw={2.5} />,
+  ChevronR: (c = '#1e293b')  => <Ico d="M9 18l6-6-6-6" color={c} sw={2.5} />,
+};
+
+// ─── Card wrapper ─────────────────────────────────────────────────
+const Card = ({ children, style = {} }) => (
+  <div style={{
+    background: '#fff', borderRadius: 16,
+    border: '1px solid #f1f5f9',
+    boxShadow: '0 1px 4px rgba(15,23,42,0.05)',
+    ...style,
+  }}>{children}</div>
+);
+
+// ─── Type badge ───────────────────────────────────────────────────
+const TypeBadge = ({ type }) => {
+  const map = {
+    Event:    { bg: '#ecfdf5', color: '#059669' },
+    Reminder: { bg: '#fffbeb', color: '#f59e0b' },
+    Urgent:   { bg: '#fef2f2', color: '#ef4444' },
+    General:  { bg: '#eef2ff', color: '#4318FF' },
+  };
+  const s = map[type] || { bg: '#eef2ff', color: '#4318FF' };
+  return (
+    <span style={{
+      fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
+      letterSpacing: '0.07em', padding: '3px 10px',
+      borderRadius: 20, background: s.bg, color: s.color,
+    }}>{type}</span>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────
+// MAIN COMPONENT  — all state & logic UNTOUCHED
+// ─────────────────────────────────────────────────────────────────
+const TeacherAnnouncements = () => {
+
+  const [showModal, setShowModal]               = useState(false);
+  const [newTitle, setNewTitle]                 = useState('');
+  const [newContent, setNewContent]             = useState('');
+  const [newPriority, setNewPriority]           = useState('General');
+  const [newExpiry, setNewExpiry]               = useState('');
+  const [selectedAudience, setSelectedAudience] = useState(['Students']);
+
   const [announcements, setAnnouncements] = useState([
-    { id: 1, type: 'Event', date: 'Oct 25, 2025', title: 'Winter Festival Planning Meeting', content: 'We are organizing our annual Winter Festival! Teachers and staff interested in helping with planning, please join us this Thursday at 4 PM in the staff room.', author: 'Admin' },
-    { id: 2, type: 'Reminder', date: 'Oct 26, 2025', title: 'Homework Submission Deadline', content: 'Reminder: All assignments for Mathematics (Grade 7) are due this Friday, November 1st. Please submit through the online portal before 3 PM.', author: 'Teacher' },
-    { id: 3, type: 'General', date: 'Oct 27, 2025', title: 'New Library Books Available', content: 'We\'ve added 150 new books to our library collection! Students can now browse and check out books in Danish, English, and other languages. Visit the library during lunch hours.', author: 'Admin' },
-    { id: 4, type: 'Urgent', date: 'Oct 29, 2025', title: 'School Closure - Weather Alert', content: 'Due to severe weather conditions, the school will be closed tomorrow, October 30th. All classes will move to online learning.', author: 'Admin' },
-    { id: 5, type: 'Event', date: 'Oct 28, 2025', title: 'Parent-Teacher Conference Schedule', content: 'Parent-teacher conferences are scheduled for November 15-16. Please use the online booking system to reserve your time slot. Conferences will be 15 minutes each.', author: 'Admin' },
+    { id: 1, type: 'Event',    date: 'Oct 25, 2025', title: 'Winter Festival Planning Meeting',  content: 'We are organizing our annual Winter Festival! Teachers and staff interested in helping with planning, please join us this Thursday at 4 PM in the staff room.',                           author: 'Admin'   },
+    { id: 2, type: 'Reminder', date: 'Oct 26, 2025', title: 'Homework Submission Deadline',      content: 'Reminder: All assignments for Mathematics (Grade 7) are due this Friday, November 1st. Please submit through the online portal before 3 PM.',                                          author: 'Teacher' },
+    { id: 3, type: 'General',  date: 'Oct 27, 2025', title: 'New Library Books Available',       content: "We've added 150 new books to our library collection! Students can now browse and check out books in Danish, English, and other languages. Visit the library during lunch hours.",      author: 'Admin'   },
+    { id: 4, type: 'Urgent',   date: 'Oct 29, 2025', title: 'School Closure - Weather Alert',    content: 'Due to severe weather conditions, the school will be closed tomorrow, October 30th. All classes will move to online learning.',                                                        author: 'Admin'   },
+    { id: 5, type: 'Event',    date: 'Oct 28, 2025', title: 'Parent-Teacher Conference Schedule',content: 'Parent-teacher conferences are scheduled for November 15-16. Please use the online booking system to reserve your time slot. Conferences will be 15 minutes each.',                  author: 'Admin'   },
   ]);
 
-  // دالة تحديد الجمهور المستهدف
+  // ── All original logic — UNTOUCHED ───────────────────────────────
   const toggleAudience = (audience) => {
     if (selectedAudience.includes(audience)) {
       setSelectedAudience(selectedAudience.filter(a => a !== audience));
@@ -29,24 +78,18 @@ const TeacherAnnouncements = () => {
     }
   };
 
-  // دالة إضافة إعلان جديد
   const handlePublish = (e) => {
     e.preventDefault();
     if (!newTitle || !newContent) return;
-
     const newAnnouncement = {
       id: announcements.length + 1,
       type: newPriority,
       date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
       title: newTitle,
       content: newContent,
-      author: 'Teacher Name' // اسم الأستاذ
+      author: 'Teacher Name',
     };
-
-    // نزيدوه الفوق كاع في الليستة
     setAnnouncements([newAnnouncement, ...announcements]);
-    
-    // نغلقو النافذة ونفرغو الفورميلار
     setShowModal(false);
     setNewTitle('');
     setNewContent('');
@@ -55,76 +98,312 @@ const TeacherAnnouncements = () => {
     setSelectedAudience(['Students']);
   };
 
-  // دالة باش تعطينا لون الـ Tag على حساب نوع الإعلان
-  const getTagStyle = (type) => {
-    switch (type) {
-      case 'Event': return 'bg-[#e6fbf2] text-[#00a65e]'; // أخضر
-      case 'Reminder': return 'bg-[#fff8e6] text-[#f5a623]'; // أصفر
-      case 'Urgent': return 'bg-[#fdeaea] text-[#e02424]'; // أحمر
-      case 'General': default: return 'bg-[#eef2ff] text-[#4318FF]'; // أزرق
-    }
+  // ── Shared styles ─────────────────────────────────────────────────
+  const inputStyle = {
+    width: '100%', background: '#f8fafc',
+    border: '1px solid #f1f5f9', borderRadius: 10,
+    padding: '10px 14px', fontSize: 13, color: '#1e293b',
+    outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box',
+    transition: 'border-color .15s',
   };
 
+  const labelStyle = {
+    display: 'block', fontSize: 11, fontWeight: 700,
+    color: '#94a3b8', textTransform: 'uppercase',
+    letterSpacing: '0.07em', marginBottom: 6,
+  };
+
+  // ── Calendar helpers (dynamic, same as student/teacher dashboards) ─
+  const today       = new Date();
+  const todayDate   = today.getDate();
+  const monthName   = today.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  const firstDay    = new Date(today.getFullYear(), today.getMonth(), 1).getDay();
+  const offset      = firstDay === 0 ? 6 : firstDay - 1;
+  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+
+  // ─────────────────────────────────────────────────────────────────
+  // RENDER
+  // ─────────────────────────────────────────────────────────────────
   return (
-    <div className="flex-1 p-8 overflow-y-auto custom-scrollbar animate-fadeIn relative">
-      
-      {/* =======================================
-          Modal (نافذة إضافة إعلان جديد)
-          ======================================= */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center animate-fadeIn">
-          <div className="bg-white rounded-2xl p-8 w-[550px] shadow-2xl">
-            <div className="flex justify-between items-center mb-2">
-              <h2 className="text-2xl font-bold text-[#1B254B]">Create New Announcement</h2>
-              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-red-500 font-bold text-xl">✕</button>
+    <div style={{ width: '100%', fontFamily: "'Inter', 'Segoe UI', sans-serif" }}>
+
+      {/* ── Page header ── */}
+      <div style={{ marginBottom: 28 }}>
+        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#1e293b' }}>Announcements</h1>
+        <p style={{ margin: '5px 0 0', fontSize: 13, color: '#94a3b8' }}>
+          Stay updated with the latest news, events, and important notices.
+        </p>
+      </div>
+
+      {/* ── Main layout: cards left, calendar right ── */}
+      <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
+
+        {/* ══════════ LEFT: announcements ══════════ */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+
+          {/* Section bar */}
+          <div style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20,
+          }}>
+            <div>
+              <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#1e293b' }}>All Announcements</h2>
+              <p style={{ margin: '3px 0 0', fontSize: 11, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                {announcements.length} total
+              </p>
             </div>
-            <p className="text-gray-500 text-sm mb-6">Share important information with the school community</p>
-            
-            <form onSubmit={handlePublish} className="space-y-4">
+            <button
+              onClick={() => setShowModal(true)}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 7,
+                padding: '10px 18px', borderRadius: 10, border: 'none',
+                background: '#4318FF', color: '#fff',
+                fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'background .15s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = '#3730a3'}
+              onMouseLeave={e => e.currentTarget.style.background = '#4318FF'}
+            >
+              {Icons.Plus()}
+              Add Announcement
+            </button>
+          </div>
+
+          {/* Announcement cards grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+            {announcements.map(ann => (
+              <Card key={ann.id} style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', minHeight: 190 }}>
+
+                {/* Top row: badge + date */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                  <TypeBadge type={ann.type} />
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>
+                    {Icons.Calendar()}
+                    {ann.date}
+                  </span>
+                </div>
+
+                {/* Title */}
+                <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 700, color: '#1e293b', lineHeight: 1.4 }}>
+                  {ann.title}
+                </h3>
+
+                {/* Content */}
+                <p style={{
+                  margin: 0, fontSize: 13, color: '#64748b', lineHeight: 1.6, flex: 1,
+                  display: '-webkit-box', WebkitLineClamp: 3,
+                  WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                }}>{ann.content}</p>
+
+                {/* Author */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  borderTop: '1px solid #f8fafc', paddingTop: 12, marginTop: 14,
+                }}>
+                  <div style={{
+                    width: 26, height: 26, borderRadius: '50%',
+                    background: '#eef2ff', color: '#4318FF',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 10, fontWeight: 800, textTransform: 'uppercase',
+                  }}>{ann.author.charAt(0)}</div>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8' }}>{ann.author}</span>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
+
+        {/* ══════════ RIGHT: calendar ══════════ */}
+        <div style={{ width: 268, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          {/* Date label */}
+          <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: '#94a3b8', textAlign: 'right' }}>
+            {today.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+          </p>
+
+          {/* Semester progress */}
+          <Card style={{ padding: '16px 18px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#1e293b' }}>Semester Progress</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#4318FF' }}>Semester 3 / 8</span>
+            </div>
+            <div style={{ height: 6, background: '#f1f5f9', borderRadius: 99, overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: '37%', background: '#4318FF', borderRadius: 99 }} />
+            </div>
+          </Card>
+
+          {/* Calendar — dynamic, matches teacher/student dashboards */}
+          <Card style={{ padding: '18px 20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <button style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', color: '#1e293b' }}>
+                {Icons.ChevronL()}
+              </button>
+              <h4 style={{ margin: 0, fontSize: 13, fontWeight: 800, color: '#1e293b' }}>{monthName}</h4>
+              <button style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', color: '#1e293b' }}>
+                {Icons.ChevronR()}
+              </button>
+            </div>
+
+            {/* Day headers */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', textAlign: 'center', marginBottom: 8 }}>
+              {['M','T','W','T','F','S','S'].map((d, i) => (
+                <div key={i} style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', paddingBottom: 6 }}>{d}</div>
+              ))}
+            </div>
+
+            {/* Days */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: '4px 2px', textAlign: 'center' }}>
+              {Array.from({ length: offset }).map((_, i) => <div key={'e' + i} />)}
+              {Array.from({ length: daysInMonth }).map((_, i) => {
+                const day = i + 1;
+                const isToday = day === todayDate;
+                return (
+                  <div key={day} style={{
+                    height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 12, fontWeight: isToday ? 800 : 500,
+                    borderRadius: 6,
+                    background: isToday ? '#4318FF' : 'transparent',
+                    color: isToday ? '#fff' : day > 25 ? '#cbd5e1' : '#1e293b',
+                    cursor: 'default',
+                  }}>{day}</div>
+                );
+              })}
+            </div>
+          </Card>
+
+        </div>
+      </div>
+
+      {/* ══════════════════════════════════════
+          MODAL — Create New Announcement
+      ══════════════════════════════════════ */}
+      {showModal && (
+        <div style={{
+          position: 'fixed', inset: 0,
+          background: 'rgba(15,23,42,0.5)',
+          backdropFilter: 'blur(4px)',
+          zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{
+            background: '#fff', borderRadius: 20,
+            padding: '32px', width: 540,
+            boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
+            position: 'relative', maxHeight: '90vh', overflowY: 'auto',
+          }}>
+            {/* Modal header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
               <div>
-                <label className="block text-sm font-bold text-[#1B254B] mb-1">Title</label>
-                <input type="text" required value={newTitle} onChange={(e) => setNewTitle(e.target.value)} className="w-full border border-gray-200 rounded-lg px-4 py-2 outline-none focus:border-[#4318FF]" />
+                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#1e293b' }}>Create New Announcement</h2>
+                <p style={{ margin: '4px 0 0', fontSize: 13, color: '#94a3b8' }}>Share important information with the school community.</p>
               </div>
-              
+              <button
+                onClick={() => setShowModal(false)}
+                style={{
+                  width: 32, height: 32, borderRadius: 8, border: 'none',
+                  background: '#f8fafc', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: '#94a3b8', flexShrink: 0, transition: 'background .15s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
+                onMouseLeave={e => e.currentTarget.style.background = '#f8fafc'}
+              >
+                {Icons.X('#ef4444')}
+              </button>
+            </div>
+
+            {/* Divider */}
+            <div style={{ height: 1, background: '#f1f5f9', margin: '20px 0' }} />
+
+            {/* Form */}
+            <form onSubmit={handlePublish} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+
               <div>
-                <label className="block text-sm font-bold text-[#1B254B] mb-1">Content</label>
-                <textarea required rows="4" value={newContent} onChange={(e) => setNewContent(e.target.value)} className="w-full border border-gray-200 rounded-lg px-4 py-2 outline-none focus:border-[#4318FF] resize-none bg-gray-50"></textarea>
+                <label style={labelStyle}>Title</label>
+                <input type="text" required placeholder="e.g. Winter Festival Planning Meeting"
+                  value={newTitle} onChange={e => setNewTitle(e.target.value)}
+                  style={inputStyle}
+                  onFocus={e => e.target.style.borderColor = '#4318FF'}
+                  onBlur={e => e.target.style.borderColor = '#f1f5f9'}
+                />
               </div>
-              
-              <div className="flex gap-4">
-                <div className="flex-1">
-                  <label className="block text-sm font-bold text-[#1B254B] mb-1">Priority</label>
-                  <select value={newPriority} onChange={(e) => setNewPriority(e.target.value)} className="w-full border border-gray-200 rounded-lg px-4 py-2 outline-none focus:border-[#4318FF]">
+
+              <div>
+                <label style={labelStyle}>Content</label>
+                <textarea required rows={4} placeholder="Write your announcement here..."
+                  value={newContent} onChange={e => setNewContent(e.target.value)}
+                  style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6 }}
+                  onFocus={e => e.target.style.borderColor = '#4318FF'}
+                  onBlur={e => e.target.style.borderColor = '#f1f5f9'}
+                />
+              </div>
+
+              {/* Priority + Expiry row */}
+              <div style={{ display: 'flex', gap: 14 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>Priority</label>
+                  <select value={newPriority} onChange={e => setNewPriority(e.target.value)}
+                    style={{ ...inputStyle, cursor: 'pointer' }}
+                    onFocus={e => e.target.style.borderColor = '#4318FF'}
+                    onBlur={e => e.target.style.borderColor = '#f1f5f9'}
+                  >
                     <option value="General">General</option>
                     <option value="Event">Event</option>
                     <option value="Reminder">Reminder</option>
                     <option value="Urgent">Urgent</option>
                   </select>
                 </div>
-                <div className="flex-1">
-                  <label className="block text-sm font-bold text-[#1B254B] mb-1">Expiry Date</label>
-                  <input type="date" value={newExpiry} onChange={(e) => setNewExpiry(e.target.value)} className="w-full border border-gray-200 rounded-lg px-4 py-2 outline-none focus:border-[#4318FF] text-gray-500" />
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>Expiry Date</label>
+                  <input type="date" value={newExpiry} onChange={e => setNewExpiry(e.target.value)}
+                    style={{ ...inputStyle, color: newExpiry ? '#1e293b' : '#94a3b8' }}
+                    onFocus={e => e.target.style.borderColor = '#4318FF'}
+                    onBlur={e => e.target.style.borderColor = '#f1f5f9'}
+                  />
                 </div>
               </div>
 
+              {/* Target audience */}
               <div>
-                <label className="block text-sm font-bold text-[#1B254B] mb-2">Target Audience</label>
-                <div className="flex flex-wrap gap-2">
-                  {['Students', 'Teachers', 'Parents', 'Staff'].map(audience => (
-                    <button 
-                      key={audience} type="button"
-                      onClick={() => toggleAudience(audience)}
-                      className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-colors
-                        ${selectedAudience.includes(audience) ? 'bg-[#1B254B] text-white border-[#1B254B]' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'}`}
-                    >
-                      {audience}
-                    </button>
-                  ))}
+                <label style={labelStyle}>Target Audience</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {['Students', 'Teachers', 'Parents', 'Staff'].map(audience => {
+                    const isSelected = selectedAudience.includes(audience);
+                    return (
+                      <button key={audience} type="button"
+                        onClick={() => toggleAudience(audience)}
+                        style={{
+                          padding: '7px 16px', borderRadius: 20, fontSize: 12, fontWeight: 700,
+                          cursor: 'pointer', transition: 'all .15s',
+                          border: `1px solid ${isSelected ? '#4318FF' : '#f1f5f9'}`,
+                          background: isSelected ? '#4318FF' : '#f8fafc',
+                          color: isSelected ? '#fff' : '#64748b',
+                        }}
+                      >{audience}</button>
+                    );
+                  })}
                 </div>
               </div>
-              
-              <div className="pt-4">
-                <button type="submit" className="w-full bg-[#111C44] text-white font-bold py-3 rounded-xl hover:bg-blue-800 transition-colors shadow-md">
+
+              {/* Divider */}
+              <div style={{ height: 1, background: '#f1f5f9' }} />
+
+              {/* Actions */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                <button type="button" onClick={() => setShowModal(false)}
+                  style={{
+                    padding: '10px 20px', borderRadius: 10,
+                    border: '1px solid #f1f5f9', background: '#f8fafc',
+                    color: '#64748b', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  }}>
+                  Cancel
+                </button>
+                <button type="submit"
+                  style={{
+                    padding: '10px 24px', borderRadius: 10, border: 'none',
+                    background: '#4318FF', color: '#fff',
+                    fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'background .15s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#3730a3'}
+                  onMouseLeave={e => e.currentTarget.style.background = '#4318FF'}
+                >
                   Publish Announcement
                 </button>
               </div>
@@ -133,99 +412,7 @@ const TeacherAnnouncements = () => {
         </div>
       )}
 
-      {/* Header & Title */}
-      <div className="flex justify-between items-end mb-8">
-        <h1 className="text-3xl font-bold text-[#1B254B]">👋 Welcome, [Teacher Name]</h1>
-      </div>
-
-      <div className="flex gap-8">
-        
-        {/* =======================================
-            الجهة اليسرى (الكارطات تاع الإعلانات)
-            ======================================= */}
-        <div className="flex-1">
-          
-          <div className="bg-[#f8fafc] rounded-2xl p-6 flex justify-between items-center mb-8 border border-gray-100 shadow-sm relative overflow-hidden">
-            <div className="z-10">
-              <h2 className="text-2xl font-bold text-[#1B254B] mb-2">Announcements</h2>
-              <p className="text-gray-500 text-sm mb-4">Add and stay updated with the latest news, events, and important notices.</p>
-              
-              <button 
-                onClick={() => setShowModal(true)}
-                className="bg-white border border-gray-200 text-[#1B254B] px-5 py-2 rounded-lg text-sm font-bold hover:bg-gray-50 transition-colors shadow-sm"
-              >
-                Add New
-              </button>
-            </div>
-            <div className="hidden md:flex gap-4 items-center z-10 opacity-80">
-               <span className="text-6xl">📢📰</span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-8">
-            {announcements.map((ann) => (
-              <div key={ann.id} className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow flex flex-col">
-                <div className="flex justify-between items-start mb-4">
-                  <span className={`px-3 py-1 rounded-md text-xs font-bold ${getTagStyle(ann.type)}`}>
-                    {ann.type}
-                  </span>
-                  <span className="text-xs text-gray-400 font-medium flex items-center gap-1">
-                    📅 {ann.date}
-                  </span>
-                </div>
-                
-                <h3 className="font-bold text-[#1B254B] text-lg mb-2 leading-tight">{ann.title}</h3>
-                <p className="text-sm text-gray-500 mb-6 flex-1 line-clamp-4 leading-relaxed">{ann.content}</p>
-                
-                <div className="flex items-center gap-2 pt-4 border-t border-gray-50">
-                  <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-bold text-gray-600">
-                    {ann.author.charAt(0)}
-                  </div>
-                  <span className="text-xs font-medium text-gray-500">{ann.author}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-        </div>
-
-        {/* =======================================
-            الجهة اليمنى (الكالوندريي)
-            ======================================= */}
-        <div className="w-[320px] shrink-0">
-          <div className="flex justify-end text-xs font-bold text-[#A3AED0] mb-2">
-            12 Jan 2024, Friday
-          </div>
-
-          <div>
-            <div className="flex justify-between items-center mb-2">
-              <p className="text-xs font-bold text-[#1B254B]">Semester 3 of 8</p>
-            </div>
-            <div className="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden mb-6">
-              <div className="h-full bg-[#111C44] w-[37%] rounded-full"></div>
-            </div>
-          </div>
-
-          <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
-             <div className="flex justify-between items-center mb-4">
-                <button className="text-[#1B254B] font-bold">{'<'}</button>
-                <h4 className="font-bold text-[#1B254B] text-sm">January 2024</h4>
-                <button className="text-[#1B254B] font-bold">{'>'}</button>
-              </div>
-              <div className="grid grid-cols-7 gap-1 text-center text-[11px] text-[#A3AED0] font-bold mb-3">
-                <div>Mo</div><div>Tu</div><div>We</div><div>Th</div><div>Fr</div><div>Sa</div><div>Su</div>
-              </div>
-              <div className="grid grid-cols-7 gap-y-3 gap-x-1 text-center text-[13px] font-medium text-[#1B254B]">
-                <div className="text-gray-300">29</div><div className="text-gray-300">30</div><div className="text-gray-300">31</div>
-                <div>1</div><div>2</div><div>3</div><div>4</div>
-                <div>5</div><div>6</div><div>7</div><div>8</div><div>9</div><div>10</div><div>11</div>
-                <div className="bg-[#111C44] text-white w-7 h-7 rounded-full flex items-center justify-center mx-auto shadow-md">12</div>
-                <div>13</div><div>14</div><div>15</div><div>16</div><div>17</div><div>18</div>
-              </div>
-          </div>
-        </div>
-
-      </div>
+      <style>{`* { box-sizing: border-box; }`}</style>
     </div>
   );
 };

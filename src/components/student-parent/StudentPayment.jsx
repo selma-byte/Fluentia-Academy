@@ -10,8 +10,6 @@ const Icons = {
 
 const StudentPayment = () => {
   const [selectedReceipt, setSelectedReceipt] = useState(null);
-  
-  // States الحقيقية
   const [paymentHistory, setPaymentHistory] = useState([]);
   const [studentInfo, setStudentInfo] = useState({
     name: 'Loading...',
@@ -23,7 +21,7 @@ const StudentPayment = () => {
   const [loading, setLoading] = useState(true);
 
   // ==========================================
-  // 💡 Fetch Payment Data from Supabase
+  // 💡 Database Logic - STRICTLY PRESERVED
   // ==========================================
   useEffect(() => {
     const fetchFinancialData = async () => {
@@ -31,7 +29,6 @@ const StudentPayment = () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        // 1. نجيبو معلومات الطالب وحالة الدفع من طابلو students
         const { data: student } = await supabase
           .from('students')
           .select('first_name, last_name, level, language, status, id')
@@ -47,20 +44,17 @@ const StudentPayment = () => {
             id: `STD-${student.id || '2026'}`,
             program: `${student.language || 'Language'} (${student.level || 'Level'})`,
             balance: studentStatus.toLowerCase() === 'paid' ? '0 DZD' : 'Pending Payment',
-            status: studentStatus // 'Paid', 'Scheduled', etc.
+            status: studentStatus
           });
 
-          // 2. نجيبو تاريخ الدفعات من طابلو payments
-          // ⚠️ افتراض أن طابلو payments فيه student_name أو email
           const { data: payments } = await supabase
             .from('payments')
             .select('*')
-            .eq('student_name', fullName) // تأكدي بلي الخانة هادي صحيحة في الداتا باز
+            .eq('student_name', fullName)
             .order('created_at', { ascending: false });
 
           if (payments && payments.length > 0) {
             const formattedPayments = payments.map((p, idx) => {
-              // تحديد حالة الخلاص (إذا كاين montant مسجل معنتها مخلص)
               let payStatus = p.status || 'Verified';
               if (payStatus.toLowerCase() === 'unpaid' || payStatus.toLowerCase() === 'pending') {
                 payStatus = 'Pending';
@@ -91,190 +85,162 @@ const StudentPayment = () => {
   }, []);
 
   return (
-    <div className="flex-1 flex flex-col space-y-10 animate-fadeIn pr-2 pb-12">
+    <div className="flex-1 flex flex-col xl:flex-row gap-6 animate-fadeIn pr-2 pb-8">
       
-      {/* HEADER HERO */}
-      <div className="bg-[#EBE9F1] rounded-[45px] p-12 flex justify-between items-center relative overflow-hidden min-h-[220px] shadow-sm">
-        <div className="z-10 w-full md:w-3/5">
-          <p className="text-[#4318FF] text-[10px] font-black tracking-[0.4em] uppercase mb-2">Financial Services</p>
-          <h2 className="text-3xl font-black text-[#1B254B] mb-4 uppercase tracking-tighter leading-none">Tuition & Billing Center</h2>
-          <p className="text-[#1B254B]/60 text-sm mb-10 leading-relaxed font-bold max-w-lg uppercase tracking-widest opacity-70">
-            Monitor your balances, download verified tax receipts, and access the secure portal for tuition installment plans.
+      {/* LEFT CONTENT */}
+      <div className="flex-1 flex flex-col space-y-6 min-w-0">
+        
+        {/* HEADER SECTION */}
+        <div className="flex flex-col space-y-1 px-1">
+          <h2 className="text-xl font-black text-[#1B254B] italic tracking-tight leading-none">Tuition & Billing Center</h2>
+          <p className="text-[#A3AED0] text-[13px] font-medium leading-relaxed">
+            Monitor balances, download verified receipts, and access secure installment portal.
           </p>
-          <button className="bg-[#111C44] text-white px-10 py-4 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] shadow-2xl hover:bg-black active:scale-95 transition-all flex items-center gap-3">
-            <Icons.Download /> Financial Statement
-          </button>
         </div>
-        <div className="absolute right-[-20px] bottom-[-20px] opacity-10 text-[240px] font-black pointer-events-none select-none italic leading-none">P</div>
-      </div>
 
-      {loading ? (
-        <div className="py-20 text-center font-black text-[#A3AED0] animate-pulse uppercase tracking-widest">Loading Financial Data...</div>
-      ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-10">
-          
-          {/* LEFT COLUMN */}
-          <div className="xl:col-span-2 space-y-10">
-            
-            {/* LEDGER CARD */}
-            <div className="bg-white rounded-[40px] p-10 shadow-sm border border-gray-50">
-              <div className="flex items-center gap-4 mb-10">
-                 <div className="w-2 h-8 bg-[#4318FF] rounded-full"></div>
-                 <h3 className="text-xl font-black text-[#1B254B] uppercase tracking-widest">Enrollment Ledger</h3>
+        {loading ? (
+          <div className="py-20 text-center font-black text-[#A3AED0] text-[11px] animate-pulse uppercase tracking-[0.3em]">Validating Financial Portal...</div>
+        ) : (
+          <>
+            {/* LEDGER INFO CARD */}
+            <div className="bg-white rounded-[25px] p-8 shadow-sm border border-gray-100">
+              <div className="flex justify-between items-center mb-8 border-b border-gray-50 pb-5">
+                <h3 className="text-sm font-bold text-[#1B254B] uppercase tracking-widest italic leading-none">Enrollment Ledger</h3>
+                <button className="bg-[#111C44] text-white px-5 py-2 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] shadow-lg flex items-center gap-2 active:scale-95 transition-all">
+                   <Icons.Download /> Get Statement
+                </button>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                <div className="space-y-4">
                   {[
-                    { label: "Holder Name", value: studentInfo.name },
-                    { label: "Student Ref", value: studentInfo.id },
-                    { label: "Active Tracks", value: studentInfo.program },
-                    { label: "Account Status", value: studentInfo.status },
+                    { label: "Holder", value: studentInfo.name },
+                    { label: "Program", value: studentInfo.program },
+                    { label: "Account", value: studentInfo.status },
                   ].map((info, idx) => (
-                    <div key={idx} className="flex justify-between items-center py-2 border-b border-gray-50 group cursor-help">
-                      <span className="text-[10px] font-black text-[#A3AED0] uppercase tracking-widest">{info.label}</span>
-                      <span className={`text-[13px] font-black uppercase transition-colors ${
-                        info.label === 'Account Status' 
-                          ? (info.value.toLowerCase() === 'paid' ? 'text-green-500' : 'text-orange-500')
-                          : 'text-[#1B254B] group-hover:text-[#4318FF]'
-                      }`}>
-                        {info.value}
-                      </span>
+                    <div key={idx} className="flex justify-between items-center py-2 border-b border-gray-50/50">
+                      <span className="text-[9px] font-black text-[#A3AED0] uppercase tracking-widest">{info.label}</span>
+                      <span className={`text-[12px] font-black uppercase italic ${
+                        info.label === 'Account' 
+                        ? (info.value.toLowerCase() === 'paid' ? 'text-emerald-500' : 'text-orange-500')
+                        : 'text-[#1B254B]'
+                      }`}>{info.value}</span>
                     </div>
                   ))}
                 </div>
 
-                <div className={`p-8 rounded-[35px] border flex flex-col justify-center text-center relative overflow-hidden group cursor-pointer hover:shadow-xl transition-all active:scale-95 ${
-                  studentInfo.status.toLowerCase() === 'paid' 
-                    ? 'bg-green-50 border-green-200' 
-                    : 'bg-[#F4F7FE] border-[#4318FF]/5'
+                <div className={`p-6 rounded-[25px] border flex flex-col justify-center text-center relative group active:scale-95 transition-all ${
+                  studentInfo.status.toLowerCase() === 'paid' ? 'bg-emerald-50 border-emerald-100' : 'bg-[#F4F7FE] border-indigo-50'
                 }`}>
-                  <p className={`text-[10px] font-black uppercase tracking-[0.3em] mb-2 ${
-                    studentInfo.status.toLowerCase() === 'paid' ? 'text-green-600' : 'text-[#4318FF]'
-                  }`}>
-                    {studentInfo.status.toLowerCase() === 'paid' ? 'Balance Settled' : 'Total Outstanding'}
-                  </p>
-                  <p className={`text-3xl font-black tracking-tighter italic leading-none mb-4 group-hover:scale-110 transition-transform ${
-                    studentInfo.status.toLowerCase() === 'paid' ? 'text-green-500' : 'text-red-600'
-                  }`}>
-                    {studentInfo.balance}
-                  </p>
-                  
-                  {studentInfo.status.toLowerCase() !== 'paid' && (
-                    <div className="flex justify-center items-center gap-2 text-[9px] font-black text-[#A3AED0] uppercase tracking-widest border border-red-100 rounded-full px-4 py-1 w-fit mx-auto bg-white/50">
-                      Settlement Required
-                    </div>
-                  )}
+                  <p className={`text-[9px] font-black uppercase tracking-widest mb-1 ${
+                    studentInfo.status.toLowerCase() === 'paid' ? 'text-emerald-600' : 'text-[#4318FF]'
+                  }`}>Current Balance</p>
+                  <p className={`text-2xl font-black italic tracking-tighter leading-none ${
+                    studentInfo.status.toLowerCase() === 'paid' ? 'text-emerald-500' : 'text-red-500'
+                  }`}>{studentInfo.balance}</p>
                 </div>
               </div>
             </div>
 
-            {/* DETAILED BREAKDOWN (Static for now as requested by typical design) */}
-            <div className="bg-white rounded-[40px] p-10 shadow-sm border border-gray-100">
-               <h3 className="text-[11px] font-black text-[#1B254B] uppercase tracking-[0.3em] mb-10 border-b border-gray-50 pb-5">Fee Distribution Matrix</h3>
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
-                 {[
-                   { label: `${studentInfo.program} Track`, cost: "Assigned Fee", code: "LANG-CORE" },
-                   { label: "Core Admin Fees", cost: "Included", code: "ADM-X" },
-                   { label: "Multimedia Library", cost: "Included", code: "LIB-M" },
-                 ].map((item, i) => (
-                   <div key={i} className="flex justify-between items-center group cursor-pointer p-4 hover:bg-[#F4F7FE] rounded-2xl transition-all">
-                     <div className="flex flex-col">
-                         <span className="text-[13px] font-black text-[#1B254B] uppercase tracking-tight group-hover:text-[#4318FF]">{item.label}</span>
-                         <span className="text-[9px] font-bold text-[#A3AED0]">{item.code}</span>
-                     </div>
-                     <span className="text-[14px] font-black text-[#1B254B] italic">{item.cost}</span>
-                   </div>
-                 ))}
-               </div>
-               <div className="mt-12 p-8 bg-blue-50/40 rounded-[35px] border border-[#4318FF]/10 flex items-center gap-6">
-                  <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-[#4318FF] shadow-lg shrink-0"><Icons.Info /></div>
-                  <p className="text-[11px] font-bold text-[#4318FF] leading-relaxed uppercase tracking-widest">
-                    Cycle Note: Semester fees are non-refundable after the second session. Please contact the Billing Office for partial installment plans.
-                  </p>
-               </div>
+            {/* BREAKDOWN CARD */}
+            <div className="bg-white rounded-[25px] p-8 shadow-sm border border-gray-100">
+                <h3 className="text-[10px] font-black text-[#1B254B] uppercase tracking-[0.3em] mb-6 border-b border-gray-50 pb-3 italic">Fee Distribution Matrix</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {[
+                    { label: `${studentInfo.program} Track`, cost: "Assigned", code: "LANG-CORE" },
+                    { label: "Core Admin Fees", cost: "Included", code: "ADM-X" },
+                  ].map((item, i) => (
+                    <div key={i} className="flex justify-between items-center p-4 bg-[#F4F7FE]/50 rounded-2xl hover:bg-[#F4F7FE] transition-colors cursor-help">
+                      <div className="flex flex-col">
+                          <span className="text-[11px] font-black text-[#1B254B] uppercase italic">{item.label}</span>
+                          <span className="text-[8px] font-bold text-[#A3AED0]">{item.code}</span>
+                      </div>
+                      <span className="text-[12px] font-black text-[#1B254B] italic">{item.cost}</span>
+                    </div>
+                  ))}
+                </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* RIGHT SIDEBAR - MATCHED TO 280px */}
+      <aside className="w-full xl:w-[280px] shrink-0 flex flex-col space-y-6">
+        
+        <div className="bg-white rounded-[25px] p-6 shadow-sm border border-gray-100 flex flex-col h-full min-h-[400px]">
+          <div className="flex flex-col gap-4 mb-8">
+            <h3 className="text-sm font-bold text-[#1B254B] uppercase tracking-widest italic leading-none">History</h3>
+            <div className="relative group">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#4318FF] transition-colors"><Icons.Search /></span>
+              <input 
+                type="text" 
+                placeholder="Find Reference..." 
+                className="w-full bg-[#F4F7FE] border-none rounded-full py-2.5 pl-9 pr-4 text-[10px] font-bold text-[#1B254B] outline-none focus:ring-1 focus:ring-[#4318FF]/20 transition-all"
+              />
             </div>
           </div>
 
-          {/* RIGHT COLUMN */}
-          <div className="space-y-10">
-            <div className="bg-white rounded-[40px] p-10 shadow-sm border border-gray-50 flex flex-col h-full">
-              <div className="flex flex-col gap-6 mb-10">
-                <h3 className="text-2xl font-black text-[#1B254B] uppercase tracking-widest leading-none">History</h3>
-                <div className="relative group">
-                  <span className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#4318FF] transition-colors"><Icons.Search /></span>
-                  <input 
-                    type="text" 
-                    placeholder="Reference Search..." 
-                    className="w-full bg-[#F4F7FE] border-none rounded-2xl py-4 pl-14 pr-4 text-xs font-bold text-[#1B254B] outline-none focus:ring-2 focus:ring-[#4318FF]/10 transition-all"
-                  />
-                </div>
-              </div>
-
-              {paymentHistory.length > 0 ? (
-                <div className="space-y-5">
-                  {paymentHistory.map((item) => (
-                    <div 
-                        key={item.id} 
-                        onClick={() => setSelectedReceipt(item)}
-                        className="p-6 bg-white rounded-[32px] border border-gray-100 shadow-sm hover:shadow-2xl hover:-translate-y-1 transition-all duration-500 group cursor-pointer flex flex-col gap-5 active:scale-95"
-                    >
-                      <div className="flex justify-between items-start">
-                        <div className="space-y-1">
-                          <p className="text-[15px] font-black text-[#1B254B] tracking-tighter italic uppercase leading-none">{item.amount}</p>
-                          <p className="text-[10px] font-black text-[#A3AED0] uppercase tracking-widest">{item.date}</p>
-                        </div>
-                        <span className={`px-4 py-1.5 rounded-xl text-[8px] font-black uppercase tracking-widest shadow-inner flex items-center gap-2 ${
-                          item.status === 'Verified' ? 'bg-[#05CD99]/10 text-[#05CD99]' : 'bg-amber-500/10 text-amber-600'
-                        }`}>
-                          <Icons.Check /> {item.status}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center pt-5 border-t border-gray-50">
-                        <p className="text-[9px] font-mono font-bold text-[#A3AED0] uppercase">{item.transactionId}</p>
-                        <div className="text-[#4318FF] text-[9px] font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">
-                           Open PDF →
-                        </div>
-                      </div>
+          <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4 pr-1">
+            {paymentHistory.length > 0 ? (
+              paymentHistory.map((item) => (
+                <div 
+                    key={item.id} 
+                    onClick={() => setSelectedReceipt(item)}
+                    className="p-4 bg-white rounded-[20px] border border-gray-50 shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer group"
+                >
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="space-y-0.5">
+                      <p className="text-[13px] font-black text-[#1B254B] italic tracking-tight">{item.amount}</p>
+                      <p className="text-[9px] font-black text-[#A3AED0] uppercase tracking-widest">{item.date}</p>
                     </div>
-                  ))}
+                    <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-tight flex items-center gap-1 ${
+                      item.status === 'Verified' ? 'bg-emerald-50 text-emerald-500' : 'bg-amber-50 text-amber-600'
+                    }`}>
+                      <div className={`w-1 h-1 rounded-full ${item.status === 'Verified' ? 'bg-emerald-500' : 'bg-amber-500'}`}></div>
+                      {item.status}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center border-t border-gray-50 pt-3">
+                    <p className="text-[8px] font-mono font-bold text-[#A3AED0] opacity-60 truncate max-w-[80px]">{item.transactionId}</p>
+                    <div className="text-[#4318FF] text-[8px] font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all">
+                       Receipt →
+                    </div>
+                  </div>
                 </div>
-              ) : (
-                <div className="flex-1 flex items-center justify-center text-center p-6 text-gray-400">
-                   <p className="text-xs font-bold uppercase tracking-widest">No payment records found.</p>
-                </div>
-              )}
-
-              <div className="bg-[#111C44] mt-12 p-10 rounded-[45px] shadow-2xl text-white relative overflow-hidden group cursor-pointer transition-all hover:bg-black">
-                 <div className="relative z-10">
-                      <h4 className="text-xl font-black mb-2 uppercase tracking-tighter">Billing Help</h4>
-                      <p className="text-white/40 text-[11px] font-black mb-10 uppercase tracking-widest leading-relaxed">Having issues with online transfers or payment verification?</p>
-                      <button className="w-full py-4 bg-white/10 hover:bg-white/20 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border border-white/5">Connect with Billing</button>
-                 </div>
-                 <div className="absolute -right-8 -bottom-8 opacity-5 font-black text-[160px] group-hover:scale-110 transition-transform">?</div>
+              ))
+            ) : (
+              <div className="flex-1 flex items-center justify-center text-center p-6">
+                 <p className="text-[10px] font-bold uppercase tracking-widest text-gray-300">No records assigned.</p>
               </div>
-            </div>
+            )}
+          </div>
+
+          <div className="bg-[#111C44] mt-8 p-6 rounded-[25px] shadow-lg text-white relative overflow-hidden group transition-all hover:bg-[#0B132B]">
+             <div className="relative z-10">
+                  <h4 className="text-sm font-black mb-1 uppercase tracking-tighter italic">Billing Support</h4>
+                  <p className="text-white/40 text-[9px] font-black mb-6 uppercase tracking-widest leading-relaxed">Having portal or transfer issues?</p>
+                  <button className="w-full py-2.5 bg-white/10 hover:bg-white rounded-xl text-[9px] font-black uppercase text-white hover:text-[#111C44] transition-all border border-white/10">Contact Office</button>
+             </div>
+             <div className="absolute -right-8 -bottom-8 opacity-5 font-black text-[100px] italic select-none group-hover:scale-110 transition-transform">?</div>
           </div>
         </div>
-      )}
+      </aside>
 
       {/* RECEIPT VIEWER MODAL */}
       {selectedReceipt && (
-        <div className="fixed inset-0 bg-[#0B132B]/80 backdrop-blur-md z-[100] flex items-center justify-center p-6 animate-fadeIn" onClick={() => setSelectedReceipt(null)}>
-           <div className="bg-white rounded-[50px] p-12 max-w-lg w-full shadow-2xl relative overflow-hidden" onClick={e => e.stopPropagation()}>
-              <div className="absolute top-10 right-10">
-                 <button onClick={() => setSelectedReceipt(null)} className="text-[#A3AED0] hover:text-[#1B254B] transition-colors font-black text-lg p-2">✕</button>
-              </div>
-              <p className="text-[#4318FF] text-[10px] font-black tracking-[0.4em] uppercase mb-4">Official Receipt Viewer</p>
-              <h3 className="text-3xl font-black text-[#1B254B] uppercase tracking-tighter mb-10 leading-none">Record: {selectedReceipt.transactionId}</h3>
+        <div className="fixed inset-0 bg-[#0B132B]/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fadeIn" onClick={() => setSelectedReceipt(null)}>
+           <div className="bg-white rounded-[35px] p-10 max-w-sm w-full shadow-2xl relative overflow-hidden" onClick={e => e.stopPropagation()}>
+              <button onClick={() => setSelectedReceipt(null)} className="absolute top-6 right-6 text-[#A3AED0] hover:text-[#1B254B] transition-colors font-black text-sm uppercase">✕</button>
+              <p className="text-[#4318FF] text-[9px] font-black tracking-widest uppercase mb-2">Verified Voucher</p>
+              <h3 className="text-xl font-black text-[#1B254B] uppercase tracking-tighter mb-8 italic leading-none">{selectedReceipt.transactionId}</h3>
               
-              <div className="p-10 bg-[#F4F7FE] rounded-[40px] border-4 border-dashed border-white flex flex-col items-center justify-center text-center space-y-4">
-                 <div className="bg-[#4318FF] text-white w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg mb-4 italic font-black">PDF</div>
-                 <p className="text-xs font-black text-[#1B254B] uppercase tracking-widest">{selectedReceipt.label}</p>
-                 <p className="text-[10px] font-bold text-[#A3AED0] uppercase">Amount: {selectedReceipt.amount}</p>
+              <div className="p-8 bg-[#F4F7FE] rounded-[30px] border-2 border-dashed border-white flex flex-col items-center justify-center text-center space-y-3">
+                 <div className="bg-[#4318FF] text-white w-12 h-12 rounded-xl flex items-center justify-center shadow-lg italic font-black text-xs">PDF</div>
+                 <p className="text-[11px] font-black text-[#1B254B] uppercase italic">{selectedReceipt.label}</p>
+                 <p className="text-[9px] font-bold text-[#A3AED0] uppercase">Settlement: {selectedReceipt.amount}</p>
               </div>
               
-              <button className="w-full bg-[#111C44] text-white mt-10 py-5 rounded-3xl font-black uppercase tracking-[0.2em] text-[11px] shadow-2xl active:scale-95 transition-all">Download Verified PDF</button>
+              <button className="w-full bg-[#111C44] text-white mt-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl active:scale-95 transition-all">Download Receipt</button>
            </div>
         </div>
       )}
