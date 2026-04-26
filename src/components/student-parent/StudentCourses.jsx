@@ -244,60 +244,46 @@ const StudentCourses = () => {
           </button>
         </div>
 
-        <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 32, alignItems: 'flex-start' }}>
 
-          {/* ── Video / PDF player ── */}
-          <div style={{ flex: 1, minWidth: 300 }}>
-            <Card style={{ overflow: 'hidden', marginBottom: 20 }}>
+          {/* ── Video / PDF player — full width, no card border ── */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+
+            {/* Player container — dark background, rounded corners, full width */}
+            <div style={{ borderRadius: 16, overflow: 'hidden', background: '#1a1a1a', marginBottom: 20, position: 'relative' }}>
               {hasFile && !isPdf ? (
-                /* Native HTML5 video player */
-                <div style={{ position: 'relative', background: '#000', borderRadius: 16, overflow: 'hidden' }}>
-                  <video
-                    src={lec.thumbnail_url}
-                    controls
-                    style={{ width: '100%', maxHeight: 460, display: 'block', background: '#000' }}
-                  />
-                  {/* Streaming label */}
-                  <div style={{ position: 'absolute', bottom: 54, left: 20, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)', padding: '4px 12px', borderRadius: 6 }}>
-                    <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                      Currently Streaming: {lec.title}
-                    </p>
-                  </div>
-                </div>
+                /* Native HTML5 video — full width, browser controls at bottom */
+                <video
+                  src={lec.thumbnail_url}
+                  controls
+                  style={{ width: '100%', display: 'block', background: '#111', maxHeight: '65vh', minHeight: 320 }}
+                />
               ) : isPdf && hasFile ? (
-                /* PDF embed */
-                <div style={{ background: '#1e293b', borderRadius: 16, overflow: 'hidden' }}>
-                  <iframe
-                    src={lec.thumbnail_url}
-                    title={lec.title}
-                    style={{ width: '100%', height: 460, border: 'none', display: 'block' }}
-                  />
-                  <div style={{ padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                      Currently Viewing: {lec.title}
-                    </p>
-                  </div>
-                </div>
+                /* PDF — full width iframe */
+                <iframe
+                  src={lec.thumbnail_url}
+                  title={lec.title}
+                  style={{ width: '100%', height: 520, border: 'none', display: 'block' }}
+                />
               ) : (
-                /* No file — black placeholder with play button */
-                <div style={{ background: '#0f172a', height: 420, borderRadius: 16, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                  <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: '2px solid rgba(255,255,255,0.2)', transition: 'background .2s' }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(67,24,255,0.5)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-                  >
+                /* No file yet — dark placeholder matching screenshot exactly */
+                <div style={{ height: 420, background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                  <div style={{ width: 68, height: 68, borderRadius: '50%', background: 'rgba(255,255,255,0.12)', border: '2px solid rgba(255,255,255,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'default' }}>
                     {Icons.Play()}
-                  </div>
-                  <div style={{ position: 'absolute', bottom: 20, left: 20 }}>
-                    <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                      Currently Streaming: {lec.title}
-                    </p>
                   </div>
                 </div>
               )}
-            </Card>
 
-            {/* Title + subtitle */}
-            <div style={{ padding: '0 4px' }}>
+              {/* "Currently Streaming" overlay label — bottom left of video */}
+              <div style={{ position: 'absolute', bottom: isPdf ? 'auto' : (hasFile && !isPdf ? 42 : 16), top: isPdf ? 12 : 'auto', left: 16, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', padding: '4px 12px', borderRadius: 6, pointerEvents: 'none' }}>
+                <p style={{ margin: 0, fontSize: 10, fontWeight: 800, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>
+                  Currently Streaming: {lec.title}
+                </p>
+              </div>
+            </div>
+
+            {/* Title + subtitle below video */}
+            <div>
               <h1 style={{ margin: '0 0 6px', fontSize: 22, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px', textTransform: 'uppercase' }}>
                 {lec.title}
               </h1>
@@ -307,66 +293,73 @@ const StudentCourses = () => {
             </div>
           </div>
 
-          {/* ── Lecture Assets panel (screenshot 3 right side) ── */}
-          <div style={{ width: 260, flexShrink: 0 }}>
-            <Card style={{ padding: '22px 24px' }}>
-              <p style={{ margin: '0 0 14px', fontSize: 12, fontWeight: 800, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                Lecture Assets
-              </p>
-              <div style={{ height: 1, background: '#f1f5f9', marginBottom: 18 }} />
+          {/* ── Lecture Assets panel — matches teacher exactly ── */}
+          <div style={{ width: 240, flexShrink: 0 }}>
+            {/* Assets header */}
+            <p style={{ margin: '0 0 14px', fontSize: 12, fontWeight: 800, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+              Lecture Assets
+            </p>
+            <div style={{ height: 1, background: '#e2e8f0', marginBottom: 16 }} />
 
-              {hasFile ? (
-                <div style={{ padding: '16px', borderRadius: 12, border: '1px solid #f1f5f9', background: '#f8fafc' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            {hasFile ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {/* File asset card — same style as teacher screenshot */}
+                <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #f1f5f9', boxShadow: '0 1px 4px rgba(15,23,42,0.05)', padding: '16px 18px' }}>
+                  {/* Icon + filename */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
                     <div style={{ width: 36, height: 36, borderRadius: 8, background: '#eef2ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      {Icons.File()}
+                      {isPdf
+                        ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4318FF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4318FF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+                      }
                     </div>
-                    <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#1e293b', wordBreak: 'break-all' }}>
-                      {lec.thumbnail_url.split('/').pop()?.slice(0, 30) || 'Lecture File'}
+                    <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#1e293b', wordBreak: 'break-all', lineHeight: 1.4 }}>
+                      {/* Show clean filename like screenshot */}
+                      {lec.thumbnail_url.split('/').pop()?.split('?')[0]?.slice(0, 26) || (isPdf ? 'LECTURE_NOTES.PDF' : 'LECTURE_FILE.MP4')}
                     </p>
                   </div>
+
+                  {/* Download link — uppercase blue text like screenshot */}
                   <a href={lec.thumbnail_url} target="_blank" rel="noreferrer" download
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 0', borderRadius: 8, border: 'none', fontSize: 11, fontWeight: 800, color: '#4318FF', textDecoration: 'none', textTransform: 'uppercase', letterSpacing: '0.07em', transition: 'color .15s', cursor: 'pointer' }}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 11, fontWeight: 800, color: '#4318FF', textDecoration: 'none', textTransform: 'uppercase', letterSpacing: '0.07em', transition: 'color .15s', cursor: 'pointer' }}
                     onMouseEnter={e => e.currentTarget.style.color = '#3730a3'}
                     onMouseLeave={e => e.currentTarget.style.color = '#4318FF'}
                   >
                     {Icons.Download()} Download {isPdf ? 'PDF' : 'File'}
                   </a>
                 </div>
-              ) : (
-                <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8' }}>
-                  <p style={{ margin: 0, fontSize: 12, fontWeight: 600 }}>No assets attached to this lecture.</p>
-                </div>
-              )}
+              </div>
+            ) : (
+              <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #f1f5f9', padding: '24px 16px', textAlign: 'center', color: '#94a3b8' }}>
+                <p style={{ margin: 0, fontSize: 12, fontWeight: 600 }}>No assets attached to this lecture.</p>
+              </div>
+            )}
 
-              {/* Other lectures */}
-              {lectures.length > 1 && (
-                <div style={{ marginTop: 20 }}>
-                  <p style={{ margin: '0 0 12px', fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Other Lectures</p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {lectures.filter(l => l.id !== lec.id).slice(0, 4).map(l => (
-                      <button key={l.id} onClick={() => setSelectedLecture(l)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, border: '1px solid #f1f5f9', background: '#f8fafc', cursor: 'pointer', transition: 'all .15s', textAlign: 'left' }}
-                        onMouseEnter={e => { e.currentTarget.style.background = '#eef2ff'; e.currentTarget.style.borderColor = '#c7d2fe'; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#f1f5f9'; }}
-                      >
-                        <div style={{ width: 28, height: 28, borderRadius: 8, background: '#4318FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          {Icons.Play()}
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.title}</p>
-                          <p style={{ margin: 0, fontSize: 10, color: '#94a3b8' }}>{l.duration} mins</p>
-                        </div>
-                      </button>
-                    ))}
+            {/* Other lectures */}
+            {lectures.length > 1 && (
+              <div style={{ marginTop: 20 }}>
+                <p style={{ margin: '0 0 12px', fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Other Lectures</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {lectures.filter(l => l.id !== lec.id).slice(0, 4).map(l => (
+                    <button key={l.id} onClick={() => setSelectedLecture(l)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, border: '1px solid #f1f5f9', background: '#f8fafc', cursor: 'pointer', transition: 'all .15s', textAlign: 'left' }}
+                      onMouseEnter={e => { e.currentTarget.style.background = '#eef2ff'; e.currentTarget.style.borderColor = '#c7d2fe'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#f1f5f9'; }}
+                    >
+                      <div style={{ width: 28, height: 28, borderRadius: 8, background: '#4318FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        {Icons.Play()}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.title}</p>
+                        <p style={{ margin: 0, fontSize: 10, color: '#94a3b8' }}>{l.duration} mins</p>
+                      </div>
+                    </button>
+                  ))}
                   </div>
                 </div>
               )}
-            </Card>
+            </div>
           </div>
-        </div>
-
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } } @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.4;} }`}</style>
       </div>
     );
   }
