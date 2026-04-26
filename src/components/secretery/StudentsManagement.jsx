@@ -8,7 +8,9 @@ const Icons = {
   Notes: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>,
   Pdf: () => <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><text x="9" y="18" fontSize="6" fontWeight="bold">PDF</text></svg>,
   Back: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 8 8 12 12 16"></polyline><line x1="16" y1="12" x2="8" y2="12"></line></svg>,
-  Homework: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline><circle cx="10" cy="13" r="1"></circle><circle cx="10" cy="17" r="1"></circle></svg>
+  Homework: () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline><circle cx="10" cy="13" r="1"></circle><circle cx="10" cy="17" r="1"></circle></svg>,
+  Edit: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>,
+  Trash: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>
 };
 
 // ==========================================
@@ -489,6 +491,10 @@ const StudentRecordsTab = () => {
   const [isAssignGroupModalOpen, setIsAssignGroupModalOpen] = useState(false);
   const [assignGroupData, setAssignGroupData] = useState({ classId: '' });
 
+  // 💡 Edit Modal State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editFormData, setEditFormData] = useState({ id: null, firstName: '', lastName: '', email: '', phone: '', level: '' });
+
   const fetchActiveStudents = async () => {
     const { data } = await supabase.from('students')
       .select('*')
@@ -513,9 +519,6 @@ const StudentRecordsTab = () => {
     fetchClasses();
   }, []);
 
-  const [academicEntry, setAcademicEntry] = useState({ subject: '', grade: '', attendance: '', remarks: '' });
-  const [contactEntry, setContactEntry] = useState({ phone: '', email: '', address: '', parentName: '', parentContact: '' });
-
   const filteredStudents = studentsData.filter(student => {
     const matchLang = filterLang === 'All' || student.language === filterLang;
     const matchLevel = filterLevel === 'All' || student.level === filterLevel;
@@ -526,32 +529,21 @@ const StudentRecordsTab = () => {
 
   const handleViewProfile = (student) => {
     setSelectedStudent(student);
-    setContactEntry({ phone: student.phone || '', email: student.email || '', address: student.address || '', parentName: student.parentName || '', parentContact: student.parentContact || '' });
     setCurrentView('profile');
   };
-
-  const handleUpdateAcademic = (e) => {
-    e.preventDefault();
-    alert(`✅ Academic Record Saved Successfully for ${selectedStudent.firstName}!\nAssessment: ${academicEntry.subject}\nGrade: ${academicEntry.grade}`);
-    setAcademicEntry({ subject: '', grade: '', attendance: '', remarks: '' });
-  };
-
-  const handleUpdateContact = (e) => { e.preventDefault(); alert(`✅ Contact Info Updated Successfully for ${selectedStudent.firstName}!`); };
-  const handlePrint = () => { window.print(); };
 
   const handleProcessResult = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
       const score = parseFloat(selectedStudent.test_score);
-      const { error: historyError } = await supabase.from('enrollment_history').insert([{
+      await supabase.from('enrollment_history').insert([{
         student_id: selectedStudent.id,
         student_name: `${selectedStudent.firstName} ${selectedStudent.lastName}`,
         level_completed: selectedStudent.level,
         group_name: selectedStudent.group,
         grade: isNaN(score) ? null : score
       }]);
-      if (historyError) console.warn("ملاحظة: طابلو الأرشيف بالاك مازال ما تخدمش.", historyError);
 
       const isArchiving = processData.newLevel === 'Archived';
 
@@ -606,6 +598,58 @@ const StudentRecordsTab = () => {
     }
   };
 
+  // 💡 وظيفة الحذف (Delete)
+  const handleDeleteStudent = async (id, name) => {
+    if (window.confirm(`⚠️ Are you absolutely sure you want to PERMANENTLY DELETE ${name}? This action cannot be undone.`)) {
+      try {
+        const { error } = await supabase.from('students').delete().eq('id', id);
+        if (error) throw error;
+        alert(`✅ ${name} has been successfully deleted.`);
+        fetchActiveStudents();
+      } catch (err) {
+        alert("Error deleting student: " + err.message);
+      }
+    }
+  };
+
+  // 💡 وظيفة فتح نافذة التعديل (Edit)
+  const openEditModal = (student) => {
+    setEditFormData({
+      id: student.id,
+      firstName: student.firstName,
+      lastName: student.lastName,
+      email: student.email,
+      phone: student.phone,
+      level: student.level
+    });
+    setIsEditModalOpen(true);
+  };
+
+  // 💡 وظيفة حفظ التعديلات (Update)
+  const handleSaveEdit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const { error } = await supabase.from('students').update({
+        first_name: editFormData.firstName,
+        last_name: editFormData.lastName,
+        email: editFormData.email,
+        phone: editFormData.phone,
+        level: editFormData.level
+      }).eq('id', editFormData.id);
+
+      if (error) throw error;
+      
+      alert('✅ Student details updated successfully!');
+      setIsEditModalOpen(false);
+      fetchActiveStudents();
+    } catch (err) {
+      alert("Error updating student: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const renderList = () => (
     <div className="w-full flex flex-col min-h-full animate-fade-in p-8">
       <div className="flex justify-between items-center mb-8 shrink-0">
@@ -650,7 +694,7 @@ const StudentRecordsTab = () => {
                 </td>
                 <td className="py-4 px-6 font-medium text-gray-700">{student.language}</td>
                 <td className="py-4 px-6 font-medium text-gray-700">{student.level} • {student.group || '---'}</td>
-                <td className="py-4 px-6 flex justify-center gap-2">
+                <td className="py-4 px-6 flex justify-center gap-2 items-center">
                   <button onClick={() => handleViewProfile(student)} className="bg-white border border-gray-200 hover:bg-[#2563eb] hover:text-white hover:border-[#2563eb] text-gray-700 font-bold py-1.5 px-4 rounded-lg transition-all cursor-pointer text-xs shadow-sm">Open Record</button>
                   
                   {student.status === 'Pending Group' ? (
@@ -658,6 +702,14 @@ const StudentRecordsTab = () => {
                   ) : (
                      <button onClick={() => { setSelectedStudent(student); setProcessData({ newLevel: student.level }); setIsProcessModalOpen(true); }} className="bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-600 hover:text-white font-bold py-1.5 px-3 rounded-lg transition-all cursor-pointer text-xs shadow-sm">📝 Process Result</button>
                   )}
+
+                  {/* 💡 أزرار التعديل والحذف */}
+                  <button onClick={() => openEditModal(student)} className="p-2 text-blue-500 hover:bg-blue-100 rounded-lg cursor-pointer transition-colors" title="Edit Student">
+                    <Icons.Edit />
+                  </button>
+                  <button onClick={() => handleDeleteStudent(student.id, student.firstName)} className="p-2 text-red-500 hover:bg-red-100 rounded-lg cursor-pointer transition-colors" title="Delete Student">
+                    <Icons.Trash />
+                  </button>
                 </td>
               </tr>
             )) : (
@@ -729,6 +781,49 @@ const StudentRecordsTab = () => {
           </div>
         </div>
       )}
+
+      {/* 💡 نافذة التعديل (Edit Modal) */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl p-8 font-sans border border-gray-100">
+            <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
+               <h2 className="text-xl font-bold text-[#0A1128]">Edit Student Details</h2>
+               <button onClick={() => setIsEditModalOpen(false)} className="text-gray-400 hover:text-red-500 font-bold text-xl">×</button>
+            </div>
+            <form onSubmit={handleSaveEdit} className="space-y-4">
+               <div className="grid grid-cols-2 gap-4">
+                 <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">First Name</label>
+                    <input type="text" value={editFormData.firstName} onChange={(e) => setEditFormData({...editFormData, firstName: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500" required />
+                 </div>
+                 <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Last Name</label>
+                    <input type="text" value={editFormData.lastName} onChange={(e) => setEditFormData({...editFormData, lastName: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500" required />
+                 </div>
+               </div>
+               <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Email</label>
+                  <input type="email" value={editFormData.email} onChange={(e) => setEditFormData({...editFormData, email: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500" required />
+               </div>
+               <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Phone</label>
+                  <input type="tel" value={editFormData.phone} onChange={(e) => setEditFormData({...editFormData, phone: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500" required />
+               </div>
+               <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Level</label>
+                  <select value={editFormData.level} onChange={(e) => setEditFormData({...editFormData, level: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500 cursor-pointer">
+                    <option value="A1">A1</option><option value="A2">A2</option><option value="B1">B1</option>
+                    <option value="B2">B2</option><option value="C1">C1</option><option value="C2">C2</option>
+                  </select>
+               </div>
+               <button type="submit" disabled={loading} className="w-full mt-4 bg-[#0A1128] hover:bg-blue-900 text-white font-bold py-3 rounded-xl shadow-md transition-colors text-sm">
+                 {loading ? 'Saving...' : 'Save Changes'}
+               </button>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 
@@ -758,69 +853,9 @@ const StudentRecordsTab = () => {
                      </div>
                   </div>
                </div>
-               <button onClick={handlePrint} className="bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition-colors cursor-pointer flex items-center">
+               <button onClick={() => window.print()} className="bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition-colors cursor-pointer flex items-center">
                   <span className="mr-2">🖨️</span> Print Record
                </button>
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200 flex flex-col">
-                   <h4 className="font-bold text-sm text-[#0A1128] mb-4 flex items-center"><span className="mr-2">🎓</span> Update Academic Info</h4>
-                   <form onSubmit={handleUpdateAcademic} className="space-y-4 flex-1 flex flex-col justify-between">
-                      <div className="space-y-4">
-                        <div>
-                           <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Course / Assessment</label>
-                           <input type="text" placeholder="e.g. Midterm Exam" value={academicEntry.subject} onChange={(e) => setAcademicEntry({...academicEntry, subject: e.target.value})} className="w-full bg-gray-50 border border-gray-100 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500" required />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                           <div>
-                              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Grade / Score</label>
-                              <input type="text" placeholder="e.g. 85%" value={academicEntry.grade} onChange={(e) => setAcademicEntry({...academicEntry, grade: e.target.value})} className="w-full bg-gray-50 border border-gray-100 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500" required />
-                           </div>
-                           <div>
-                              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Attendance Rate</label>
-                              <input type="text" placeholder="e.g. 95%" value={academicEntry.attendance} onChange={(e) => setAcademicEntry({...academicEntry, attendance: e.target.value})} className="w-full bg-gray-50 border border-gray-100 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500" />
-                           </div>
-                        </div>
-                        <div>
-                           <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Teacher Remarks</label>
-                           <textarea rows="2" placeholder="Add comments here..." value={academicEntry.remarks} onChange={(e) => setAcademicEntry({...academicEntry, remarks: e.target.value})} className="w-full bg-gray-50 border border-gray-100 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500 resize-none"></textarea>
-                        </div>
-                      </div>
-                      <button type="submit" className="w-full bg-[#2563eb] hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg transition-colors shadow-sm cursor-pointer mt-4 text-sm">Save Academic Record</button>
-                   </form>
-                </div>
-                <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200 flex flex-col">
-                   <h4 className="font-bold text-sm text-[#0A1128] mb-4 flex items-center"><span className="mr-2">📞</span> Update Contact Info</h4>
-                   <form onSubmit={handleUpdateContact} className="space-y-4 flex-1 flex flex-col justify-between">
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                           <div>
-                              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Student Phone</label>
-                              <input type="tel" value={contactEntry.phone} onChange={(e) => setContactEntry({...contactEntry, phone: e.target.value})} className="w-full bg-gray-50 border border-gray-100 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500" />
-                           </div>
-                           <div>
-                              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Email</label>
-                              <input type="email" value={contactEntry.email} onChange={(e) => setContactEntry({...contactEntry, email: e.target.value})} className="w-full bg-gray-50 border border-gray-100 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500" />
-                           </div>
-                        </div>
-                        <div>
-                           <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Home Address</label>
-                           <input type="text" value={contactEntry.address} onChange={(e) => setContactEntry({...contactEntry, address: e.target.value})} className="w-full bg-gray-50 border border-gray-100 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500" />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4 border-t border-gray-100 pt-4 mt-2">
-                           <div>
-                              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Parent/Guardian Name</label>
-                              <input type="text" value={contactEntry.parentName} onChange={(e) => setContactEntry({...contactEntry, parentName: e.target.value})} className="w-full bg-gray-50 border border-gray-100 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500" />
-                           </div>
-                           <div>
-                              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Parent Contact</label>
-                              <input type="tel" value={contactEntry.parentContact} onChange={(e) => setContactEntry({...contactEntry, parentContact: e.target.value})} className="w-full bg-gray-50 border border-gray-100 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500" />
-                           </div>
-                        </div>
-                      </div>
-                      <button type="submit" className="w-full bg-[#0A1128] hover:bg-gray-800 text-white font-bold py-2.5 rounded-lg transition-colors shadow-sm cursor-pointer mt-4 text-sm">Update Contact Details</button>
-                   </form>
-                </div>
             </div>
         </div>
       </div>

@@ -54,23 +54,83 @@ const Enrollment = () => {
   const [groupStudents, setGroupStudents] = useState([]);
   const [loadingStudents, setLoadingStudents] = useState(false);
 
+  // 💡 States للإضافة المباشرة للطالب في الفوج
+  const [availableStudents, setAvailableStudents] = useState([]);
+  const [isAddingStudent, setIsAddingStudent] = useState(false);
+  const [selectedNewStudent, setSelectedNewStudent] = useState('');
+
   const handleViewStudents = async (group) => {
     setSelectedGroup(group);
     setLoadingStudents(true);
     setModalView('studentsList'); 
+    setIsAddingStudent(false); // Reset add mode
+    setSelectedNewStudent('');
 
     try {
-      const { data, error } = await supabase
+      // 1. جلب التلاميذ المسجلين في هاد الفوج
+      const { data: enrolledData, error } = await supabase
         .from('students')
         .select('*')
         .eq('group_name', group.name) 
         .eq('status', 'Active'); 
 
       if (error) throw error;
-      setGroupStudents(data || []);
+      setGroupStudents(enrolledData || []);
+
+      // 2. جلب التلاميذ اللي راهم "يستناو فوج" (Pending Group) ويطابقو نفس اللغة والمستوى
+      const { data: availData } = await supabase
+        .from('students')
+        .select('id, first_name, last_name, level')
+        .eq('status', 'Pending Group')
+        .eq('language', group.language);
+      
+      if (availData) {
+         // الفلترة باش نلقاو اللي مستواهم يطابق مستوى الفوج
+         const matchingLevel = availData.filter(s => group.level.includes(s.level) || s.level.includes(group.level));
+         setAvailableStudents(matchingLevel);
+      }
+
     } catch (err) {
       alert("إيرور: " + err.message);
     } finally {
+      setLoadingStudents(false);
+    }
+  };
+
+  // 💡 وظيفة إضافة التلميذ للفوج المختار
+  const handleAssignToThisGroup = async () => {
+    if (!selectedNewStudent) return alert("⚠️ Please select a student first!");
+    
+    try {
+      setLoadingStudents(true);
+      const currentCount = selectedGroup.enrolled_count || 0;
+      
+      if (currentCount >= (selectedGroup.capacity || 20)) {
+        alert("❌ لا يمكنك الإضافة، هذا الفوج ممتلئ!"); 
+        setLoadingStudents(false);
+        return;
+      }
+      
+      // Update student table
+      await supabase.from('students').update({
+        group_name: selectedGroup.name,
+        status: 'Active'
+      }).eq('id', selectedNewStudent);
+
+      // Update class table
+      await supabase.from('classes').update({
+        enrolled_count: currentCount + 1
+      }).eq('id', selectedGroup.id);
+
+      alert("✅ Student successfully added to the group!");
+      
+      // Refresh Data
+      fetchClasses();
+      const updatedGroup = { ...selectedGroup, enrolled_count: currentCount + 1 };
+      handleViewStudents(updatedGroup); // يعاود يجبد القائمة الجديدة تاع التلاميد
+
+    } catch (err) {
+      alert("Error: " + err.message);
       setLoadingStudents(false);
     }
   };
@@ -127,7 +187,7 @@ const Enrollment = () => {
       let hasConflict = false;
       let conflictMsg = '';
 
-      // 💡 التحقق من التداخل
+      // التحقق من التداخل
       const schedulesToCheck = formData.course_type === 'Make-up Session' ? [formData.schedules[0]] : formData.schedules;
       
       for (let s of schedulesToCheck) {
@@ -148,7 +208,7 @@ const Enrollment = () => {
         setLoading(false); return;
       }
 
-      // 💡 حالة 1: إضافة حصة تعويضية لفوج موجود
+      // حالة 1: إضافة حصة تعويضية لفوج موجود
       if (formData.course_type === 'Make-up Session') {
         if (!formData.targetClassId) return alert("⚠️ خيري الفوج اللي حابة تزيديلو الحصة التعويضية!");
         
@@ -163,7 +223,7 @@ const Enrollment = () => {
         
         alert(`✅ تم برمجة الحصة التعويضية لفوج ${targetClass.name} بنجاح!`);
       } 
-      // 💡 حالة 2: إنشاء فوج جديد
+      // حالة 2: إنشاء فوج جديد
       else {
         if (!formData.teacher) {
           alert("⚠️ من فضلك خيري أستاذ من القائمة!");
@@ -312,7 +372,6 @@ const Enrollment = () => {
               </div>
 
               {formData.course_type === 'Make-up Session' ? (
-                // 💡 فورم الحصة التعويضية (نخيرو الجروب اللي ديجا كاين برك)
                 <div className="bg-orange-50/50 p-6 rounded-2xl border border-orange-100 space-y-4">
                   <div>
                     <label className="text-[10px] font-bold text-orange-600 uppercase mb-2 block tracking-widest">Select Existing Group</label>
@@ -349,7 +408,6 @@ const Enrollment = () => {
                   </div>
                 </div>
               ) : (
-                // 💡 فورم إنشاء الفوج الجديد
                 <>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -418,7 +476,7 @@ const Enrollment = () => {
                           </div>
                           <div className="w-32">
                             <label className="text-[9px] font-bold text-gray-400 uppercase block mb-1">Room</label>
-                            <select value={schedule.room} onChange={(e)=>handleScheduleChange(index, 'room', e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs font-bold">
+                            <select value={schedule.room} onChange={(e)=>handleScheduleChange(index, 'room', e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs font-bold outline-none focus:border-orange-400">
                               <option>Salle 05</option><option>Lab 02</option><option>Salle 12</option>
                             </select>
                           </div>
@@ -437,7 +495,7 @@ const Enrollment = () => {
         </div>
       )}
 
-      {/* المودال تاع عرض التلاميذ يقعد كيما راه */}
+      {/* المودال تاع عرض التلاميذ مع زر الإضافة السريعة */}
       {modalView === 'studentsList' && selectedGroup && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-fade-in">
           <div className="w-full max-w-3xl bg-white rounded-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
@@ -451,8 +509,41 @@ const Enrollment = () => {
                   <span className="text-[#4318FF] ml-1">Progress: {selectedGroup.completed_sessions || 0} / {selectedGroup.total_sessions || 24} Sessions</span>
                 </p>
               </div>
-              <button onClick={() => setModalView(null)} className="text-gray-400 hover:text-black text-2xl cursor-pointer w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-200">✕</button>
+              <div className="flex items-center gap-4">
+                {/* 💡 زر الإضافة السريعة من الفوج مباشرة */}
+                <button 
+                  onClick={() => setIsAddingStudent(!isAddingStudent)} 
+                  className={`text-xs font-bold px-4 py-2 rounded-xl transition-all border ${isAddingStudent ? 'bg-gray-100 text-gray-500 border-gray-200' : 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100 cursor-pointer'}`}
+                >
+                  {isAddingStudent ? 'Cancel' : '+ Add Student'}
+                </button>
+                <button onClick={() => setModalView(null)} className="text-gray-400 hover:text-black text-2xl cursor-pointer w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-200">✕</button>
+              </div>
             </div>
+
+            {/* 💡 فورم اختيار تلميذ وإضافته */}
+            {isAddingStudent && (
+               <div className="p-4 bg-blue-50/30 border-b border-blue-100 flex items-center gap-3 shrink-0">
+                  <select 
+                     value={selectedNewStudent} 
+                     onChange={(e) => setSelectedNewStudent(e.target.value)} 
+                     className="flex-1 bg-white border border-blue-200 rounded-xl p-2.5 text-sm outline-none focus:border-blue-500 font-medium text-[#0A1128] cursor-pointer"
+                  >
+                     <option value="">-- Select a Pending Student --</option>
+                     {availableStudents.length === 0 && <option disabled>No students pending for this level/language</option>}
+                     {availableStudents.map(s => (
+                       <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>
+                     ))}
+                  </select>
+                  <button 
+                     onClick={handleAssignToThisGroup} 
+                     disabled={loadingStudents || !selectedNewStudent}
+                     className={`px-6 py-2.5 rounded-xl font-bold text-sm text-white shadow-sm transition-all ${loadingStudents || !selectedNewStudent ? 'bg-gray-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 cursor-pointer'}`}
+                  >
+                    Confirm Add
+                  </button>
+               </div>
+            )}
             
             <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
               {loadingStudents ? (

@@ -38,9 +38,9 @@ const Icons = {
   FileText:   () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>,
   Users:      () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
   Download:   () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
-  Upload:     () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>,
   Eye:        () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
   Medal:      () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>,
+  ArrowLeft:  () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>,
 };
 
 // ─── Shared sub-components ────────────────────────────────────────────────────
@@ -186,18 +186,14 @@ const getSubjectColors = (subject) => {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 const Exams = ({ examView, setExamView }) => {
-  const [createStep, setCreateStep] = useState(1);
   const [examsData, setExamsData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All Status');
   const [classesData, setClassesData] = useState([]);
   const [teachersData, setTeachersData] = useState([]);
-  
-  // 💡 إضافة الستايت الخاصة بالقاعات
   const [roomsData, setRoomsData] = useState([]);
 
-  // ── Focused states for form inputs ──
   const [focused, setFocused] = useState({});
   const onFocus = k => setFocused(f => ({ ...f, [k]: true  }));
   const onBlur  = k => setFocused(f => ({ ...f, [k]: false }));
@@ -207,13 +203,13 @@ const Exams = ({ examView, setExamView }) => {
     return new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
   };
 
-  // ── ALL ORIGINAL STATE — UNTOUCHED ──────────────────────────────────────
-  const [newExam, setNewExam] = useState({
-    title: '', subject: 'English', class_name: '',
-    teacher_id: '', duration: 60,
+  // 💡 State for Exam Form
+  const initialExamState = {
+    id: null, title: '', subject: 'English', class_name: '',
+    teacher_id: '', room_name: '', duration: 60,
     date: getTodayString(), time: '10:00', instructions: '',
-    room_name: '' // 💡 زدنا القاعة هنا
-  });
+  };
+  const [newExam, setNewExam] = useState(initialExamState);
 
   const [resultsData,         setResultsData]         = useState([]);
   const [selectedResultExam,  setSelectedResultExam]  = useState('');
@@ -228,7 +224,7 @@ const Exams = ({ examView, setExamView }) => {
   };
   const [currentWeekStart, setCurrentWeekStart] = useState(getStartOfWeek(new Date()));
 
-  // ── ALL ORIGINAL SUPABASE LOGIC — UNTOUCHED ──────────────────────────────
+  // ── FETCH DATA ──────────────────────────────────────────────────────────────
   const fetchExams = async () => {
     setLoading(true);
     const { data, error } = await supabase.from('exams').select('*').order('created_at', { ascending: false });
@@ -247,7 +243,6 @@ const Exams = ({ examView, setExamView }) => {
       setTeachersData(tData);
       if (tData.length > 0) setNewExam(prev => ({ ...prev, teacher_id: tData[0].id }));
     }
-    // 💡 جلب القاعات (Rooms)
     const { data: rData } = await supabase.from('rooms').select('*');
     if (rData) {
       setRoomsData(rData);
@@ -292,18 +287,24 @@ const Exams = ({ examView, setExamView }) => {
     }
   }, [examView, selectedResultExam, examsData]);
 
+  // ── ACTIONS ──────────────────────────────────────────────────────────────
   const handleSaveExam = async () => {
     if (!newExam.title || !newExam.class_name || !newExam.teacher_id || !newExam.room_name) {
       alert('Please fill all required fields (Title, Class, Teacher, Room)!'); return;
     }
     setLoading(true);
     try {
-      // 💡 التحقق من التداخل (Conflict Validation) للأستاذ والقاعة[cite: 1]
-      const { data: conflicts, error: checkError } = await supabase
-        .from('exams').select('*')
+      // Conflict Validation
+      let conflictQuery = supabase
+        .from('exams')
+        .select('*')
         .eq('exam_date', newExam.date)
         .eq('start_time', newExam.time)
         .or(`teacher_id.eq.${newExam.teacher_id},room_name.eq.${newExam.room_name},class_name.eq.${newExam.class_name}`);
+        
+      if (newExam.id) conflictQuery = conflictQuery.neq('id', newExam.id); // Ignore current exam if editing
+      
+      const { data: conflicts, error: checkError } = await conflictQuery;
 
       if (checkError) throw checkError;
 
@@ -318,22 +319,50 @@ const Exams = ({ examView, setExamView }) => {
         setLoading(false); return;
       }
 
-      // إذا ماكاش تداخل، نسجلو الامتحان
-      const { error } = await supabase.from('exams').insert([{
+      // Save or Update
+      const payload = {
         title: newExam.title, subject: newExam.subject,
         class_name: newExam.class_name, teacher_id: newExam.teacher_id,
-        room_name: newExam.room_name, // 💡 حفظ القاعة
-        duration_minutes: parseInt(newExam.duration),
+        room_name: newExam.room_name, duration_minutes: parseInt(newExam.duration),
         status: 'Scheduled', exam_date: newExam.date,
         start_time: newExam.time, instructions: newExam.instructions,
-      }]);
-      if (error) throw error;
+      };
+
+      if (newExam.id) {
+        // Edit Existing Exam
+        const { error } = await supabase.from('exams').update(payload).eq('id', newExam.id);
+        if (error) throw error;
+        alert('Exam Updated Successfully!');
+      } else {
+        // Create New Exam
+        const { error } = await supabase.from('exams').insert([payload]);
+        if (error) throw error;
+        alert('Exam Created Successfully! No conflicts detected.');
+        
+        // 💡 Auto Notify Students
+        await supabase.from('communications').insert([{
+            type: 'notification',
+            subject: `New Exam Scheduled: ${newExam.title}`,
+            content: `A new ${newExam.subject} exam has been scheduled on ${newExam.date} at ${newExam.time} in ${newExam.room_name}.`,
+            recipient_name: `Group: ${newExam.class_name}`,
+            sender_role: 'system'
+        }]);
+      }
       
-      alert('Exam Created Successfully! No conflicts detected.');
-      setNewExam({ title: '', subject: 'English', class_name: classesData[0]?.name || '', teacher_id: teachersData[0]?.id || '', room_name: roomsData[0]?.name || '', duration: 60, date: getTodayString(), time: '10:00', instructions: '' });
-      setCreateStep(1); setExamView('manage'); fetchExams();
+      setNewExam(initialExamState);
+      setExamView('manage'); 
+      fetchExams();
     } catch (err) { alert('Error: ' + err.message); }
     finally { setLoading(false); }
+  };
+
+  const handleEditExam = (exam) => {
+    setNewExam({
+      id: exam.id, title: exam.title, subject: exam.subject, class_name: exam.class_name,
+      teacher_id: exam.teacher_id, room_name: exam.room_name || '', duration: exam.duration_minutes || 60,
+      date: exam.exam_date, time: exam.start_time || '10:00', instructions: exam.instructions || ''
+    });
+    setExamView('create');
   };
 
   const handleMarkAsCompleted = async (id) => {
@@ -345,12 +374,21 @@ const Exams = ({ examView, setExamView }) => {
   };
 
   const handleDeleteExam = async (id) => {
-    if (window.confirm('Are you sure you want to delete this exam?')) {
+    if (window.confirm('Are you sure you want to delete this exam? This action cannot be undone.')) {
       const { error } = await supabase.from('exams').delete().eq('id', id);
-      if (!error) setExamsData(examsData.filter(e => e.id !== id));
-      else alert('Error: ' + error.message);
+      if (!error) {
+        setExamsData(examsData.filter(e => e.id !== id));
+        alert('Exam deleted successfully.');
+      }
+      else alert('Error deleting exam: ' + error.message);
     }
   };
+
+  const resetFormAndGoBack = () => {
+    setNewExam(initialExamState);
+    setExamView('manage');
+  };
+
   // ─────────────────────────────────────────────────────────────────────────
 
   const totalExams     = examsData.length;
@@ -450,7 +488,7 @@ const Exams = ({ examView, setExamView }) => {
             ].map(({ icon: Icon, label, view }) => (
               <button
                 key={view}
-                onClick={() => { setExamView(view); if (view === 'create') setCreateStep(1); }}
+                onClick={() => { setExamView(view); if (view === 'create') setNewExam(initialExamState); }}
                 style={{
                   width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                   padding: '11px 14px', borderRadius: 10, border: `1px solid ${T.border}`,
@@ -479,7 +517,7 @@ const Exams = ({ examView, setExamView }) => {
     <div style={{ paddingBottom: 40 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24 }}>
         <SectionHeading title="Exam Management" sub="Manage all exams across the school" />
-        <PrimaryBtn onClick={() => { setExamView('create'); setCreateStep(1); }}>
+        <PrimaryBtn onClick={() => { setNewExam(initialExamState); setExamView('create'); }}>
           <Icons.Plus /> New Exam
         </PrimaryBtn>
       </div>
@@ -560,7 +598,7 @@ const Exams = ({ examView, setExamView }) => {
                           <ActionBtn icon={Icons.Check} color={T.success} title="Mark as Completed"
                             onClick={e => { e.stopPropagation(); handleMarkAsCompleted(row.id); }} />
                         )}
-                        <ActionBtn icon={Icons.Edit}  color={T.primary} title="Edit" onClick={() => {}} />
+                        <ActionBtn icon={Icons.Edit}  color={T.primary} title="Edit" onClick={() => handleEditExam(row)} />
                         <ActionBtn icon={Icons.Trash} color={T.danger}  title="Delete"
                           onClick={e => { e.stopPropagation(); handleDeleteExam(row.id); }} />
                       </div>
@@ -576,200 +614,133 @@ const Exams = ({ examView, setExamView }) => {
   );
 
   // ══════════════════════════════════════════════════════════════════════════
-  // VIEW 3 — CREATE EXAM
+  // VIEW 3 — CREATE / EDIT EXAM
   // ══════════════════════════════════════════════════════════════════════════
   const renderCreateExam = () => (
     <div style={{ maxWidth: 720, margin: '0 auto', paddingBottom: 40 }}>
-      <div style={{ marginBottom: 28 }}>
-        <SectionHeading title="Create New Exam" sub="Provide exam details then upload the question PDF" />
-      </div>
-
-      {/* Step indicator */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 32 }}>
-        {[{ n: 1, label: 'Exam Details' }, { n: 2, label: 'Upload PDF' }].map(({ n, label }, i) => {
-          const done = createStep > n;
-          const active = createStep === n;
-          return (
-            <React.Fragment key={n}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{
-                  width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 13, fontWeight: 800,
-                  background: active || done ? T.primary : T.borderMid,
-                  color: active || done ? '#fff' : T.textMuted,
-                  transition: 'all 0.2s',
-                }}>{done ? <Icons.Check /> : n}</div>
-                <span style={{ fontSize: 13, fontWeight: 700, color: active ? T.primary : T.textMuted }}>{label}</span>
-              </div>
-              {i === 0 && <div style={{ flex: 1, maxWidth: 80, height: 2, background: createStep === 2 ? T.primary : T.borderMid, borderRadius: 2, transition: 'background 0.2s' }} />}
-            </React.Fragment>
-          );
-        })}
+      <div style={{ marginBottom: 28, display: 'flex', alignItems: 'center', gap: 16 }}>
+        <button onClick={resetFormAndGoBack} style={{ background: 'none', border: 'none', color: T.textMuted, cursor: 'pointer', padding: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'color 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = T.textDark} onMouseLeave={e => e.currentTarget.style.color = T.textMuted}>
+            <Icons.ArrowLeft />
+        </button>
+        <SectionHeading title={newExam.id ? "Edit Exam" : "Create New Exam"} sub={newExam.id ? "Update exam details below" : "Provide exam details"} />
       </div>
 
       <Card style={{ padding: '32px 36px' }}>
-        {createStep === 1 ? (
-          <div>
-            <h3 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 700, color: T.textDark }}>Step 1 — Exam Information</h3>
-            <p style={{ margin: '0 0 24px', fontSize: 13, color: T.textMid }}>Provide the basic information about this exam.</p>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 20px', marginBottom: 16 }}>
-              {/* Title */}
-              <div>
-                <FieldLabel required>Exam Title</FieldLabel>
-                <input type="text" value={newExam.title}
-                  onChange={e => setNewExam({ ...newExam, title: e.target.value })}
-                  onFocus={() => onFocus('title')} onBlur={() => onBlur('title')}
-                  placeholder="e.g. English Mid-Term"
-                  style={inputStyle(focused.title)} />
-              </div>
-              {/* Subject */}
-              <div>
-                <FieldLabel>Subject</FieldLabel>
-                <select value={newExam.subject}
-                  onChange={e => setNewExam({ ...newExam, subject: e.target.value })}
-                  onFocus={() => onFocus('subject')} onBlur={() => onBlur('subject')}
-                  style={selectStyle(focused.subject)}>
-                  <option>English</option><option>French</option><option>German</option>
-                  <option>Spanish</option><option>Physics</option><option>Mathematics</option>
-                </select>
-              </div>
-              {/* Class */}
-              <div>
-                <FieldLabel required>Class / Group</FieldLabel>
-                <select value={newExam.class_name}
-                  onChange={e => setNewExam({ ...newExam, class_name: e.target.value })}
-                  onFocus={() => onFocus('class')} onBlur={() => onBlur('class')}
-                  style={selectStyle(focused.class)}>
-                  <option value="">— Select Class —</option>
-                  {classesData.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                </select>
-              </div>
-              {/* Teacher */}
-              <div>
-                <FieldLabel required>Assign Teacher</FieldLabel>
-                <select value={newExam.teacher_id}
-                  onChange={e => setNewExam({ ...newExam, teacher_id: e.target.value })}
-                  onFocus={() => onFocus('teacher')} onBlur={() => onBlur('teacher')}
-                  style={selectStyle(focused.teacher)}>
-                  <option value="">— Select Teacher —</option>
-                  {teachersData.map(t => <option key={t.id} value={t.id}>{t.first_name} {t.last_name}</option>)}
-                </select>
-              </div>
-              {/* 💡 Room Selection */}
-              <div>
-                <FieldLabel required>Assign Room</FieldLabel>
-                <select value={newExam.room_name}
-                  onChange={e => setNewExam({ ...newExam, room_name: e.target.value })}
-                  onFocus={() => onFocus('room')} onBlur={() => onBlur('room')}
-                  style={selectStyle(focused.room)}>
-                  <option value="">— Select Room —</option>
-                  {roomsData.map(r => <option key={r.id} value={r.name || r.room_name}>{r.name || r.room_name}</option>)}
-                </select>
-              </div>
-              {/* Date */}
-              <div>
-                <FieldLabel required>Exam Date</FieldLabel>
-                <input type="date" value={newExam.date}
-                  onChange={e => setNewExam({ ...newExam, date: e.target.value })}
-                  onFocus={() => onFocus('date')} onBlur={() => onBlur('date')}
-                  style={inputStyle(focused.date)} />
-              </div>
-              {/* Time */}
-              <div>
-                <FieldLabel required>Start Time</FieldLabel>
-                <input type="time" value={newExam.time}
-                  onChange={e => setNewExam({ ...newExam, time: e.target.value })}
-                  onFocus={() => onFocus('time')} onBlur={() => onBlur('time')}
-                  style={inputStyle(focused.time)} />
-              </div>
-              {/* Duration */}
-              <div>
-                <FieldLabel>Duration (minutes)</FieldLabel>
-                <input type="number" value={newExam.duration}
-                  onChange={e => setNewExam({ ...newExam, duration: e.target.value })}
-                  onFocus={() => onFocus('duration')} onBlur={() => onBlur('duration')}
-                  placeholder="60" style={inputStyle(focused.duration)} />
-              </div>
+        <div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 20px', marginBottom: 16 }}>
+            {/* Title */}
+            <div>
+              <FieldLabel required>Exam Title</FieldLabel>
+              <input type="text" value={newExam.title}
+                onChange={e => setNewExam({ ...newExam, title: e.target.value })}
+                onFocus={() => onFocus('title')} onBlur={() => onBlur('title')}
+                placeholder="e.g. English Mid-Term"
+                style={inputStyle(focused.title)} />
             </div>
-
-            {/* Instructions */}
-            <div style={{ marginBottom: 28 }}>
-              <FieldLabel>Exam Instructions</FieldLabel>
-              <textarea
-                value={newExam.instructions}
-                onChange={e => setNewExam({ ...newExam, instructions: e.target.value })}
-                onFocus={() => onFocus('instr')} onBlur={() => onBlur('instr')}
-                rows={4} placeholder="Instructions for students..."
-                style={{
-                  width: '100%', padding: '12px 14px', resize: 'none',
-                  background: focused.instr ? T.white : T.pageBg,
-                  border: `1.5px solid ${focused.instr ? T.primary : T.borderMid}`,
-                  borderRadius: 10, fontSize: 13.5, outline: 'none',
-                  fontFamily: "'Inter','Segoe UI',sans-serif",
-                  color: T.textDark, lineHeight: 1.6, boxSizing: 'border-box',
-                  boxShadow: focused.instr ? '0 0 0 3px rgba(67,24,255,0.09)' : 'none',
-                  transition: 'all 0.2s',
-                }}
-              />
+            {/* Subject */}
+            <div>
+              <FieldLabel>Subject</FieldLabel>
+              <select value={newExam.subject}
+                onChange={e => setNewExam({ ...newExam, subject: e.target.value })}
+                onFocus={() => onFocus('subject')} onBlur={() => onBlur('subject')}
+                style={selectStyle(focused.subject)}>
+                <option>English</option><option>French</option><option>German</option>
+                <option>Spanish</option><option>Physics</option><option>Mathematics</option>
+              </select>
             </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: `1px solid ${T.border}`, paddingTop: 24 }}>
-              <PrimaryBtn onClick={() => {
-                if (!newExam.title || !newExam.class_name || !newExam.teacher_id || !newExam.room_name) {
-                  alert('Title, Class, Teacher, and Room are required!'); return;
-                }
-                setCreateStep(2);
-              }}>
-                Next Step <Icons.ChevronRight />
-              </PrimaryBtn>
+            {/* Class */}
+            <div>
+              <FieldLabel required>Class / Group</FieldLabel>
+              <select value={newExam.class_name}
+                onChange={e => setNewExam({ ...newExam, class_name: e.target.value })}
+                onFocus={() => onFocus('class')} onBlur={() => onBlur('class')}
+                style={selectStyle(focused.class)}>
+                <option value="">— Select Class —</option>
+                {classesData.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+              </select>
+            </div>
+            {/* Teacher */}
+            <div>
+              <FieldLabel required>Assign Teacher</FieldLabel>
+              <select value={newExam.teacher_id}
+                onChange={e => setNewExam({ ...newExam, teacher_id: e.target.value })}
+                onFocus={() => onFocus('teacher')} onBlur={() => onBlur('teacher')}
+                style={selectStyle(focused.teacher)}>
+                <option value="">— Select Teacher —</option>
+                {teachersData.map(t => <option key={t.id} value={t.id}>{t.first_name} {t.last_name}</option>)}
+              </select>
+            </div>
+            {/* Room Selection */}
+            <div>
+              <FieldLabel required>Assign Room</FieldLabel>
+              <select value={newExam.room_name}
+                onChange={e => setNewExam({ ...newExam, room_name: e.target.value })}
+                onFocus={() => onFocus('room')} onBlur={() => onBlur('room')}
+                style={selectStyle(focused.room)}>
+                <option value="">— Select Room —</option>
+                {roomsData.map(r => <option key={r.id} value={r.name || r.room_name}>{r.name || r.room_name}</option>)}
+              </select>
+            </div>
+            {/* Date */}
+            <div>
+              <FieldLabel required>Exam Date</FieldLabel>
+              <input type="date" value={newExam.date}
+                onChange={e => setNewExam({ ...newExam, date: e.target.value })}
+                onFocus={() => onFocus('date')} onBlur={() => onBlur('date')}
+                style={inputStyle(focused.date)} />
+            </div>
+            {/* Time */}
+            <div>
+              <FieldLabel required>Start Time</FieldLabel>
+              <input type="time" value={newExam.time}
+                onChange={e => setNewExam({ ...newExam, time: e.target.value })}
+                onFocus={() => onFocus('time')} onBlur={() => onBlur('time')}
+                style={inputStyle(focused.time)} />
+            </div>
+            {/* Duration */}
+            <div>
+              <FieldLabel>Duration (minutes)</FieldLabel>
+              <input type="number" value={newExam.duration}
+                onChange={e => setNewExam({ ...newExam, duration: e.target.value })}
+                onFocus={() => onFocus('duration')} onBlur={() => onBlur('duration')}
+                placeholder="60" style={inputStyle(focused.duration)} />
             </div>
           </div>
-        ) : (
-          <div>
-            <h3 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 700, color: T.textDark }}>Step 2 — Upload Exam PDF</h3>
-            <p style={{ margin: '0 0 28px', fontSize: 13, color: T.textMid }}>Upload the PDF containing your exam questions (max 5 MB).</p>
 
-            {/* Upload zone */}
-            <label style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-              border: `2px dashed ${T.primary}`, borderRadius: 14,
-              padding: '56px 32px', marginBottom: 32,
-              background: T.primaryLt, cursor: 'pointer',
-              transition: 'background 0.15s',
-            }}
-              onMouseEnter={e => e.currentTarget.style.background = '#e0e7ff'}
-              onMouseLeave={e => e.currentTarget.style.background = T.primaryLt}
+          {/* Instructions */}
+          <div style={{ marginBottom: 28 }}>
+            <FieldLabel>Exam Instructions</FieldLabel>
+            <textarea
+              value={newExam.instructions}
+              onChange={e => setNewExam({ ...newExam, instructions: e.target.value })}
+              onFocus={() => onFocus('instr')} onBlur={() => onBlur('instr')}
+              rows={4} placeholder="Instructions for students..."
+              style={{
+                width: '100%', padding: '12px 14px', resize: 'none',
+                background: focused.instr ? T.white : T.pageBg,
+                border: `1.5px solid ${focused.instr ? T.primary : T.borderMid}`,
+                borderRadius: 10, fontSize: 13.5, outline: 'none',
+                fontFamily: "'Inter','Segoe UI',sans-serif",
+                color: T.textDark, lineHeight: 1.6, boxSizing: 'border-box',
+                boxShadow: focused.instr ? '0 0 0 3px rgba(67,24,255,0.09)' : 'none',
+                transition: 'all 0.2s',
+              }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: `1px solid ${T.border}`, paddingTop: 24, gap: 12 }}>
+            <button onClick={resetFormAndGoBack}
+              style={{ background: 'none', border: 'none', fontSize: 13, fontWeight: 600, color: T.textMid, cursor: 'pointer', padding: '8px 12px', borderRadius: 8 }}
+              onMouseEnter={e => e.currentTarget.style.color = T.textDark}
+              onMouseLeave={e => e.currentTarget.style.color = T.textMid}
             >
-              <span style={{ color: T.primary, marginBottom: 14 }}><Icons.Upload /></span>
-              <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: T.textDark, marginBottom: 6 }}>Upload Exam PDF</p>
-              <p style={{ margin: 0, fontSize: 13, color: T.textMid, marginBottom: 16 }}>Drag & drop or click to browse</p>
-              <span style={{
-                display: 'inline-flex', alignItems: 'center', gap: 7,
-                padding: '8px 18px', borderRadius: 9,
-                border: `1.5px solid ${T.primary}`,
-                background: T.white, color: T.primary,
-                fontSize: 13, fontWeight: 700,
-              }}>
-                <Icons.Upload /> Choose PDF File
-              </span>
-              <input type="file" accept=".pdf" style={{ display: 'none' }} />
-            </label>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: `1px solid ${T.border}`, paddingTop: 24 }}>
-              <button onClick={() => setCreateStep(1)}
-                style={{ background: 'none', border: 'none', fontSize: 13, fontWeight: 600, color: T.textMid, cursor: 'pointer', padding: '8px 12px', borderRadius: 8 }}
-                onMouseEnter={e => e.currentTarget.style.color = T.textDark}
-                onMouseLeave={e => e.currentTarget.style.color = T.textMid}
-              >
-                ← Previous
-              </button>
-              <PrimaryBtn onClick={handleSaveExam} disabled={loading}>
-                {loading ? 'Saving...' : 'Finish & Save Exam'}
-              </PrimaryBtn>
-            </div>
+              Cancel
+            </button>
+            <PrimaryBtn onClick={handleSaveExam} disabled={loading}>
+              {loading ? 'Saving...' : newExam.id ? 'Save Changes' : 'Publish Exam'}
+            </PrimaryBtn>
           </div>
-        )}
+        </div>
       </Card>
     </div>
   );

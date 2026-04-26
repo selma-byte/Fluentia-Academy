@@ -63,7 +63,7 @@ const Payment = () => {
     setLoading(true);
     try {
       // جلب التلاميذ
-      const { data: studentsData } = await supabase.from('students').select('*');
+      const { data: studentsData } = await supabase.from('students').select('*').neq('status', 'Archived');
       
       // جلب كل الدفعات (تلاميذ + أساتذة)
       const { data: paymentsData } = await supabase
@@ -94,7 +94,9 @@ const Payment = () => {
       setPaymentHistory(studentPayments.map(p => ({
         id: p.id,
         date: new Date(p.payment_date || p.created_at).toLocaleDateString('en-GB'),
+        rawDate: new Date(p.payment_date || p.created_at), // 💡 نحتاجوها للفيريفيكاسيون تاع الشهر
         member: p.students ? `${p.students.first_name} ${p.students.last_name}` : p.member_name,
+        student_id: p.student_id, // 💡 للـ Verification
         amount: `${p.amount} DZD`,
         status: p.status,
         method: p.payment_method || 'Cash'
@@ -136,6 +138,22 @@ const Payment = () => {
       const student = members.find(m => m.id.toString() === selectedId.toString());
       if (!student) return;
 
+      // 💡 الميزة 2: التحقق من الدفع المزدوج (Double Payment Verification)
+      const currentMonth = new Date().getMonth();
+      const currentYear = new Date().getFullYear();
+      
+      const hasPaidThisMonth = paymentHistory.some(p => {
+        return p.student_id === selectedId && 
+               p.rawDate.getMonth() === currentMonth && 
+               p.rawDate.getFullYear() === currentYear;
+      });
+
+      if (hasPaidThisMonth) {
+        alert("⚠️ Error: This student has already paid for the current month! Please verify the records before adding a new payment.");
+        return; // نوقفو العملية
+      }
+
+      // إذا ماتخلصش، نفوتو العملية عادي
       const { error: payError } = await supabase.from('payments').insert([{
         student_id: selectedId, 
         member_name: student.name, 
@@ -158,6 +176,13 @@ const Payment = () => {
     const staff = staffList.find(s => s.id === id);
     if (!staff) return;
 
+    // 💡 الميزة 2: التحقق من الدفع المزدوج للأساتذة حسب الشهر المختار
+    const hasPaidThisMonth = staffHistory.some(h => h.name === staff.name && h.month === month);
+    if (hasPaidThisMonth) {
+      alert(`⚠️ Error: ${staff.name} has already received payroll for ${month}!`);
+      return;
+    }
+
     try {
       const { error } = await supabase.from('payments').insert([{
         member_name: staff.name,
@@ -173,13 +198,49 @@ const Payment = () => {
       setShowAddPaymentModal(false); setShowReceiptModal(true);
       showNotification(`Salary disbursed to ${staff.name} for ${month}`);
       
-      fetchData(); // تحديث القوائم باش يولي 'Paid'
+      fetchData(); 
     } catch (err) {
       showNotification("Payroll Error: " + err.message);
     }
   };
 
-  const notifyStudent = (name) => showNotification(`✅ Reminder sent successfully to: ${name}`);
+  // 💡 الميزة 3: إرسال إشعار الدفع أوتوماتيكياً
+  const notifyStudent = async (name, id) => {
+    try {
+      await supabase.from('communications').insert([{
+         type: 'notification',
+         subject: '⚠️ Payment Reminder',
+         content: `Dear ${name}, your monthly tuition payment is currently overdue. Please proceed to the administration desk to clear your balance.`,
+         recipient_name: name,
+         recipient_id: id,
+         sender_role: 'system'
+      }]);
+      showNotification(`✅ Reminder sent successfully to: ${name}`);
+    } catch(err) {
+      console.error(err);
+    }
+  };
+
+  const notifyAllOverdue = async () => {
+    const overdueStudents = members.filter(m => m.status === 'Overdue');
+    if(overdueStudents.length === 0) return alert("No overdue students found.");
+
+    try {
+      const payload = overdueStudents.map(student => ({
+         type: 'emergency',
+         subject: '🚨 URGENT: Overdue Payment',
+         content: `Dear ${student.name}, your account is overdue. Failure to clear your balance of ${student.balance} DZD may result in suspension of your account.`,
+         recipient_name: student.name,
+         recipient_id: student.id,
+         sender_role: 'system'
+      }));
+
+      await supabase.from('communications').insert(payload);
+      showNotification(`🔔 Automated payment reminders sent to ${overdueStudents.length} students!`);
+    } catch(err) {
+      console.error(err);
+    }
+  };
 
   // =======================================
   // 3. Dynamic Filters & Stats
@@ -195,7 +256,6 @@ const Payment = () => {
            (groupFilter === 'All' || m.group === groupFilter);
   });
 
-  // 💡 اللوجيك السحري: تفقد حالة دفع الأستاذ حسب الشهر المختار!
   const staffWithStatus = staffList.map(s => {
     const isPaid = staffHistory.some(h => h.name === s.name && h.month === monthFilter);
     return { ...s, status: isPaid ? 'Paid' : 'Pending' };
@@ -245,6 +305,22 @@ const Payment = () => {
             ))}
           </div>
 
+          {/* 💡 Overdue Alert Bar with Automatic Notify All */}
+          {overdueCount > 0 && (
+             <div className="mb-8 flex items-center justify-between rounded-xl border border-red-100 bg-red-50/50 p-4 shadow-sm transition-all hover:bg-red-50">
+               <div className="flex items-start">
+                 <span className="mr-3 mt-0.5 text-red-500">⚠</span>
+                 <div>
+                   <h4 className="text-sm font-bold text-red-800 underline-offset-2">{overdueCount} members have overdue payments</h4>
+                   <p className="mt-1 text-xs text-red-600 font-medium">Please follow up on outstanding balances to maintain membership status.</p>
+                 </div>
+               </div>
+               <button onClick={notifyAllOverdue} className="bg-red-600 text-white px-5 py-2.5 rounded-lg text-xs font-bold hover:bg-red-700 active:scale-95 transition-all shadow-sm cursor-pointer flex items-center">
+                 <span className="mr-2">🔔</span> Notify All
+               </button>
+             </div>
+          )}
+
           <div className="mb-6 flex flex-col xl:flex-row items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
             <h3 className="text-base font-bold text-[#0A1128]">Member Payment Status</h3>
             <div className="flex flex-wrap gap-3">
@@ -271,10 +347,11 @@ const Payment = () => {
                 {m.status !== 'Paid' ? (
                   <div className="flex gap-2 mt-6">
                     <button onClick={() => { setSelectedId(m.id); setPayAmount(m.balance); setShowAddPaymentModal(true); }} className="flex-1 bg-green-500 text-white py-3.5 rounded-2xl text-[10px] font-black shadow-lg cursor-pointer">✓ MARK PAID</button>
-                    <button onClick={() => notifyStudent(m.name)} className="bg-[#0A1128] text-white px-5 rounded-2xl shadow-lg hover:bg-slate-800 transition-all cursor-pointer flex items-center justify-center">🔔</button>
+                    {/* 💡 ربط Notification مع Student */}
+                    <button onClick={() => notifyStudent(m.name, m.id)} className="bg-[#0A1128] text-white px-5 rounded-2xl shadow-lg hover:bg-slate-800 transition-all cursor-pointer flex items-center justify-center">🔔</button>
                   </div>
                 ) : (
-                  <button onClick={() => { setReceiptData({ name: m.name, amount: "3000", method: "Cash", date: new Date().toLocaleString(), txn: `TXN-${m.id}` }); setShowReceiptModal(true); }} className="w-full mt-6 bg-gray-50 text-gray-500 py-3 rounded-2xl text-[10px] font-black italic hover:bg-gray-100 cursor-pointer">VIEW RECEIPT</button>
+                  <button onClick={() => { setReceiptData({ name: m.name, amount: "3000", method: "System", date: new Date().toLocaleString(), txn: `TXN-${m.id}` }); setShowReceiptModal(true); }} className="w-full mt-6 bg-gray-50 text-gray-500 py-3 rounded-2xl text-[10px] font-black italic hover:bg-gray-100 cursor-pointer">VIEW RECEIPT</button>
                 )}
               </div>
             ))}

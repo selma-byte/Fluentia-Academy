@@ -45,6 +45,7 @@ const Ic = {
   Check: () => <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
   ChevronRight: () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>,
   Sparkle: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>,
+  AlertCircle: () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
 };
 
 // ─── Reusable components ──────────────────────────────────────────────────────
@@ -288,22 +289,28 @@ const StatCard = ({ label, value, icon: Icon, iconBg, iconColor }) => (
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 const ParentPortal = () => {
-  // ── ALL ORIGINAL STATE — UNTOUCHED ──────────────────────────────────────
   const [chatMessages,     setChatMessages]     = useState([]);
   const [recentComms,      setRecentComms]      = useState([]);
   const [announcements,    setAnnouncements]    = useState([]);
+  
+  // 💡 State للشكاوي (Feedback / Complaints)
+  const [feedbackList,     setFeedbackList]     = useState([]);
+
   const [mainView,         setMainView]         = useState('portal');
   const [activeTab,        setActiveTab]        = useState('parents');
   const [modalView,        setModalView]        = useState(null);
   const [chatType,         setChatType]         = useState(null);
   const [newMessage,       setNewMessage]       = useState('');
   const [selectedRecipient,setSelectedRecipient]= useState(null);
+  
   const [studentsList,     setStudentsList]     = useState([]);
   const [staffList,        setStaffList]        = useState([]);
   const [parentsList,      setParentsList]      = useState([]);
   const [loading,          setLoading]          = useState(false);
+  
   const [currentUser,      setCurrentUser]      = useState(null);
   const [toast,            setToast]            = useState(null);
+  
   const [announcementForm, setAnnouncementForm] = useState({ title: '', content: '', priority: 'Medium' });
   const [notificationForm, setNotificationForm] = useState({ title: '', content: '' });
   const [parentForm,       setParentForm]       = useState({
@@ -316,18 +323,33 @@ const ParentPortal = () => {
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 4500); };
 
-  // ── ALL ORIGINAL SUPABASE LOGIC — COMPLETELY UNTOUCHED ──────────────────
+  // ── Fetch Data ──────────────────────────────────────────────────────────────
   const fetchData = async () => {
     setLoading(true);
     try {
+      // 💡 1. التعرف على المرسل (Sender Identity) 
       const { data: { user } } = await supabase.auth.getUser();
       if (user && user.email) {
         const { data: staffData } = await supabase.from('staff').select('*').eq('email', user.email).single();
-        if (staffData) setCurrentUser(staffData);
-        else setCurrentUser(user);
+        if (staffData) {
+          // إذا كان مسجل في جدول الموظفين (أدمين/سكريتيرة)
+          setCurrentUser({
+             id: staffData.id,
+             name: `${staffData.first_name} ${staffData.last_name}`,
+             role: staffData.role,
+             email: staffData.email
+          });
+        } else {
+          // مستخدم افتراضي للإدارة في حالة ملقاهش
+          setCurrentUser({ id: 'admin_sys', name: 'Administration', role: 'Admin', email: user.email });
+        }
       }
+
+      // جلب الموظفين
       const { data: sData }   = await supabase.from('staff').select('*');
       if (sData) setStaffList(sData);
+      
+      // جلب الطلاب و استخراج الأولياء
       const { data: stData }  = await supabase.from('students').select('*');
       if (stData) {
         setStudentsList(stData.filter(s => s.exam_type !== 'Parent_Account'));
@@ -342,12 +364,23 @@ const ParentPortal = () => {
         });
         setParentsList(Object.values(parentsMap));
       }
+
+      // جلب الإعلانات
       const { data: annData } = await supabase.from('communications').select('*').eq('type', 'announcement').order('created_at', { ascending: false });
       if (annData) setAnnouncements(annData);
-      const { data: commData }= await supabase.from('communications').select('*').neq('type', 'announcement').order('created_at', { ascending: false }).limit(6);
+      
+      // جلب الإشعارات العامة
+      const { data: commData }= await supabase.from('communications').select('*').neq('type', 'announcement').neq('type', 'complaint').neq('type', 'feedback').order('created_at', { ascending: false }).limit(6);
       if (commData) setRecentComms(commData);
-      const { data: msgData } = await supabase.from('communications').select('*').order('created_at', { ascending: true });
+      
+      // 💡 جلب الشكاوي والتعليقات (Feedback & Complaints)
+      const { data: feedData } = await supabase.from('communications').select('*').in('type', ['complaint', 'feedback']).order('created_at', { ascending: false });
+      if (feedData) setFeedbackList(feedData);
+
+      // جلب المراسلات المباشرة (Direct Messages)
+      const { data: msgData } = await supabase.from('communications').select('*').in('type', ['direct_message']).order('created_at', { ascending: true });
       if (msgData) setChatMessages(msgData);
+
     } catch (err) { console.error('Fetch Error:', err); }
     finally { setLoading(false); }
   };
@@ -378,10 +411,14 @@ const ParentPortal = () => {
   const handlePublishAnnouncement = async () => {
     if (!announcementForm.title || !announcementForm.content) return showToast('Please fill in the title and content.');
     const { error } = await supabase.from('communications').insert([{
-      subject: announcementForm.title, content: announcementForm.content,
-      type: 'announcement', recipient_name: getTargetAudienceString(),
-      recipient_id: 'all', sender_id: currentUser?.id,
-      sender_role: currentUser?.role?.toLowerCase() || 'admin',
+      subject: announcementForm.title, 
+      content: announcementForm.content,
+      type: 'announcement', 
+      recipient_name: getTargetAudienceString(),
+      recipient_id: 'all', 
+      sender_name: currentUser?.name || 'System', // 💡 تسجيل اسم المرسل
+      sender_id: currentUser?.id,
+      sender_role: currentUser?.role || 'Admin',
     }]);
     if (!error) { showToast('Announcement published successfully.'); setModalView(null); setAnnouncementForm({ title: '', content: '', priority: 'Medium' }); fetchData(); }
     else { showToast('Error publishing announcement.'); console.error(error); }
@@ -390,25 +427,35 @@ const ParentPortal = () => {
   const handleSendNotification = async () => {
     if (!notificationForm.title || !notificationForm.content) return showToast('Please fill in the title and content.');
     const { error } = await supabase.from('communications').insert([{
-      subject: notificationForm.title, content: notificationForm.content,
-      type: 'notification', recipient_name: getTargetAudienceString(),
-      recipient_id: 'all', sender_id: currentUser?.id,
-      sender_role: currentUser?.role?.toLowerCase() || 'admin',
+      subject: notificationForm.title, 
+      content: notificationForm.content,
+      type: 'notification', 
+      recipient_name: getTargetAudienceString(),
+      recipient_id: 'all', 
+      sender_name: currentUser?.name || 'System', // 💡 تسجيل اسم المرسل
+      sender_id: currentUser?.id,
+      sender_role: currentUser?.role || 'Admin',
     }]);
     if (!error) { showToast('Notification sent successfully.'); setModalView(null); setNotificationForm({ title: '', content: '' }); fetchData(); }
     else { showToast('Error sending notification.'); console.error(error); }
   };
 
+  // 💡 2. إرسال الرسائل المباشرة (Direct Messaging)
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !currentUser) return;
+    
     const { error } = await supabase.from('communications').insert([{
-      content: newMessage, type: chatType,
-      recipient_name: selectedRecipient?.name || 'Group Message',
-      recipient_id: selectedRecipient?.id?.toString() || 'all',
+      content: newMessage, 
+      type: 'direct_message', // تحديد أنها رسالة مباشرة
+      recipient_name: selectedRecipient?.name || 'Group',
+      recipient_id: selectedRecipient?.id?.toString() || selectedRecipient?.email,
+      sender_name: currentUser.name, // 💡 تسجيل اسم المرسل
       sender_id: currentUser.id,
-      sender_role: currentUser?.role?.toLowerCase() || 'admin',
+      sender_role: currentUser.role,
     }]);
+    
     if (!error) { setNewMessage(''); fetchData(); }
+    else { showToast('Error sending message.'); console.error(error); }
   };
 
   const handleAddParent = async (e) => {
@@ -438,6 +485,7 @@ const ParentPortal = () => {
     { key: 'staff',          label: 'Staff',          Icon: Ic.Staff    },
     { key: 'announcements',  label: 'Announcements',  Icon: Ic.Megaphone},
     { key: 'communications', label: 'Communications', Icon: Ic.Comm     },
+    { key: 'feedback',       label: 'Feedback & Complaints', Icon: Ic.AlertCircle }, // 💡 Tab جديد للشكاوي
   ];
 
   // ── Audience checkboxes ───────────────────────────────────────────────────
@@ -502,6 +550,7 @@ const ParentPortal = () => {
               </Td>
               <Td><StatusBadge /></Td>
               <Td center>
+                {/* 💡 ربط زر المراسلة */}
                 <ActionBtn icon={Ic.Chat} title="Send message" onClick={() => { setMainView('chat'); setChatType('parent'); setSelectedRecipient({ id: parent.email, name: parent.name, role: 'Parent', email: parent.email, phone: parent.phone }); }} />
               </Td>
             </tr>
@@ -546,6 +595,7 @@ const ParentPortal = () => {
               <Td><span style={{ fontSize: 13, color: C.textMid }}>{student.group_name || 'No Group'}</span></Td>
               <Td><StatusBadge /></Td>
               <Td center>
+                {/* 💡 ربط زر المراسلة */}
                 <ActionBtn icon={Ic.Chat} title="Send message" onClick={() => { setMainView('chat'); setChatType('student_individual'); setSelectedRecipient({ id: student.id, name: `${student.first_name} ${student.last_name}`, role: 'Student', email: student.email, phone: student.phone, level: student.level }); }} />
               </Td>
             </tr>
@@ -589,6 +639,7 @@ const ParentPortal = () => {
               <Td><span style={{ fontSize: 13, color: C.textMid }}>{staff.department || 'General'}</span></Td>
               <Td><StatusBadge /></Td>
               <Td center>
+                {/* 💡 ربط زر المراسلة */}
                 <ActionBtn icon={Ic.Chat} title="Send message" onClick={() => { setMainView('chat'); setChatType('staff_individual'); setSelectedRecipient({ id: staff.id, name: `${staff.first_name} ${staff.last_name}`, role: staff.role, email: staff.email, phone: staff.phone, dept: staff.department }); }} />
               </Td>
             </tr>
@@ -625,7 +676,7 @@ const ParentPortal = () => {
               </div>
               <p style={{ margin: 0, fontSize: 13, color: '#a16207', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{ann.content}</p>
               <p style={{ margin: '8px 0 0', fontSize: 11, color: '#b45309' }}>
-                Published by <strong style={{ textTransform: 'capitalize' }}>{ann.sender_role || 'System'}</strong> &nbsp;·&nbsp; {new Date(ann.created_at).toLocaleDateString()}
+                Published by <strong style={{ textTransform: 'capitalize' }}>{ann.sender_name || ann.sender_role || 'System'}</strong> &nbsp;·&nbsp; {new Date(ann.created_at).toLocaleDateString()}
               </p>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 10, flexShrink: 0 }}>
@@ -697,7 +748,7 @@ const ParentPortal = () => {
                   <td style={{ padding: '12px 8px' }}>
                     <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textDark }}>{comm.subject || comm.content}</p>
                     <p style={{ margin: '2px 0 0', fontSize: 11, color: C.textMuted, textTransform: 'capitalize' }}>
-                      To: {comm.recipient_name} &nbsp;·&nbsp; {comm.type} &nbsp;·&nbsp; By: {comm.sender_role}
+                      To: {comm.recipient_name} &nbsp;·&nbsp; {comm.type} &nbsp;·&nbsp; By: {comm.sender_name || comm.sender_role}
                     </p>
                   </td>
                   <td style={{ padding: '12px 8px', textAlign: 'right', fontSize: 11, color: C.textMuted, whiteSpace: 'nowrap' }}>
@@ -715,6 +766,52 @@ const ParentPortal = () => {
     </div>
   );
 
+  // 💡 3. ميزة الشكاوي (Feedback & Complaints Tab)
+  const renderFeedbackTab = () => (
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+        <div>
+          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: C.textDark }}>Feedback & Complaints</h3>
+          <p style={{ margin: '3px 0 0', fontSize: 12, color: C.textMuted }}>Review issues and suggestions submitted by parents or students</p>
+        </div>
+      </div>
+      <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12, paddingRight: 2 }}>
+        {feedbackList.length > 0 ? feedbackList.map(item => (
+          <div key={item.id} style={{
+            background: item.type === 'complaint' ? C.dangerBg : '#f0fdf4', 
+            border: `1px solid ${item.type === 'complaint' ? '#fecaca' : '#bbf7d0'}`,
+            borderRadius: 12, padding: '16px 18px',
+            borderLeft: `4px solid ${item.type === 'complaint' ? C.danger : C.success}`,
+            display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16,
+          }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <span style={{ color: item.type === 'complaint' ? C.danger : C.success }}><Ic.AlertCircle /></span>
+                <h4 style={{ margin: 0, fontSize: 13.5, fontWeight: 700, color: C.textDark }}>{item.subject || 'No Subject'}</h4>
+                <span style={{ fontSize: 10, fontWeight: 700, background: '#fff', color: item.type === 'complaint' ? C.danger : C.success, padding: '2px 8px', borderRadius: 6, border: `1px solid ${item.type === 'complaint' ? '#fecaca' : '#bbf7d0'}` }}>
+                  {item.type.toUpperCase()}
+                </span>
+              </div>
+              <p style={{ margin: 0, fontSize: 13, color: C.textDark, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{item.content}</p>
+              <p style={{ margin: '8px 0 0', fontSize: 11, color: C.textMuted }}>
+                Submitted by: <strong style={{ color: C.textDark }}>{item.sender_name || 'Anonymous'}</strong> &nbsp;·&nbsp; {new Date(item.created_at).toLocaleDateString()}
+              </p>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 10, flexShrink: 0 }}>
+              <ActionBtn icon={Ic.Trash} danger title="Dismiss" onClick={async () => {
+                if (window.confirm('Dismiss this feedback?')) { await supabase.from('communications').delete().eq('id', item.id); fetchData(); }
+              }} />
+            </div>
+          </div>
+        )) : (
+          <div style={{ textAlign: 'center', padding: '64px 0', color: C.textMuted, fontSize: 13, fontWeight: 600 }}>
+            No feedback or complaints received yet.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   // ── Chat view ─────────────────────────────────────────────────────────────
   const renderChatView = () => {
     const isBulk = chatType === 'smart' || chatType === 'staff';
@@ -722,14 +819,16 @@ const ParentPortal = () => {
       ? (chatType === 'smart' ? 'Broadcast Message' : 'Send to All Staff')
       : selectedRecipient?.name || 'Conversation';
 
+    // 💡 فلترة الرسائل (Direct Messaging)
     const displayMessages = chatMessages.filter(msg => {
       if (selectedRecipient && currentUser) {
         const myId    = currentUser.id;
         const theirId = selectedRecipient.id.toString();
-        if (myId === theirId) return msg.sender_id === myId || msg.recipient_id === myId;
-        return (msg.sender_id === myId && msg.recipient_id === theirId) || (msg.sender_id === theirId && msg.recipient_id === myId);
+        // إما أنا بعثتلو، أو هو بعثلي
+        return (msg.sender_id === myId && msg.recipient_id === theirId) || 
+               (msg.sender_id === theirId && msg.recipient_id === myId);
       }
-      return msg.type === chatType;
+      return false; // إذا ماكانش Recipient محدد (ما عدا في حالة Bulk)
     });
 
     return (
@@ -911,7 +1010,7 @@ const ParentPortal = () => {
               <StatCard label="Total Students" value={studentsList.length} icon={Ic.Student} iconBg="#eff6ff" iconColor="#2563eb" />
               <StatCard label="Staff Members"  value={staffList.length}   icon={Ic.Staff}   iconBg="#f0fdf4" iconColor={C.success} />
               <StatCard label="Broadcasts"     value={announcements.length} icon={Ic.Megaphone} iconBg={C.warningBg} iconColor={C.warning} />
-              <StatCard label="Portal Status"  value="Active"             icon={Ic.Check}   iconBg={C.successBg} iconColor={C.success} />
+              <StatCard label="Feedback"       value={feedbackList.length}  icon={Ic.AlertCircle}  iconBg={C.dangerBg} iconColor={C.danger} />
             </div>
 
             {/* Tab bar */}
@@ -924,6 +1023,7 @@ const ParentPortal = () => {
               {activeTab === 'staff'          && renderStaffTab()}
               {activeTab === 'announcements'  && renderAnnouncementsTab()}
               {activeTab === 'communications' && renderCommunicationsTab()}
+              {activeTab === 'feedback'       && renderFeedbackTab()}
             </div>
           </div>
         )}

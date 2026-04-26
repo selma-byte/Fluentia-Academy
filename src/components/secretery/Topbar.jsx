@@ -89,7 +89,7 @@ const NotifItem = ({ icon: Icon, iconBg, iconColor, title, desc, badge, onClick 
     <div style={{
       width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
       background: iconBg, color: iconColor,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', // 🔥 تم تصحيح الخطأ هنا (كانت justify-content)
     }}>
       <Icon />
     </div>
@@ -168,13 +168,15 @@ const Topbar = ({ setActiveTab }) => {
   const [hasUnread, setHasUnread]                   = useState(false); 
   const [isAttendanceModalOpen, setIsAttendanceModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-  const [selectedData, setSelectedData]             = useState({ name: '', amount: '', course: '', hasParent: true });
+  const [selectedData, setSelectedData]             = useState({ id: '', name: '', amount: '', course: '', hasParent: true });
   
   const [notifications, setNotifications]           = useState([]); 
+  const [currentUser, setCurrentUser]               = useState({ name: 'Secretary', role: 'Secretary', initials: 'SE' });
 
   const notifRef  = useRef(null);
   const profileRef = useRef(null);
 
+  // Close dropdowns on outside click
   useEffect(() => {
     const handler = e => {
       if (notifRef.current  && !notifRef.current.contains(e.target))  setActiveDropdown(prev => prev === 'notifications' ? null : prev);
@@ -184,12 +186,30 @@ const Topbar = ({ setActiveTab }) => {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  // 💡 جلب معلومات المستخدم الحالي (السكريتيرة)
+  useEffect(() => {
+    const fetchUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user && user.email) {
+        const { data: staffData } = await supabase.from('staff').select('*').eq('email', user.email).single();
+        if (staffData) {
+          setCurrentUser({
+            name: staffData.first_name,
+            role: staffData.role,
+            initials: `${staffData.first_name[0]}${staffData.last_name[0]}`.toUpperCase()
+          });
+        }
+      }
+    };
+    fetchUser();
+  }, []);
+
   // 💡 الحساب المباشر من جدول الحضور (attendance)
   const fetchDynamicNotifications = async () => {
     try {
       let alerts = [];
 
-      // 1. حساب الغيابات مباشرة من attendance! 🔥 مستحيل يغلط
+      // 1. حساب الغيابات مباشرة من attendance! 🔥
       const { data: absLogs } = await supabase.from('attendance').select('student_id, student_name').eq('status', 'Absent');
       
       if (absLogs && absLogs.length > 0) {
@@ -210,6 +230,7 @@ const Topbar = ({ setActiveTab }) => {
               desc: `${absenceCounts[studentId].name} missed ${absenceCounts[studentId].count} sessions.`,
               badge: 'Send alert',
               name: absenceCounts[studentId].name,
+              targetId: studentId,
               hasParent: true 
             });
           }
@@ -226,6 +247,7 @@ const Topbar = ({ setActiveTab }) => {
             title: `Late payment — ${s.first_name} ${s.last_name}`,
             desc: `3000 DZD outstanding for ${s.language} ${s.level || ''}.`,
             name: `${s.first_name} ${s.last_name}`,
+            targetId: s.id,
             course: `${s.language} ${s.level || ''}`,
             amount: '3000 DZD',
             hasParent: !!s.parent_email
@@ -279,18 +301,55 @@ const Topbar = ({ setActiveTab }) => {
     setActiveDropdown(null);
   };
 
-  const triggerAttendanceAlert = (name, hasParent = true) => {
-    setSelectedData({ name, amount: '', course: '', hasParent });
+  const triggerAttendanceAlert = (name, targetId, hasParent = true) => {
+    setSelectedData({ id: targetId, name, amount: '', course: '', hasParent });
     setIsAttendanceModalOpen(true);
     setActiveDropdown(null);
   };
 
-  const triggerPaymentAlert = (name, amount, course, hasParent = false) => {
-    setSelectedData({ name, amount, course, hasParent });
+  const triggerPaymentAlert = (name, targetId, amount, course, hasParent = false) => {
+    setSelectedData({ id: targetId, name, amount, course, hasParent });
     setIsPaymentModalOpen(true);
     setActiveDropdown(null);
   };
 
+  // 💡 إرسال إنذار الغياب للداتا باز (باسم السكريتيرة)
+  const sendAttendanceAlert = async () => {
+    try {
+      await supabase.from('communications').insert([{
+         type: 'emergency',
+         subject: '🚨 URGENT: Attendance Warning',
+         content: `Dear ${selectedData.hasParent ? 'Parent' : selectedData.name}, we have noticed repeated absences (2 or more) from the recent sessions. Please contact the administration immediately to justify the absence.`,
+         recipient_name: selectedData.name,
+         recipient_id: selectedData.id,
+         sender_role: 'system' // Keep it system to show as official alert
+      }]);
+      alert(`✅ Alert sent successfully to ${selectedData.name}!`);
+      setIsAttendanceModalOpen(false);
+    } catch(err) {
+      console.error(err);
+    }
+  };
+
+  // 💡 إرسال إنذار الدفع للداتا باز
+  const sendPaymentAlert = async () => {
+    try {
+      await supabase.from('communications').insert([{
+         type: 'notification',
+         subject: '⚠️ Payment Reminder',
+         content: `Dear ${selectedData.hasParent ? 'Parent' : selectedData.name}, please be reminded that the amount of ${selectedData.amount} for the ${selectedData.course} course is outstanding. Kindly proceed with the payment at your earliest convenience.`,
+         recipient_name: selectedData.name,
+         recipient_id: selectedData.id,
+         sender_role: 'system'
+      }]);
+      alert(`✅ Payment reminder sent to ${selectedData.name}!`);
+      setIsPaymentModalOpen(false);
+    } catch(err) {
+      console.error(err);
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
   return (
     <>
       <header style={{
@@ -301,6 +360,7 @@ const Topbar = ({ setActiveTab }) => {
         boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
       }}>
 
+        {/* ── Search ── */}
         <div style={{ position: 'relative', width: '100%', maxWidth: 400 }}>
           <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }}>
             <Icons.Search />
@@ -319,8 +379,10 @@ const Topbar = ({ setActiveTab }) => {
           />
         </div>
 
+        {/* ── Right side ── */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
 
+          {/* ── Bell / Notifications ── */}
           <div ref={notifRef} style={{ position: 'relative' }}>
             <button
               onClick={e => toggleDropdown(e, 'notifications')}
@@ -342,6 +404,7 @@ const Topbar = ({ setActiveTab }) => {
               )}
             </button>
 
+            {/* Notifications dropdown */}
             {activeDropdown === 'notifications' && (
               <div style={{
                 position: 'absolute', top: 'calc(100% + 10px)', right: 0,
@@ -370,10 +433,10 @@ const Topbar = ({ setActiveTab }) => {
                   ) : (
                      notifications.map(n => {
                         if (n.type === 'absence') {
-                           return <NotifItem key={n.id} icon={Icons.AlertTriangle} iconBg="#fee2e2" iconColor="#dc2626" title={n.title} desc={n.desc} badge={n.badge} onClick={() => triggerAttendanceAlert(n.name, n.hasParent)} />
+                           return <NotifItem key={n.id} icon={Icons.AlertTriangle} iconBg="#fee2e2" iconColor="#dc2626" title={n.title} desc={n.desc} badge={n.badge} onClick={() => triggerAttendanceAlert(n.name, n.targetId, n.hasParent)} />
                         }
                         if (n.type === 'payment') {
-                           return <NotifItem key={n.id} icon={Icons.DollarSign} iconBg="#fff7ed" iconColor="#f97316" title={n.title} desc={n.desc} onClick={() => triggerPaymentAlert(n.name, n.amount, n.course, n.hasParent)} />
+                           return <NotifItem key={n.id} icon={Icons.DollarSign} iconBg="#fff7ed" iconColor="#f97316" title={n.title} desc={n.desc} onClick={() => triggerPaymentAlert(n.name, n.targetId, n.amount, n.course, n.hasParent)} />
                         }
                         if (n.type === 'registration') {
                            return <NotifItem key={n.id} icon={Icons.UserPlus} iconBg="#f5f3ff" iconColor="#7c3aed" title={n.title} desc={n.desc} onClick={() => handleNavigation(n.tabTarget)} />
@@ -400,13 +463,14 @@ const Topbar = ({ setActiveTab }) => {
 
           <div style={{ width: 1, height: 28, background: '#f1f5f9' }} />
 
+          {/* ── Profile ── */}
           <div ref={profileRef} style={{ position: 'relative' }}>
             <div
               onClick={e => toggleDropdown(e, 'profile')}
               style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
               <div style={{ textAlign: 'right' }}>
-                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#1e293b' }}>Marwa</p>
-                <p style={{ margin: 0, fontSize: 11, color: '#94a3b8' }}>Secretary</p>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{currentUser.name}</p>
+                <p style={{ margin: 0, fontSize: 11, color: '#94a3b8' }}>{currentUser.role}</p>
               </div>
               <div style={{
                 width: 38, height: 38, borderRadius: 10,
@@ -414,10 +478,11 @@ const Topbar = ({ setActiveTab }) => {
                 color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 13, fontWeight: 800, boxShadow: '0 2px 8px rgba(67,24,255,0.25)',
               }}>
-                MA
+                {currentUser.initials}
               </div>
             </div>
 
+            {/* Profile dropdown */}
             {activeDropdown === 'profile' && (
               <div style={{
                 position: 'absolute', top: 'calc(100% + 10px)', right: 0,
@@ -495,7 +560,7 @@ const Topbar = ({ setActiveTab }) => {
           }}
         />
         <button
-          onClick={() => { setIsAttendanceModalOpen(false); handleNavigation('Communicate Parents'); }}
+          onClick={sendAttendanceAlert}
           style={{
             width: '100%', marginTop: 14, padding: '12px 0', borderRadius: 10, border: 'none',
             background: '#dc2626', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
@@ -546,7 +611,7 @@ const Topbar = ({ setActiveTab }) => {
           }}
         />
         <button
-          onClick={() => { setIsPaymentModalOpen(false); handleNavigation('Payment'); }}
+          onClick={sendPaymentAlert}
           style={{
             width: '100%', marginTop: 14, padding: '12px 0', borderRadius: 10, border: 'none',
             background: '#f97316', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',

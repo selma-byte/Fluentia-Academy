@@ -233,7 +233,7 @@ const documentsList = [
   { id: 'completion', category: 'Academic Documents',       title: 'Level Completion Certificate', desc: 'Certificate for a successfully completed language level.',      target: 'Student' },
   { id: 'transcript', category: 'Academic Documents',       title: 'Grade Report / Transcript',    desc: 'Official academic transcript and grades record.',              target: 'Student' },
   { id: 'placement',  category: 'Academic Documents',       title: 'Placement Test Result',        desc: 'Student placement test results and assigned level.',           target: 'Student' },
-  { id: 'receipt',    category: 'Administrative Documents', title: 'Payment Receipt',              desc: 'Official payment receipt for tuition and fees.',              target: 'Admin'   },
+  { id: 'receipt',    category: 'Administrative Documents', title: 'Payment Receipt',              desc: 'Official payment receipt for tuition and fees.',               target: 'Admin'   },
   { id: 'warning',    category: 'Administrative Documents', title: 'Absence Warning Letter',       desc: 'Formal warning letter for excessive absences.',               target: 'Admin'   },
   { id: 'schedule',   category: 'Administrative Documents', title: 'Personal Schedule',            desc: 'Personalized class schedule issued to a student.',            target: 'Student' },
   { id: 'work_cert',  category: 'Faculty Documents',        title: 'Work Certificate',             desc: 'Official employment verification for faculty members.',       target: 'Faculty' },
@@ -248,7 +248,6 @@ const categoryBadge = {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 const Documents = () => {
-  // ── ALL ORIGINAL STATE — UNTOUCHED ───────────────────────────────────────
   const [activeTab,      setActiveTab]      = useState('All');
   const [selectedDocId,  setSelectedDocId]  = useState('enrollment');
   const [isGenerated,    setIsGenerated]    = useState(false);
@@ -256,17 +255,37 @@ const Documents = () => {
   const [toast,          setToast]          = useState({ show: false, message: '' });
   const [currentUser,    setCurrentUser]    = useState(null);
   const [formData,       setFormData]       = useState({ searchQuery: '', fullName: '', courseLevel: '', date: '' });
+  
+  // 💡 States للبحث المباشر في قاعدة البيانات
+  const [suggestionsList, setSuggestionsList] = useState([]);
+  const [filteredSuggestions, setFilteredSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
-  // ── ALL ORIGINAL SUPABASE LOGIC — COMPLETELY UNTOUCHED ───────────────────
   useEffect(() => {
-    const fetchUser = async () => {
+    const fetchUserAndSuggestions = async () => {
+      // 1. جلب معلومات المستخدم الحالي
       const { data: { user } } = await supabase.auth.getUser();
       if (user && user.email) {
         const { data: staffData } = await supabase.from('staff').select('*').eq('email', user.email).single();
         setCurrentUser(staffData || user);
       }
+
+      // 2. 💡 جلب جميع الأسماء (طلبة وأساتذة) لاستعمالها في البحث
+      let allSuggestions = [];
+      
+      const { data: students } = await supabase.from('students').select('first_name, last_name');
+      if (students) {
+        students.forEach(s => allSuggestions.push({ name: `${s.first_name} ${s.last_name}`, type: 'Student' }));
+      }
+
+      const { data: staff } = await supabase.from('staff').select('first_name, last_name, role');
+      if (staff) {
+        staff.forEach(s => allSuggestions.push({ name: `${s.first_name} ${s.last_name}`, type: s.role }));
+      }
+      
+      setSuggestionsList(allSuggestions);
     };
-    fetchUser();
+    fetchUserAndSuggestions();
   }, []);
 
   const showNotification = (msg) => {
@@ -277,6 +296,23 @@ const Documents = () => {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+
+    // 💡 لوجيك البحث المباشر
+    if (name === 'fullName') {
+      if (value.length > 0) {
+        const filtered = suggestionsList.filter(item => item.name.toLowerCase().includes(value.toLowerCase()));
+        setFilteredSuggestions(filtered);
+        setShowSuggestions(true);
+      } else {
+        setShowSuggestions(false);
+      }
+    }
+  };
+
+  // 💡 اختيار اسم من قائمة الاقتراحات
+  const handleSelectSuggestion = (name) => {
+    setFormData(prev => ({ ...prev, fullName: name }));
+    setShowSuggestions(false);
   };
 
   const handleGenerate = async (e) => {
@@ -302,7 +338,6 @@ const Documents = () => {
   };
 
   const handlePrint = () => window.print();
-  // ─────────────────────────────────────────────────────────────────────────
 
   const filteredDocs = documentsList.filter(doc => {
     const matchesTab    = activeTab === 'All' || doc.target === activeTab;
@@ -322,6 +357,7 @@ const Documents = () => {
     setSelectedDocId(id);
     setIsGenerated(false);
     setFormData({ searchQuery: '', fullName: '', courseLevel: '', date: '' });
+    setShowSuggestions(false); // إخفاء الاقتراحات عند تغيير الوثيقة
   };
 
   const renderPreview = () => {
@@ -503,38 +539,58 @@ const Documents = () => {
             <div className="doc-sb" style={{ flex: 1, overflowY: 'auto', padding: '22px 20px' }}>
               <form onSubmit={handleGenerate} noValidate style={{ display: 'flex', flexDirection: 'column', gap: 20, height: '100%' }}>
 
-                {/* Full name + Find */}
+                {/* 💡 Full name + Smart Search Dropdown */}
                 <div>
                   <FieldLabel icon={Ic.User}>Person Name</FieldLabel>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <div style={{ position: 'relative', flex: 1 }}>
-                      <span style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: C.textMuted, pointerEvents: 'none', display: 'flex' }}>
-                        <Ic.Search />
-                      </span>
-                      <input
-                        type="text" name="fullName"
-                        value={formData.fullName}
-                        onChange={handleInputChange}
-                        placeholder="Enter full name…"
-                        style={{ ...inputBase, paddingLeft: 32, height: 40, fontSize: 13 }}
-                        onFocus={handleFocus} onBlur={handleBlur}
-                      />
+                  <div style={{ position: 'relative' }}>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <div style={{ position: 'relative', flex: 1 }}>
+                        <span style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: C.textMuted, pointerEvents: 'none', display: 'flex' }}>
+                          <Ic.Search />
+                        </span>
+                        <input
+                          type="text" name="fullName"
+                          value={formData.fullName}
+                          onChange={handleInputChange}
+                          placeholder="Search registered name…"
+                          style={{ ...inputBase, paddingLeft: 32, height: 40, fontSize: 13 }}
+                          onFocus={handleFocus} 
+                          onBlur={(e) => {
+                            handleBlur(e);
+                            // تأخير صغير باش نقدر نكليكي على الاقتراح قبل ما يختفي
+                            setTimeout(() => setShowSuggestions(false), 200); 
+                          }}
+                        />
+                      </div>
                     </div>
-                    <button type="submit"
-                      style={{
-                        padding: '0 14px', borderRadius: 9,
-                        border: `1.5px solid ${C.borderMid}`,
-                        background: C.pageBg, color: C.textDark,
-                        fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                        transition: 'all 0.15s', whiteSpace: 'nowrap',
-                        fontFamily: "'Inter','Segoe UI',sans-serif",
-                        height: 40,
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.background = C.primaryLight; e.currentTarget.style.borderColor = '#c7d2fe'; e.currentTarget.style.color = C.primary; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = C.pageBg; e.currentTarget.style.borderColor = C.borderMid; e.currentTarget.style.color = C.textDark; }}
-                    >
-                      Find
-                    </button>
+                    
+                    {/* 💡 الاقتراحات اللي تخرج تحت الخانة */}
+                    {showSuggestions && filteredSuggestions.length > 0 && (
+                      <div style={{ 
+                        position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, 
+                        background: '#fff', border: `1px solid ${C.borderMid}`, borderRadius: 10, 
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 50, maxHeight: 200, overflowY: 'auto' 
+                      }}>
+                        {filteredSuggestions.map((s, idx) => (
+                          <div 
+                            key={idx} 
+                            onClick={() => handleSelectSuggestion(s.name)}
+                            style={{ 
+                              padding: '10px 14px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                              borderBottom: idx !== filteredSuggestions.length - 1 ? `1px solid ${C.border}` : 'none',
+                              transition: 'background 0.15s'
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.background = C.pageBg}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                          >
+                            <span style={{ fontSize: 13, fontWeight: 600, color: C.textDark }}>{s.name}</span>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: s.type === 'Student' ? C.primary : C.success, background: s.type === 'Student' ? C.primaryLight : C.successBg, padding: '2px 8px', borderRadius: 12 }}>
+                              {s.type}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
