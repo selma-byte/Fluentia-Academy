@@ -115,17 +115,11 @@ const Toast = ({ message, onClose }) => (
     animation: 'slideUp 0.3s cubic-bezier(.4,0,.2,1) both',
     fontFamily: "'Inter','Segoe UI',sans-serif",
   }}>
-    <span style={{
-      width: 34, height: 34, borderRadius: 9,
-      background: C.primary, display: 'flex',
-      alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-    }}>
+    <span style={{ width: 34, height: 34, borderRadius: 9, background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
       <Ic.Sparkle />
     </span>
     <div style={{ flex: 1 }}>
-      <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.55)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-        System Update
-      </p>
+      <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.55)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>System Update</p>
       <p style={{ margin: '2px 0 0', fontSize: 13, fontWeight: 600, color: '#fff' }}>{message}</p>
     </div>
     <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', padding: 4, display: 'flex', alignItems: 'center' }}
@@ -154,7 +148,6 @@ const Modal = ({ title, subtitle, onClose, children, accentColor }) => (
       border: `1px solid ${C.border}`,
       overflow: 'hidden', maxHeight: '90vh', display: 'flex', flexDirection: 'column',
     }}>
-      {/* Modal header */}
       <div style={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         padding: '20px 24px', borderBottom: `1px solid ${C.border}`,
@@ -247,20 +240,27 @@ const SearchBar = ({ placeholder }) => (
 
 // ─── Tab bar ──────────────────────────────────────────────────────────────────
 const TabBar = ({ tabs, active, onChange }) => (
-  <div style={{ display: 'flex', gap: 2, background: C.pageBg, borderRadius: 10, padding: 4, border: `1px solid ${C.border}`, width: 'fit-content', marginBottom: 22, flexShrink: 0 }}>
+  <div style={{
+    display: 'flex', gap: 2,
+    borderBottom: `1px solid ${C.border}`,
+    marginBottom: 24, flexShrink: 0,
+  }}>
     {tabs.map(tab => {
       const isActive = active === tab.key;
       return (
         <button key={tab.key} onClick={() => onChange(tab.key)}
           style={{
             display: 'flex', alignItems: 'center', gap: 7,
-            padding: '8px 16px', borderRadius: 8, border: 'none',
-            fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
+            padding: '10px 16px', border: 'none',
+            borderBottom: isActive ? `2px solid ${C.primary}` : '2px solid transparent',
+            marginBottom: -1,
+            fontSize: 13, fontWeight: 700, cursor: 'pointer',
             transition: 'all 0.15s',
-            background: isActive ? C.white : 'transparent',
+            background: 'transparent',
             color: isActive ? C.primary : C.textMuted,
-            boxShadow: isActive ? '0 1px 6px rgba(0,0,0,0.08)' : 'none',
           }}
+          onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = C.textDark; }}
+          onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = C.textMuted; }}
         >
           <span style={{ color: isActive ? C.primary : C.textMuted }}><tab.Icon /></span>
           {tab.label}
@@ -273,15 +273,15 @@ const TabBar = ({ tabs, active, onChange }) => (
 // ─── Stat card ────────────────────────────────────────────────────────────────
 const StatCard = ({ label, value, icon: Icon, iconBg, iconColor }) => (
   <div style={{
-    background: C.white, borderRadius: 12, padding: '18px 20px',
+    background: C.white, borderRadius: 16, padding: '20px 24px',
     border: `1px solid ${C.border}`, boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
     display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
   }}>
     <div>
-      <p style={{ margin: 0, fontSize: 10.5, fontWeight: 700, color: C.textMuted, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{label}</p>
-      <p style={{ margin: '6px 0 0', fontSize: 26, fontWeight: 800, color: C.textDark, lineHeight: 1 }}>{value}</p>
+      <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: C.textMuted, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{label}</p>
+      <p style={{ margin: '6px 0 0', fontSize: 28, fontWeight: 800, color: C.textDark, lineHeight: 1 }}>{value}</p>
     </div>
-    <div style={{ width: 38, height: 38, borderRadius: 10, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: iconColor }}>
+    <div style={{ width: 40, height: 40, borderRadius: 12, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: iconColor }}>
       <Icon />
     </div>
   </div>
@@ -289,31 +289,25 @@ const StatCard = ({ label, value, icon: Icon, iconBg, iconColor }) => (
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 const ParentPortal = () => {
-  const [chatMessages,     setChatMessages]     = useState([]);
-  const [recentComms,      setRecentComms]      = useState([]);
-  const [announcements,    setAnnouncements]    = useState([]);
-  
-  // 💡 State للشكاوي (Feedback / Complaints)
-  const [feedbackList,     setFeedbackList]     = useState([]);
-
-  const [mainView,         setMainView]         = useState('portal');
-  const [activeTab,        setActiveTab]        = useState('parents');
-  const [modalView,        setModalView]        = useState(null);
-  const [chatType,         setChatType]         = useState(null);
-  const [newMessage,       setNewMessage]       = useState('');
-  const [selectedRecipient,setSelectedRecipient]= useState(null);
-  
-  const [studentsList,     setStudentsList]     = useState([]);
-  const [staffList,        setStaffList]        = useState([]);
-  const [parentsList,      setParentsList]      = useState([]);
-  const [loading,          setLoading]          = useState(false);
-  
-  const [currentUser,      setCurrentUser]      = useState(null);
-  const [toast,            setToast]            = useState(null);
-  
-  const [announcementForm, setAnnouncementForm] = useState({ title: '', content: '', priority: 'Medium' });
-  const [notificationForm, setNotificationForm] = useState({ title: '', content: '' });
-  const [parentForm,       setParentForm]       = useState({
+  const [chatMessages,      setChatMessages]      = useState([]);
+  const [recentComms,       setRecentComms]       = useState([]);
+  const [announcements,     setAnnouncements]     = useState([]);
+  const [feedbackList,      setFeedbackList]      = useState([]);
+  const [mainView,          setMainView]          = useState('portal');
+  const [activeTab,         setActiveTab]         = useState('parents');
+  const [modalView,         setModalView]         = useState(null);
+  const [chatType,          setChatType]          = useState(null);
+  const [newMessage,        setNewMessage]        = useState('');
+  const [selectedRecipient, setSelectedRecipient] = useState(null);
+  const [studentsList,      setStudentsList]      = useState([]);
+  const [staffList,         setStaffList]         = useState([]);
+  const [parentsList,       setParentsList]       = useState([]);
+  const [loading,           setLoading]           = useState(false);
+  const [currentUser,       setCurrentUser]       = useState(null);
+  const [toast,             setToast]             = useState(null);
+  const [announcementForm,  setAnnouncementForm]  = useState({ title: '', content: '', priority: 'Medium' });
+  const [notificationForm,  setNotificationForm]  = useState({ title: '', content: '' });
+  const [parentForm,        setParentForm]        = useState({
     firstName: '', lastName: '', email: '', phone: '',
     address: '', occupation: '', relationship: 'Select relationship', emergency: false,
   });
@@ -323,34 +317,22 @@ const ParentPortal = () => {
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 4500); };
 
-  // ── Fetch Data ──────────────────────────────────────────────────────────────
+  // ── Fetch Data — UNTOUCHED ────────────────────────────────────────────────
   const fetchData = async () => {
     setLoading(true);
     try {
-      // 💡 1. التعرف على المرسل (Sender Identity) 
       const { data: { user } } = await supabase.auth.getUser();
       if (user && user.email) {
         const { data: staffData } = await supabase.from('staff').select('*').eq('email', user.email).single();
         if (staffData) {
-          // إذا كان مسجل في جدول الموظفين (أدمين/سكريتيرة)
-          setCurrentUser({
-             id: staffData.id,
-             name: `${staffData.first_name} ${staffData.last_name}`,
-             role: staffData.role,
-             email: staffData.email
-          });
+          setCurrentUser({ id: staffData.id, name: `${staffData.first_name} ${staffData.last_name}`, role: staffData.role, email: staffData.email });
         } else {
-          // مستخدم افتراضي للإدارة في حالة ملقاهش
           setCurrentUser({ id: 'admin_sys', name: 'Administration', role: 'Admin', email: user.email });
         }
       }
-
-      // جلب الموظفين
-      const { data: sData }   = await supabase.from('staff').select('*');
+      const { data: sData }    = await supabase.from('staff').select('*');
       if (sData) setStaffList(sData);
-      
-      // جلب الطلاب و استخراج الأولياء
-      const { data: stData }  = await supabase.from('students').select('*');
+      const { data: stData }   = await supabase.from('students').select('*');
       if (stData) {
         setStudentsList(stData.filter(s => s.exam_type !== 'Parent_Account'));
         const parentsMap = {};
@@ -364,29 +346,21 @@ const ParentPortal = () => {
         });
         setParentsList(Object.values(parentsMap));
       }
-
-      // جلب الإعلانات
-      const { data: annData } = await supabase.from('communications').select('*').eq('type', 'announcement').order('created_at', { ascending: false });
+      const { data: annData }  = await supabase.from('communications').select('*').eq('type', 'announcement').order('created_at', { ascending: false });
       if (annData) setAnnouncements(annData);
-      
-      // جلب الإشعارات العامة
-      const { data: commData }= await supabase.from('communications').select('*').neq('type', 'announcement').neq('type', 'complaint').neq('type', 'feedback').order('created_at', { ascending: false }).limit(6);
+      const { data: commData } = await supabase.from('communications').select('*').neq('type', 'announcement').neq('type', 'complaint').neq('type', 'feedback').order('created_at', { ascending: false }).limit(6);
       if (commData) setRecentComms(commData);
-      
-      // 💡 جلب الشكاوي والتعليقات (Feedback & Complaints)
       const { data: feedData } = await supabase.from('communications').select('*').in('type', ['complaint', 'feedback']).order('created_at', { ascending: false });
       if (feedData) setFeedbackList(feedData);
-
-      // جلب المراسلات المباشرة (Direct Messages)
-      const { data: msgData } = await supabase.from('communications').select('*').in('type', ['direct_message']).order('created_at', { ascending: true });
+      const { data: msgData }  = await supabase.from('communications').select('*').in('type', ['direct_message']).order('created_at', { ascending: true });
       if (msgData) setChatMessages(msgData);
-
     } catch (err) { console.error('Fetch Error:', err); }
     finally { setLoading(false); }
   };
 
   useEffect(() => { fetchData(); }, []);
 
+  // ── All handlers — UNTOUCHED ──────────────────────────────────────────────
   const handleAudienceChange = (audience) => {
     if (audience === 'all') {
       setSelectedAudiences({ all: true, students: false, parents: false, staff: false, teacher: false, admin: false });
@@ -411,14 +385,10 @@ const ParentPortal = () => {
   const handlePublishAnnouncement = async () => {
     if (!announcementForm.title || !announcementForm.content) return showToast('Please fill in the title and content.');
     const { error } = await supabase.from('communications').insert([{
-      subject: announcementForm.title, 
-      content: announcementForm.content,
-      type: 'announcement', 
-      recipient_name: getTargetAudienceString(),
-      recipient_id: 'all', 
-      sender_name: currentUser?.name || 'System', // 💡 تسجيل اسم المرسل
-      sender_id: currentUser?.id,
-      sender_role: currentUser?.role || 'Admin',
+      subject: announcementForm.title, content: announcementForm.content,
+      type: 'announcement', recipient_name: getTargetAudienceString(),
+      recipient_id: 'all', sender_name: currentUser?.name || 'System',
+      sender_id: currentUser?.id, sender_role: currentUser?.role || 'Admin',
     }]);
     if (!error) { showToast('Announcement published successfully.'); setModalView(null); setAnnouncementForm({ title: '', content: '', priority: 'Medium' }); fetchData(); }
     else { showToast('Error publishing announcement.'); console.error(error); }
@@ -427,33 +397,23 @@ const ParentPortal = () => {
   const handleSendNotification = async () => {
     if (!notificationForm.title || !notificationForm.content) return showToast('Please fill in the title and content.');
     const { error } = await supabase.from('communications').insert([{
-      subject: notificationForm.title, 
-      content: notificationForm.content,
-      type: 'notification', 
-      recipient_name: getTargetAudienceString(),
-      recipient_id: 'all', 
-      sender_name: currentUser?.name || 'System', // 💡 تسجيل اسم المرسل
-      sender_id: currentUser?.id,
-      sender_role: currentUser?.role || 'Admin',
+      subject: notificationForm.title, content: notificationForm.content,
+      type: 'notification', recipient_name: getTargetAudienceString(),
+      recipient_id: 'all', sender_name: currentUser?.name || 'System',
+      sender_id: currentUser?.id, sender_role: currentUser?.role || 'Admin',
     }]);
     if (!error) { showToast('Notification sent successfully.'); setModalView(null); setNotificationForm({ title: '', content: '' }); fetchData(); }
     else { showToast('Error sending notification.'); console.error(error); }
   };
 
-  // 💡 2. إرسال الرسائل المباشرة (Direct Messaging)
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !currentUser) return;
-    
     const { error } = await supabase.from('communications').insert([{
-      content: newMessage, 
-      type: 'direct_message', // تحديد أنها رسالة مباشرة
+      content: newMessage, type: 'direct_message',
       recipient_name: selectedRecipient?.name || 'Group',
       recipient_id: selectedRecipient?.id?.toString() || selectedRecipient?.email,
-      sender_name: currentUser.name, // 💡 تسجيل اسم المرسل
-      sender_id: currentUser.id,
-      sender_role: currentUser.role,
+      sender_name: currentUser.name, sender_id: currentUser.id, sender_role: currentUser.role,
     }]);
-    
     if (!error) { setNewMessage(''); fetchData(); }
     else { showToast('Error sending message.'); console.error(error); }
   };
@@ -477,35 +437,29 @@ const ParentPortal = () => {
       fetchData();
     } catch (err) { showToast('Error: ' + err.message); }
   };
-  // ─────────────────────────────────────────────────────────────────────────
 
   const tabs = [
-    { key: 'parents',        label: 'Parents',        Icon: Ic.Users    },
-    { key: 'students',       label: 'Students',       Icon: Ic.Student  },
-    { key: 'staff',          label: 'Staff',          Icon: Ic.Staff    },
-    { key: 'announcements',  label: 'Announcements',  Icon: Ic.Megaphone},
-    { key: 'communications', label: 'Communications', Icon: Ic.Comm     },
-    { key: 'feedback',       label: 'Feedback & Complaints', Icon: Ic.AlertCircle }, // 💡 Tab جديد للشكاوي
+    { key: 'parents',        label: 'Parents',               Icon: Ic.Users       },
+    { key: 'students',       label: 'Students',              Icon: Ic.Student     },
+    { key: 'staff',          label: 'Staff',                 Icon: Ic.Staff       },
+    { key: 'announcements',  label: 'Announcements',         Icon: Ic.Megaphone   },
+    { key: 'communications', label: 'Communications',        Icon: Ic.Comm        },
+    { key: 'feedback',       label: 'Feedback & Complaints', Icon: Ic.AlertCircle },
   ];
 
-  // ── Audience checkboxes ───────────────────────────────────────────────────
   const AudienceRow = ({ keys }) => (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, background: C.pageBg, padding: '12px 14px', borderRadius: 10, border: `1px solid ${C.border}` }}>
       {keys.map(({ key, label }) => (
         <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: 600, color: C.textDark, cursor: 'pointer', userSelect: 'none' }}>
-          <input
-            type="checkbox"
-            checked={selectedAudiences[key]}
-            onChange={() => handleAudienceChange(key)}
-            style={{ width: 15, height: 15, accentColor: C.primary, cursor: 'pointer' }}
-          />
+          <input type="checkbox" checked={selectedAudiences[key]} onChange={() => handleAudienceChange(key)}
+            style={{ width: 15, height: 15, accentColor: C.primary, cursor: 'pointer' }} />
           {label}
         </label>
       ))}
     </div>
   );
 
-  // ── Render tabs ───────────────────────────────────────────────────────────
+  // ── Tab renderers — UNTOUCHED logic, only wrapper spacing fixed ───────────
   const renderParentsTab = () => (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18 }}>
@@ -513,46 +467,19 @@ const ParentPortal = () => {
           <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: C.textDark }}>Parent Directory</h3>
           <p style={{ margin: '3px 0 0', fontSize: 12, color: C.textMuted }}>Manage parent and guardian information</p>
         </div>
-        <PrimaryBtn onClick={() => setModalView('addParent')}>
-          <Ic.Plus /> Add Parent
-        </PrimaryBtn>
+        <PrimaryBtn onClick={() => setModalView('addParent')}><Ic.Plus /> Add Parent</PrimaryBtn>
       </div>
       <SearchBar placeholder="Search parents by name or student..." />
       <TableWrap>
-        <thead>
-          <tr>
-            <Th>Parent / Guardian</Th><Th>Contact Info</Th>
-            <Th>Enrolled Students</Th><Th>Status</Th><Th center>Actions</Th>
-          </tr>
-        </thead>
+        <thead><tr><Th>Parent / Guardian</Th><Th>Contact Info</Th><Th>Enrolled Students</Th><Th>Status</Th><Th center>Actions</Th></tr></thead>
         <tbody>
           {parentsList.length > 0 ? parentsList.map((parent, idx) => (
-            <tr key={idx} style={{ transition: 'background 0.12s' }}
-              onMouseEnter={e => e.currentTarget.style.background = C.pageBg}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-            >
-              <Td>
-                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textDark }}>{parent.name}</p>
-                <p style={{ margin: '2px 0 0', fontSize: 11, color: C.textMuted }}>Parent / Guardian</p>
-              </Td>
-              <Td>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.textMid }}><Ic.Mail /> {parent.email}</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.textMid }}><Ic.Phone /> {parent.phone}</span>
-                </div>
-              </Td>
-              <Td>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                  {parent.kids.map((kid, kIdx) => (
-                    <span key={kIdx} style={{ background: C.primaryLight, color: C.primary, padding: '2px 9px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{kid}</span>
-                  ))}
-                </div>
-              </Td>
+            <tr key={idx} onMouseEnter={e => e.currentTarget.style.background = C.pageBg} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              <Td><p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textDark }}>{parent.name}</p><p style={{ margin: '2px 0 0', fontSize: 11, color: C.textMuted }}>Parent / Guardian</p></Td>
+              <Td><div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}><span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.textMid }}><Ic.Mail /> {parent.email}</span><span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.textMid }}><Ic.Phone /> {parent.phone}</span></div></Td>
+              <Td><div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>{parent.kids.map((kid, kIdx) => (<span key={kIdx} style={{ background: C.primaryLight, color: C.primary, padding: '2px 9px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{kid}</span>))}</div></Td>
               <Td><StatusBadge /></Td>
-              <Td center>
-                {/* 💡 ربط زر المراسلة */}
-                <ActionBtn icon={Ic.Chat} title="Send message" onClick={() => { setMainView('chat'); setChatType('parent'); setSelectedRecipient({ id: parent.email, name: parent.name, role: 'Parent', email: parent.email, phone: parent.phone }); }} />
-              </Td>
+              <Td center><ActionBtn icon={Ic.Chat} title="Send message" onClick={() => { setMainView('chat'); setChatType('parent'); setSelectedRecipient({ id: parent.email, name: parent.name, role: 'Parent', email: parent.email, phone: parent.phone }); }} /></Td>
             </tr>
           )) : (
             <tr><td colSpan="5" style={{ padding: '48px 0', textAlign: 'center', color: C.textMuted, fontSize: 13, fontWeight: 600 }}>No parents found. Register students to auto-generate parents.</td></tr>
@@ -564,40 +491,19 @@ const ParentPortal = () => {
 
   const renderStudentsTab = () => (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-      <div style={{ marginBottom: 18 }}>
-        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: C.textDark }}>Student Directory</h3>
-        <p style={{ margin: '3px 0 0', fontSize: 12, color: C.textMuted }}>Manage student contact information</p>
-      </div>
+      <div style={{ marginBottom: 18 }}><h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: C.textDark }}>Student Directory</h3><p style={{ margin: '3px 0 0', fontSize: 12, color: C.textMuted }}>Manage student contact information</p></div>
       <SearchBar placeholder="Search students by name..." />
       <TableWrap>
-        <thead>
-          <tr>
-            <Th>Student Name</Th><Th>Contact Info</Th>
-            <Th>Course</Th><Th>Group</Th><Th>Status</Th><Th center>Actions</Th>
-          </tr>
-        </thead>
+        <thead><tr><Th>Student Name</Th><Th>Contact Info</Th><Th>Course</Th><Th>Group</Th><Th>Status</Th><Th center>Actions</Th></tr></thead>
         <tbody>
           {studentsList.map(student => (
-            <tr key={student.id} style={{ transition: 'background 0.12s' }}
-              onMouseEnter={e => e.currentTarget.style.background = C.pageBg}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-            >
-              <Td>
-                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textDark }}>{student.first_name} {student.last_name}</p>
-              </Td>
-              <Td>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.textMid }}><Ic.Mail /> {student.email}</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.textMid }}><Ic.Phone /> {student.phone}</span>
-                </div>
-              </Td>
+            <tr key={student.id} onMouseEnter={e => e.currentTarget.style.background = C.pageBg} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              <Td><p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textDark }}>{student.first_name} {student.last_name}</p></Td>
+              <Td><div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}><span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.textMid }}><Ic.Mail /> {student.email}</span><span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.textMid }}><Ic.Phone /> {student.phone}</span></div></Td>
               <Td><span style={{ fontSize: 13, fontWeight: 600, color: C.textDark }}>{student.language || 'N/A'} <span style={{ color: C.textMuted }}>({student.level || '-'})</span></span></Td>
               <Td><span style={{ fontSize: 13, color: C.textMid }}>{student.group_name || 'No Group'}</span></Td>
               <Td><StatusBadge /></Td>
-              <Td center>
-                {/* 💡 ربط زر المراسلة */}
-                <ActionBtn icon={Ic.Chat} title="Send message" onClick={() => { setMainView('chat'); setChatType('student_individual'); setSelectedRecipient({ id: student.id, name: `${student.first_name} ${student.last_name}`, role: 'Student', email: student.email, phone: student.phone, level: student.level }); }} />
-              </Td>
+              <Td center><ActionBtn icon={Ic.Chat} title="Send message" onClick={() => { setMainView('chat'); setChatType('student_individual'); setSelectedRecipient({ id: student.id, name: `${student.first_name} ${student.last_name}`, role: 'Student', email: student.email, phone: student.phone, level: student.level }); }} /></Td>
             </tr>
           ))}
         </tbody>
@@ -607,41 +513,19 @@ const ParentPortal = () => {
 
   const renderStaffTab = () => (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-      <div style={{ marginBottom: 18 }}>
-        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: C.textDark }}>Staff Directory</h3>
-        <p style={{ margin: '3px 0 0', fontSize: 12, color: C.textMuted }}>Manage school staff information</p>
-      </div>
+      <div style={{ marginBottom: 18 }}><h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: C.textDark }}>Staff Directory</h3><p style={{ margin: '3px 0 0', fontSize: 12, color: C.textMuted }}>Manage school staff information</p></div>
       <SearchBar placeholder="Search staff by name or role..." />
       <TableWrap>
-        <thead>
-          <tr>
-            <Th>Staff Member</Th><Th>Contact</Th>
-            <Th>Role</Th><Th>Department</Th><Th>Status</Th><Th center>Actions</Th>
-          </tr>
-        </thead>
+        <thead><tr><Th>Staff Member</Th><Th>Contact</Th><Th>Role</Th><Th>Department</Th><Th>Status</Th><Th center>Actions</Th></tr></thead>
         <tbody>
           {staffList.map(staff => (
-            <tr key={staff.id} style={{ transition: 'background 0.12s' }}
-              onMouseEnter={e => e.currentTarget.style.background = C.pageBg}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-            >
-              <Td>
-                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textDark }}>{staff.first_name} {staff.last_name}</p>
-                <p style={{ margin: '2px 0 0', fontSize: 11, color: C.textMuted }}>{staff.role}</p>
-              </Td>
-              <Td>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.textMid }}><Ic.Mail /> {staff.email}</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.textMid }}><Ic.Phone /> {staff.phone}</span>
-                </div>
-              </Td>
+            <tr key={staff.id} onMouseEnter={e => e.currentTarget.style.background = C.pageBg} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              <Td><p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textDark }}>{staff.first_name} {staff.last_name}</p><p style={{ margin: '2px 0 0', fontSize: 11, color: C.textMuted }}>{staff.role}</p></Td>
+              <Td><div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}><span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.textMid }}><Ic.Mail /> {staff.email}</span><span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.textMid }}><Ic.Phone /> {staff.phone}</span></div></Td>
               <Td><span style={{ fontSize: 13, fontWeight: 600, color: C.textDark }}>{staff.role}</span></Td>
               <Td><span style={{ fontSize: 13, color: C.textMid }}>{staff.department || 'General'}</span></Td>
               <Td><StatusBadge /></Td>
-              <Td center>
-                {/* 💡 ربط زر المراسلة */}
-                <ActionBtn icon={Ic.Chat} title="Send message" onClick={() => { setMainView('chat'); setChatType('staff_individual'); setSelectedRecipient({ id: staff.id, name: `${staff.first_name} ${staff.last_name}`, role: staff.role, email: staff.email, phone: staff.phone, dept: staff.department }); }} />
-              </Td>
+              <Td center><ActionBtn icon={Ic.Chat} title="Send message" onClick={() => { setMainView('chat'); setChatType('staff_individual'); setSelectedRecipient({ id: staff.id, name: `${staff.first_name} ${staff.last_name}`, role: staff.role, email: staff.email, phone: staff.phone, dept: staff.department }); }} /></Td>
             </tr>
           ))}
         </tbody>
@@ -652,22 +536,12 @@ const ParentPortal = () => {
   const renderAnnouncementsTab = () => (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
-        <div>
-          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: C.textDark }}>Announcements</h3>
-          <p style={{ margin: '3px 0 0', fontSize: 12, color: C.textMuted }}>School-wide announcements and notices</p>
-        </div>
-        <PrimaryBtn onClick={() => setModalView('newAnnouncement')}>
-          <Ic.Plus /> New Announcement
-        </PrimaryBtn>
+        <div><h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: C.textDark }}>Announcements</h3><p style={{ margin: '3px 0 0', fontSize: 12, color: C.textMuted }}>School-wide announcements and notices</p></div>
+        <PrimaryBtn onClick={() => setModalView('newAnnouncement')}><Ic.Plus /> New Announcement</PrimaryBtn>
       </div>
       <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12, paddingRight: 2 }}>
         {announcements.length > 0 ? announcements.map(ann => (
-          <div key={ann.id} style={{
-            background: C.warningBg, border: `1px solid #fde68a`,
-            borderRadius: 12, padding: '16px 18px',
-            borderLeft: `4px solid ${C.warning}`,
-            display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16,
-          }}>
+          <div key={ann.id} style={{ background: C.warningBg, border: `1px solid #fde68a`, borderRadius: 12, padding: '16px 18px', borderLeft: `4px solid ${C.warning}`, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                 <span style={{ color: C.warning }}><Ic.Pin /></span>
@@ -675,23 +549,15 @@ const ParentPortal = () => {
                 <span style={{ fontSize: 10, fontWeight: 700, background: '#fef3c7', color: C.warning, padding: '2px 8px', borderRadius: 6, border: '1px solid #fde68a' }}>Announcement</span>
               </div>
               <p style={{ margin: 0, fontSize: 13, color: '#a16207', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{ann.content}</p>
-              <p style={{ margin: '8px 0 0', fontSize: 11, color: '#b45309' }}>
-                Published by <strong style={{ textTransform: 'capitalize' }}>{ann.sender_name || ann.sender_role || 'System'}</strong> &nbsp;·&nbsp; {new Date(ann.created_at).toLocaleDateString()}
-              </p>
+              <p style={{ margin: '8px 0 0', fontSize: 11, color: '#b45309' }}>Published by <strong style={{ textTransform: 'capitalize' }}>{ann.sender_name || ann.sender_role || 'System'}</strong> &nbsp;·&nbsp; {new Date(ann.created_at).toLocaleDateString()}</p>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 10, flexShrink: 0 }}>
-              <ActionBtn icon={Ic.Trash} danger title="Delete" onClick={async () => {
-                if (window.confirm('Delete this announcement?')) { await supabase.from('communications').delete().eq('id', ann.id); fetchData(); }
-              }} />
-              <span style={{ fontSize: 11, fontWeight: 700, background: 'rgba(255,255,255,0.6)', color: '#92400e', border: '1px solid #fde68a', padding: '2px 10px', borderRadius: 6 }}>
-                {ann.recipient_name || 'All'}
-              </span>
+              <ActionBtn icon={Ic.Trash} danger title="Delete" onClick={async () => { if (window.confirm('Delete this announcement?')) { await supabase.from('communications').delete().eq('id', ann.id); fetchData(); } }} />
+              <span style={{ fontSize: 11, fontWeight: 700, background: 'rgba(255,255,255,0.6)', color: '#92400e', border: '1px solid #fde68a', padding: '2px 10px', borderRadius: 6 }}>{ann.recipient_name || 'All'}</span>
             </div>
           </div>
         )) : (
-          <div style={{ textAlign: 'center', padding: '64px 0', color: C.textMuted, fontSize: 13, fontWeight: 600 }}>
-            No announcements published yet.
-          </div>
+          <div style={{ textAlign: 'center', padding: '64px 0', color: C.textMuted, fontSize: 13, fontWeight: 600 }}>No announcements published yet.</div>
         )}
       </div>
     </div>
@@ -699,66 +565,34 @@ const ParentPortal = () => {
 
   const renderCommunicationsTab = () => (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-      <div style={{ marginBottom: 20 }}>
-        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: C.textDark }}>Communications</h3>
-        <p style={{ margin: '3px 0 0', fontSize: 12, color: C.textMuted }}>Send messages and notifications to parents, students, or staff</p>
-      </div>
+      <div style={{ marginBottom: 20 }}><h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: C.textDark }}>Communications</h3><p style={{ margin: '3px 0 0', fontSize: 12, color: C.textMuted }}>Send messages and notifications to parents, students, or staff</p></div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
-        {/* Targeted */}
         <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 12, padding: '18px 20px', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
           <h4 style={{ margin: '0 0 14px', fontSize: 13, fontWeight: 700, color: C.textDark }}>Targeted Messages</h4>
-          <PrimaryBtn style={{ width: '100%', justifyContent: 'center' }} onClick={() => { setMainView('chat'); setChatType('smart'); setSelectedRecipient(null); }}>
-            <Ic.Chat /> Send Message
-          </PrimaryBtn>
+          <PrimaryBtn style={{ width: '100%', justifyContent: 'center' }} onClick={() => { setMainView('chat'); setChatType('smart'); setSelectedRecipient(null); }}><Ic.Chat /> Send Message</PrimaryBtn>
         </div>
-        {/* Bulk */}
         <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 12, padding: '18px 20px', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
           <h4 style={{ margin: '0 0 14px', fontSize: 13, fontWeight: 700, color: C.textDark }}>Bulk Communications</h4>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <OutlineBtn style={{ justifyContent: 'center', width: '100%' }} onClick={() => { setMainView('chat'); setChatType('staff'); setSelectedRecipient(null); }}>
-              <Ic.Staff /> Send to Staff
-            </OutlineBtn>
-            <button
-              onClick={() => setModalView('newNotification')}
-              style={{
-                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                padding: '9px 16px', borderRadius: 9, border: `1.5px solid #ddd6fe`,
-                background: C.purpleBg, color: C.purple,
-                fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#ede9fe'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = C.purpleBg; }}
-            >
+            <OutlineBtn style={{ justifyContent: 'center', width: '100%' }} onClick={() => { setMainView('chat'); setChatType('staff'); setSelectedRecipient(null); }}><Ic.Staff /> Send to Staff</OutlineBtn>
+            <button onClick={() => setModalView('newNotification')} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '9px 16px', borderRadius: 9, border: `1.5px solid #ddd6fe`, background: C.purpleBg, color: C.purple, fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s', fontFamily: "'Inter','Segoe UI',sans-serif" }} onMouseEnter={e => e.currentTarget.style.background = '#ede9fe'} onMouseLeave={e => e.currentTarget.style.background = C.purpleBg}>
               <Ic.Bell /> Send Notification
             </button>
           </div>
         </div>
       </div>
-      {/* Recent comms table */}
       <div style={{ flex: 1, background: C.white, border: `1px solid ${C.border}`, borderRadius: 12, padding: '18px 20px', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         <h4 style={{ margin: '0 0 14px', fontSize: 13, fontWeight: 700, color: C.textDark, flexShrink: 0 }}>Recent Communications</h4>
         <div style={{ flex: 1, overflowY: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <tbody>
               {recentComms.map(comm => (
-                <tr key={comm.id} style={{ transition: 'background 0.12s', borderBottom: `1px solid ${C.border}` }}
-                  onMouseEnter={e => e.currentTarget.style.background = C.pageBg}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                >
-                  <td style={{ padding: '12px 8px' }}>
-                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textDark }}>{comm.subject || comm.content}</p>
-                    <p style={{ margin: '2px 0 0', fontSize: 11, color: C.textMuted, textTransform: 'capitalize' }}>
-                      To: {comm.recipient_name} &nbsp;·&nbsp; {comm.type} &nbsp;·&nbsp; By: {comm.sender_name || comm.sender_role}
-                    </p>
-                  </td>
-                  <td style={{ padding: '12px 8px', textAlign: 'right', fontSize: 11, color: C.textMuted, whiteSpace: 'nowrap' }}>
-                    {new Date(comm.created_at).toLocaleString()}
-                  </td>
+                <tr key={comm.id} style={{ borderBottom: `1px solid ${C.border}` }} onMouseEnter={e => e.currentTarget.style.background = C.pageBg} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                  <td style={{ padding: '12px 8px' }}><p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textDark }}>{comm.subject || comm.content}</p><p style={{ margin: '2px 0 0', fontSize: 11, color: C.textMuted, textTransform: 'capitalize' }}>To: {comm.recipient_name} &nbsp;·&nbsp; {comm.type} &nbsp;·&nbsp; By: {comm.sender_name || comm.sender_role}</p></td>
+                  <td style={{ padding: '12px 8px', textAlign: 'right', fontSize: 11, color: C.textMuted, whiteSpace: 'nowrap' }}>{new Date(comm.created_at).toLocaleString()}</td>
                 </tr>
               ))}
-              {recentComms.length === 0 && (
-                <tr><td style={{ padding: '40px 0', textAlign: 'center', color: C.textMuted, fontSize: 13 }}>No recent communications</td></tr>
-              )}
+              {recentComms.length === 0 && <tr><td style={{ padding: '40px 0', textAlign: 'center', color: C.textMuted, fontSize: 13 }}>No recent communications</td></tr>}
             </tbody>
           </table>
         </div>
@@ -766,204 +600,97 @@ const ParentPortal = () => {
     </div>
   );
 
-  // 💡 3. ميزة الشكاوي (Feedback & Complaints Tab)
   const renderFeedbackTab = () => (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
-        <div>
-          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: C.textDark }}>Feedback & Complaints</h3>
-          <p style={{ margin: '3px 0 0', fontSize: 12, color: C.textMuted }}>Review issues and suggestions submitted by parents or students</p>
-        </div>
+        <div><h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: C.textDark }}>Feedback & Complaints</h3><p style={{ margin: '3px 0 0', fontSize: 12, color: C.textMuted }}>Review issues and suggestions submitted by parents or students</p></div>
       </div>
       <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12, paddingRight: 2 }}>
         {feedbackList.length > 0 ? feedbackList.map(item => (
-          <div key={item.id} style={{
-            background: item.type === 'complaint' ? C.dangerBg : '#f0fdf4', 
-            border: `1px solid ${item.type === 'complaint' ? '#fecaca' : '#bbf7d0'}`,
-            borderRadius: 12, padding: '16px 18px',
-            borderLeft: `4px solid ${item.type === 'complaint' ? C.danger : C.success}`,
-            display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16,
-          }}>
+          <div key={item.id} style={{ background: item.type === 'complaint' ? C.dangerBg : '#f0fdf4', border: `1px solid ${item.type === 'complaint' ? '#fecaca' : '#bbf7d0'}`, borderRadius: 12, padding: '16px 18px', borderLeft: `4px solid ${item.type === 'complaint' ? C.danger : C.success}`, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                 <span style={{ color: item.type === 'complaint' ? C.danger : C.success }}><Ic.AlertCircle /></span>
                 <h4 style={{ margin: 0, fontSize: 13.5, fontWeight: 700, color: C.textDark }}>{item.subject || 'No Subject'}</h4>
-                <span style={{ fontSize: 10, fontWeight: 700, background: '#fff', color: item.type === 'complaint' ? C.danger : C.success, padding: '2px 8px', borderRadius: 6, border: `1px solid ${item.type === 'complaint' ? '#fecaca' : '#bbf7d0'}` }}>
-                  {item.type.toUpperCase()}
-                </span>
+                <span style={{ fontSize: 10, fontWeight: 700, background: '#fff', color: item.type === 'complaint' ? C.danger : C.success, padding: '2px 8px', borderRadius: 6, border: `1px solid ${item.type === 'complaint' ? '#fecaca' : '#bbf7d0'}` }}>{item.type.toUpperCase()}</span>
               </div>
               <p style={{ margin: 0, fontSize: 13, color: C.textDark, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{item.content}</p>
-              <p style={{ margin: '8px 0 0', fontSize: 11, color: C.textMuted }}>
-                Submitted by: <strong style={{ color: C.textDark }}>{item.sender_name || 'Anonymous'}</strong> &nbsp;·&nbsp; {new Date(item.created_at).toLocaleDateString()}
-              </p>
+              <p style={{ margin: '8px 0 0', fontSize: 11, color: C.textMuted }}>Submitted by: <strong style={{ color: C.textDark }}>{item.sender_name || 'Anonymous'}</strong> &nbsp;·&nbsp; {new Date(item.created_at).toLocaleDateString()}</p>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 10, flexShrink: 0 }}>
-              <ActionBtn icon={Ic.Trash} danger title="Dismiss" onClick={async () => {
-                if (window.confirm('Dismiss this feedback?')) { await supabase.from('communications').delete().eq('id', item.id); fetchData(); }
-              }} />
-            </div>
+            <ActionBtn icon={Ic.Trash} danger title="Dismiss" onClick={async () => { if (window.confirm('Dismiss this feedback?')) { await supabase.from('communications').delete().eq('id', item.id); fetchData(); } }} />
           </div>
         )) : (
-          <div style={{ textAlign: 'center', padding: '64px 0', color: C.textMuted, fontSize: 13, fontWeight: 600 }}>
-            No feedback or complaints received yet.
-          </div>
+          <div style={{ textAlign: 'center', padding: '64px 0', color: C.textMuted, fontSize: 13, fontWeight: 600 }}>No feedback or complaints received yet.</div>
         )}
       </div>
     </div>
   );
 
-  // ── Chat view ─────────────────────────────────────────────────────────────
+  // ── Chat view — UNTOUCHED ─────────────────────────────────────────────────
   const renderChatView = () => {
     const isBulk = chatType === 'smart' || chatType === 'staff';
-    const title  = isBulk
-      ? (chatType === 'smart' ? 'Broadcast Message' : 'Send to All Staff')
-      : selectedRecipient?.name || 'Conversation';
-
-    // 💡 فلترة الرسائل (Direct Messaging)
+    const title  = isBulk ? (chatType === 'smart' ? 'Broadcast Message' : 'Send to All Staff') : selectedRecipient?.name || 'Conversation';
     const displayMessages = chatMessages.filter(msg => {
       if (selectedRecipient && currentUser) {
-        const myId    = currentUser.id;
-        const theirId = selectedRecipient.id.toString();
-        // إما أنا بعثتلو، أو هو بعثلي
-        return (msg.sender_id === myId && msg.recipient_id === theirId) || 
-               (msg.sender_id === theirId && msg.recipient_id === myId);
+        const myId = currentUser.id; const theirId = selectedRecipient.id.toString();
+        return (msg.sender_id === myId && msg.recipient_id === theirId) || (msg.sender_id === theirId && msg.recipient_id === myId);
       }
-      return false; // إذا ماكانش Recipient محدد (ما عدا في حالة Bulk)
+      return false;
     });
-
     return (
-      <div style={{
-        display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0,
-        background: C.white, borderRadius: 14,
-        border: `1px solid ${C.border}`, boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
-        overflow: 'hidden',
-      }}>
-        {/* Chat header */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '14px 20px', borderBottom: `1px solid ${C.border}`,
-          background: C.pageBg, flexShrink: 0,
-        }}>
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, background: C.white, borderRadius: 14, border: `1px solid ${C.border}`, boxShadow: '0 1px 4px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: `1px solid ${C.border}`, background: C.pageBg, flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <OutlineBtn onClick={() => setMainView('portal')} style={{ padding: '7px 12px' }}>
-              <Ic.ArrowLeft /> Back
-            </OutlineBtn>
-            {!isBulk && (
-              <div style={{ width: 36, height: 36, borderRadius: '50%', background: C.primaryLight, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.primary, position: 'relative' }}>
-                <Ic.User />
-                <span style={{ position: 'absolute', bottom: 1, right: 1, width: 9, height: 9, background: C.success, borderRadius: '50%', border: `2px solid ${C.white}` }} />
-              </div>
-            )}
-            <div>
-              <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: C.textDark }}>{title}</p>
-              <p style={{ margin: '1px 0 0', fontSize: 11, color: C.success, fontWeight: 600 }}>Online</p>
-            </div>
+            <OutlineBtn onClick={() => setMainView('portal')} style={{ padding: '7px 12px' }}><Ic.ArrowLeft /> Back</OutlineBtn>
+            {!isBulk && (<div style={{ width: 36, height: 36, borderRadius: '50%', background: C.primaryLight, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.primary, position: 'relative' }}><Ic.User /><span style={{ position: 'absolute', bottom: 1, right: 1, width: 9, height: 9, background: C.success, borderRadius: '50%', border: `2px solid ${C.white}` }} /></div>)}
+            <div><p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: C.textDark }}>{title}</p><p style={{ margin: '1px 0 0', fontSize: 11, color: C.success, fontWeight: 600 }}>Online</p></div>
           </div>
         </div>
-
         <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
-          {/* Chat body */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-
-            {/* Audience filter for bulk chats */}
             {isBulk && (
               <div style={{ padding: '14px 20px', borderBottom: `1px solid ${C.border}`, background: C.pageBg, flexShrink: 0 }}>
                 <SectionLabel>Target Audience</SectionLabel>
-                <AudienceRow keys={
-                  chatType === 'smart'
-                    ? [{ key: 'all', label: 'All' }, { key: 'students', label: 'Students' }, { key: 'parents', label: 'Parents' }, { key: 'staff', label: 'Staff' }]
-                    : [{ key: 'all', label: 'All' }, { key: 'teacher', label: 'Teachers' }, { key: 'admin', label: 'Admins' }]
-                } />
+                <AudienceRow keys={chatType === 'smart' ? [{ key: 'all', label: 'All' }, { key: 'students', label: 'Students' }, { key: 'parents', label: 'Parents' }, { key: 'staff', label: 'Staff' }] : [{ key: 'all', label: 'All' }, { key: 'teacher', label: 'Teachers' }, { key: 'admin', label: 'Admins' }]} />
               </div>
             )}
-
-            {/* Messages */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: 12, background: '#f8fafc' }}>
               {displayMessages.length > 0 ? displayMessages.map(msg => {
                 const isMine = msg.sender_id === currentUser?.id;
                 return (
                   <div key={msg.id} style={{ display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start' }}>
-                    <div style={{
-                      maxWidth: '60%', padding: '11px 15px', borderRadius: 14,
-                      borderBottomRightRadius: isMine ? 4 : 14,
-                      borderBottomLeftRadius: isMine ? 14 : 4,
-                      background: isMine ? C.primary : C.white,
-                      color: isMine ? '#fff' : C.textDark,
-                      boxShadow: '0 1px 4px rgba(0,0,0,0.07)',
-                      border: isMine ? 'none' : `1px solid ${C.border}`,
-                    }}>
+                    <div style={{ maxWidth: '60%', padding: '11px 15px', borderRadius: 14, borderBottomRightRadius: isMine ? 4 : 14, borderBottomLeftRadius: isMine ? 14 : 4, background: isMine ? C.primary : C.white, color: isMine ? '#fff' : C.textDark, boxShadow: '0 1px 4px rgba(0,0,0,0.07)', border: isMine ? 'none' : `1px solid ${C.border}` }}>
                       <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5 }}>{msg.content}</p>
-                      <p style={{ margin: '5px 0 0', fontSize: 10, color: isMine ? 'rgba(255,255,255,0.55)' : C.textMuted, textAlign: 'right' }}>
-                        {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} &nbsp;
-                        <Ic.Check />
-                      </p>
+                      <p style={{ margin: '5px 0 0', fontSize: 10, color: isMine ? 'rgba(255,255,255,0.55)' : C.textMuted, textAlign: 'right' }}>{new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} &nbsp;<Ic.Check /></p>
                     </div>
                   </div>
                 );
               }) : (
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: C.textMuted, gap: 10 }}>
-                  <div style={{ width: 48, height: 48, borderRadius: 12, background: C.primaryLight, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.primary }}>
-                    <Ic.Chat />
-                  </div>
-                  <p style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>
-                    {isBulk ? 'Select filters above and type your message to broadcast.' : 'No messages yet. Start the conversation!'}
-                  </p>
+                  <div style={{ width: 48, height: 48, borderRadius: 12, background: C.primaryLight, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.primary }}><Ic.Chat /></div>
+                  <p style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>{isBulk ? 'Select filters above and type your message to broadcast.' : 'No messages yet. Start the conversation!'}</p>
                 </div>
               )}
             </div>
-
-            {/* Input */}
             <div style={{ padding: '14px 16px', borderTop: `1px solid ${C.border}`, background: C.white, display: 'flex', gap: 10, flexShrink: 0 }}>
-              <input
-                type="text"
-                value={newMessage}
-                onChange={e => setNewMessage(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
-                placeholder="Type your message..."
-                style={{ ...inputCls, flex: 1, height: 42, fontSize: 13 }}
-                onFocus={focusInput} onBlur={blurInput}
-              />
-              <PrimaryBtn onClick={handleSendMessage} style={{ height: 42, paddingLeft: 18, paddingRight: 18 }}>
-                <Ic.Send /> Send
-              </PrimaryBtn>
+              <input type="text" value={newMessage} onChange={e => setNewMessage(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSendMessage()} placeholder="Type your message..." style={{ ...inputCls, flex: 1, height: 42, fontSize: 13 }} onFocus={focusInput} onBlur={blurInput} />
+              <PrimaryBtn onClick={handleSendMessage} style={{ height: 42, paddingLeft: 18, paddingRight: 18 }}><Ic.Send /> Send</PrimaryBtn>
             </div>
           </div>
-
-          {/* Recipient sidebar */}
           {selectedRecipient && (
-            <div style={{
-              width: 260, borderLeft: `1px solid ${C.border}`,
-              background: C.white, display: 'flex', flexDirection: 'column',
-              padding: '24px 20px', overflowY: 'auto', flexShrink: 0,
-            }}>
+            <div style={{ width: 260, borderLeft: `1px solid ${C.border}`, background: C.white, display: 'flex', flexDirection: 'column', padding: '24px 20px', overflowY: 'auto', flexShrink: 0 }}>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 24 }}>
-                <div style={{ width: 64, height: 64, borderRadius: '50%', background: C.primaryLight, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.primary, marginBottom: 12, border: `3px solid ${C.white}`, boxShadow: `0 0 0 2px ${C.primary}20` }}>
-                  <Ic.User />
-                </div>
+                <div style={{ width: 64, height: 64, borderRadius: '50%', background: C.primaryLight, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.primary, marginBottom: 12, border: `3px solid ${C.white}`, boxShadow: `0 0 0 2px ${C.primary}20` }}><Ic.User /></div>
                 <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: C.textDark, textAlign: 'center' }}>{selectedRecipient.name}</p>
                 <p style={{ margin: '3px 0 0', fontSize: 11, fontWeight: 700, color: C.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{selectedRecipient.role}</p>
               </div>
-
               <div style={{ background: C.pageBg, borderRadius: 10, border: `1px solid ${C.border}`, padding: '14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <SectionLabel>Contact Info</SectionLabel>
-                {[
-                  { label: 'Phone', val: selectedRecipient.phone || 'N/A' },
-                  { label: 'Email', val: selectedRecipient.email || 'N/A', primary: true },
-                  ...(selectedRecipient.dept ? [{ label: 'Department', val: selectedRecipient.dept }] : []),
-                ].map((item, i) => (
-                  <div key={i}>
-                    <p style={{ margin: 0, fontSize: 10.5, fontWeight: 700, color: C.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{item.label}</p>
-                    <p style={{ margin: '3px 0 0', fontSize: 12.5, fontWeight: 600, color: item.primary ? C.primary : C.textDark, wordBreak: 'break-all' }}>{item.val}</p>
-                  </div>
+                {[{ label: 'Phone', val: selectedRecipient.phone || 'N/A' }, { label: 'Email', val: selectedRecipient.email || 'N/A', primary: true }, ...(selectedRecipient.dept ? [{ label: 'Department', val: selectedRecipient.dept }] : [])].map((item, i) => (
+                  <div key={i}><p style={{ margin: 0, fontSize: 10.5, fontWeight: 700, color: C.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{item.label}</p><p style={{ margin: '3px 0 0', fontSize: 12.5, fontWeight: 600, color: item.primary ? C.primary : C.textDark, wordBreak: 'break-all' }}>{item.val}</p></div>
                 ))}
               </div>
-
-              {selectedRecipient.level && (
-                <div style={{ marginTop: 12, background: C.primaryLight, borderRadius: 10, border: `1px solid #c7d2fe`, padding: '12px 14px' }}>
-                  <SectionLabel>Academic Info</SectionLabel>
-                  <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.primary }}>Level: {selectedRecipient.level}</p>
-                </div>
-              )}
+              {selectedRecipient.level && (<div style={{ marginTop: 12, background: C.primaryLight, borderRadius: 10, border: `1px solid #c7d2fe`, padding: '12px 14px' }}><SectionLabel>Academic Info</SectionLabel><p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.primary }}>Level: {selectedRecipient.level}</p></div>)}
             </div>
           )}
         </div>
@@ -971,14 +698,11 @@ const ParentPortal = () => {
     );
   };
 
-  // ── Field helper for modals ───────────────────────────────────────────────
   const ModalField = ({ label, children }) => (
-    <div>
-      <SectionLabel>{label}</SectionLabel>
-      {children}
-    </div>
+    <div><SectionLabel>{label}</SectionLabel>{children}</div>
   );
 
+  // ── RENDER ────────────────────────────────────────────────────────────────
   return (
     <>
       <style>{`
@@ -991,26 +715,32 @@ const ParentPortal = () => {
         ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
       `}</style>
 
-      <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', fontFamily: "'Inter','Segoe UI',sans-serif", position: 'relative', paddingTop: 4 }}>
+      {toast && <Toast message={toast} onClose={() => setToast(null)} />}
 
-        {toast && <Toast message={toast} onClose={() => setToast(null)} />}
+      {/* ── ROOT: matches the padding/overflow of every other page ── */}
+      <div style={{
+        flex: 1, overflowY: 'auto', padding: 28,
+        display: 'flex', flexDirection: 'column',
+        fontFamily: "'Inter','Segoe UI',sans-serif",
+        background: C.pageBg,
+      }}>
 
         {/* ── Portal view ── */}
         {mainView === 'portal' && (
-          <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
 
             {/* Page header */}
-            <div style={{ marginBottom: 20, flexShrink: 0 }}>
-              <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: C.textDark, letterSpacing: '-0.01em' }}>Communication Portal</h2>
+            <div style={{ marginBottom: 24, flexShrink: 0 }}>
+              <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: C.textDark }}>Communication Portal</h2>
               <p style={{ margin: '4px 0 0', fontSize: 13, color: C.textMuted }}>Manage directories, announcements, and school communications</p>
             </div>
 
             {/* Stat cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 22, flexShrink: 0 }}>
-              <StatCard label="Total Students" value={studentsList.length} icon={Ic.Student} iconBg="#eff6ff" iconColor="#2563eb" />
-              <StatCard label="Staff Members"  value={staffList.length}   icon={Ic.Staff}   iconBg="#f0fdf4" iconColor={C.success} />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24, flexShrink: 0 }}>
+              <StatCard label="Total Students" value={studentsList.length} icon={Ic.Student}     iconBg="#eff6ff"    iconColor="#2563eb" />
+              <StatCard label="Staff Members"  value={staffList.length}   icon={Ic.Staff}       iconBg="#ecfdf5"    iconColor={C.success} />
               <StatCard label="Broadcasts"     value={announcements.length} icon={Ic.Megaphone} iconBg={C.warningBg} iconColor={C.warning} />
-              <StatCard label="Feedback"       value={feedbackList.length}  icon={Ic.AlertCircle}  iconBg={C.dangerBg} iconColor={C.danger} />
+              <StatCard label="Feedback"       value={feedbackList.length}  icon={Ic.AlertCircle} iconBg={C.dangerBg} iconColor={C.danger} />
             </div>
 
             {/* Tab bar */}
@@ -1035,98 +765,52 @@ const ParentPortal = () => {
           </div>
         )}
 
-        {/* ══ ADD PARENT MODAL ══ */}
+        {/* ══ MODALS ══ */}
         {modalView === 'addParent' && (
           <Modal title="Add New Parent / Guardian" subtitle="Enter parent or guardian information" onClose={() => setModalView(null)}>
             <form onSubmit={handleAddParent} style={{ display: 'flex', flexDirection: 'column', gap: 14 }} noValidate>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <ModalField label="First Name">
-                  <input type="text" required value={parentForm.firstName} onChange={e => setParentForm({ ...parentForm, firstName: e.target.value })} style={inputCls} onFocus={focusInput} onBlur={blurInput} placeholder="Jean" />
-                </ModalField>
-                <ModalField label="Last Name">
-                  <input type="text" required value={parentForm.lastName} onChange={e => setParentForm({ ...parentForm, lastName: e.target.value })} style={inputCls} onFocus={focusInput} onBlur={blurInput} placeholder="Dupont" />
-                </ModalField>
-                <ModalField label="Email Address">
-                  <input type="email" required value={parentForm.email} onChange={e => setParentForm({ ...parentForm, email: e.target.value })} style={inputCls} onFocus={focusInput} onBlur={blurInput} placeholder="name@fluentia.com" />
-                </ModalField>
-                <ModalField label="Phone Number">
-                  <input type="tel" required value={parentForm.phone} onChange={e => setParentForm({ ...parentForm, phone: e.target.value })} style={inputCls} onFocus={focusInput} onBlur={blurInput} placeholder="+213 6 12 34 56 78" />
-                </ModalField>
+                <ModalField label="First Name"><input type="text" required value={parentForm.firstName} onChange={e => setParentForm({ ...parentForm, firstName: e.target.value })} style={inputCls} onFocus={focusInput} onBlur={blurInput} placeholder="Jean" /></ModalField>
+                <ModalField label="Last Name"><input type="text" required value={parentForm.lastName} onChange={e => setParentForm({ ...parentForm, lastName: e.target.value })} style={inputCls} onFocus={focusInput} onBlur={blurInput} placeholder="Dupont" /></ModalField>
+                <ModalField label="Email Address"><input type="email" required value={parentForm.email} onChange={e => setParentForm({ ...parentForm, email: e.target.value })} style={inputCls} onFocus={focusInput} onBlur={blurInput} placeholder="name@email.com" /></ModalField>
+                <ModalField label="Phone Number"><input type="tel" required value={parentForm.phone} onChange={e => setParentForm({ ...parentForm, phone: e.target.value })} style={inputCls} onFocus={focusInput} onBlur={blurInput} placeholder="+213 6 12 34 56 78" /></ModalField>
               </div>
-              <ModalField label="Address">
-                <input type="text" value={parentForm.address} onChange={e => setParentForm({ ...parentForm, address: e.target.value })} style={inputCls} onFocus={focusInput} onBlur={blurInput} placeholder="123 Main Street" />
-              </ModalField>
+              <ModalField label="Address"><input type="text" value={parentForm.address} onChange={e => setParentForm({ ...parentForm, address: e.target.value })} style={inputCls} onFocus={focusInput} onBlur={blurInput} placeholder="123 Main Street" /></ModalField>
               <ModalField label="Relationship">
                 <select value={parentForm.relationship} onChange={e => setParentForm({ ...parentForm, relationship: e.target.value })}
                   style={{ ...inputCls, cursor: 'pointer', appearance: 'none', backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', paddingRight: 34 }}
-                  onFocus={focusInput} onBlur={blurInput}
-                >
-                  <option>Select relationship</option>
-                  <option>Father</option><option>Mother</option><option>Guardian</option>
+                  onFocus={focusInput} onBlur={blurInput}>
+                  <option>Select relationship</option><option>Father</option><option>Mother</option><option>Guardian</option>
                 </select>
               </ModalField>
               <div style={{ paddingTop: 8 }}>
-                <PrimaryBtn type="submit" style={{ width: '100%', justifyContent: 'center', height: 44 }}>
-                  Add Parent
-                </PrimaryBtn>
+                <PrimaryBtn type="submit" style={{ width: '100%', justifyContent: 'center', height: 44 }}>Add Parent</PrimaryBtn>
               </div>
             </form>
           </Modal>
         )}
 
-        {/* ══ NEW ANNOUNCEMENT MODAL ══ */}
         {modalView === 'newAnnouncement' && (
           <Modal title="Create Announcement" subtitle="Share important information with the school community" onClose={() => setModalView(null)}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <ModalField label="Title">
-                <input type="text" onChange={e => setAnnouncementForm({ ...announcementForm, title: e.target.value })} style={inputCls} onFocus={focusInput} onBlur={blurInput} placeholder="Announcement title..." />
-              </ModalField>
-              <ModalField label="Content">
-                <textarea rows={4} onChange={e => setAnnouncementForm({ ...announcementForm, content: e.target.value })}
-                  style={{ ...inputCls, height: 'auto', resize: 'none', padding: '10px 14px', lineHeight: 1.6 }}
-                  onFocus={focusInput} onBlur={blurInput} placeholder="Write your announcement here..."
-                />
-              </ModalField>
-              <ModalField label="Target Audience">
-                <AudienceRow keys={[{ key: 'students', label: 'Students' }, { key: 'teacher', label: 'Teachers' }, { key: 'parents', label: 'Parents' }, { key: 'staff', label: 'Staff' }]} />
-              </ModalField>
-              <div style={{ paddingTop: 8 }}>
-                <PrimaryBtn onClick={handlePublishAnnouncement} style={{ width: '100%', justifyContent: 'center', height: 44 }}>
-                  <Ic.Megaphone /> Publish Announcement
-                </PrimaryBtn>
-              </div>
+              <ModalField label="Title"><input type="text" onChange={e => setAnnouncementForm({ ...announcementForm, title: e.target.value })} style={inputCls} onFocus={focusInput} onBlur={blurInput} placeholder="Announcement title..." /></ModalField>
+              <ModalField label="Content"><textarea rows={4} onChange={e => setAnnouncementForm({ ...announcementForm, content: e.target.value })} style={{ ...inputCls, height: 'auto', resize: 'none', padding: '10px 14px', lineHeight: 1.6 }} onFocus={focusInput} onBlur={blurInput} placeholder="Write your announcement here..." /></ModalField>
+              <ModalField label="Target Audience"><AudienceRow keys={[{ key: 'students', label: 'Students' }, { key: 'teacher', label: 'Teachers' }, { key: 'parents', label: 'Parents' }, { key: 'staff', label: 'Staff' }]} /></ModalField>
+              <div style={{ paddingTop: 8 }}><PrimaryBtn onClick={handlePublishAnnouncement} style={{ width: '100%', justifyContent: 'center', height: 44 }}><Ic.Megaphone /> Publish Announcement</PrimaryBtn></div>
             </div>
           </Modal>
         )}
 
-        {/* ══ NEW NOTIFICATION MODAL ══ */}
         {modalView === 'newNotification' && (
           <Modal title="Send Notification" subtitle="Send an instant alert to specific groups or everyone" onClose={() => setModalView(null)} accentColor={C.purple}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <ModalField label="Notification Title">
-                <input type="text" onChange={e => setNotificationForm({ ...notificationForm, title: e.target.value })} style={inputCls} onFocus={focusInput} onBlur={blurInput} placeholder="e.g. Urgent: Class Rescheduled" />
-              </ModalField>
-              <ModalField label="Message Content">
-                <textarea rows={4} onChange={e => setNotificationForm({ ...notificationForm, content: e.target.value })}
-                  style={{ ...inputCls, height: 'auto', resize: 'none', padding: '10px 14px', lineHeight: 1.6 }}
-                  onFocus={focusInput} onBlur={blurInput} placeholder="Type your notification message..."
-                />
-              </ModalField>
-              <ModalField label="Target Audience">
-                <AudienceRow keys={[{ key: 'students', label: 'Students' }, { key: 'teacher', label: 'Teachers' }, { key: 'parents', label: 'Parents' }, { key: 'staff', label: 'Staff' }]} />
-              </ModalField>
+              <ModalField label="Notification Title"><input type="text" onChange={e => setNotificationForm({ ...notificationForm, title: e.target.value })} style={inputCls} onFocus={focusInput} onBlur={blurInput} placeholder="e.g. Urgent: Class Rescheduled" /></ModalField>
+              <ModalField label="Message Content"><textarea rows={4} onChange={e => setNotificationForm({ ...notificationForm, content: e.target.value })} style={{ ...inputCls, height: 'auto', resize: 'none', padding: '10px 14px', lineHeight: 1.6 }} onFocus={focusInput} onBlur={blurInput} placeholder="Type your notification message..." /></ModalField>
+              <ModalField label="Target Audience"><AudienceRow keys={[{ key: 'students', label: 'Students' }, { key: 'teacher', label: 'Teachers' }, { key: 'parents', label: 'Parents' }, { key: 'staff', label: 'Staff' }]} /></ModalField>
               <div style={{ paddingTop: 8 }}>
-                <button onClick={handleSendNotification}
-                  style={{
-                    width: '100%', height: 44, border: 'none', borderRadius: 9,
-                    background: C.purple, color: '#fff', fontSize: 13, fontWeight: 700,
-                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                    boxShadow: '0 3px 12px rgba(124,58,237,0.26)', transition: 'all 0.15s',
-                    fontFamily: "'Inter','Segoe UI',sans-serif",
-                  }}
+                <button onClick={handleSendNotification} style={{ width: '100%', height: 44, border: 'none', borderRadius: 9, background: C.purple, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 3px 12px rgba(124,58,237,0.26)', transition: 'all 0.15s', fontFamily: "'Inter','Segoe UI',sans-serif" }}
                   onMouseEnter={e => { e.currentTarget.style.background = '#6d28d9'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = C.purple; e.currentTarget.style.transform = 'none'; }}
-                >
+                  onMouseLeave={e => { e.currentTarget.style.background = C.purple; e.currentTarget.style.transform = 'none'; }}>
                   <Ic.Bell /> Send Notification Now
                 </button>
               </div>
