@@ -372,7 +372,7 @@ const Join = ({ onBack }) => {
                   Enrollment Request
                 </h1>
                 <p style={{ margin: '4px 0 0', fontSize: 13, color: 'rgba(255,255,255,0.50)', fontWeight: 500 }}>
-                  Join Polyglot Academy — complete the form below
+                  Join Fluentia Academy — complete the form below
                 </p>
               </div>
             </div>

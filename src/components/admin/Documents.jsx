@@ -1,40 +1,263 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabaseClient';
 
-// ==========================================
-// 🔔 MODERN NOTIFICATION COMPONENT 
-// ==========================================
+// ─── Design Tokens ────────────────────────────────────────────────────────────
+const C = {
+  navy:        '#0f172a',
+  primary:     '#4318FF',
+  primaryLight:'#eef2ff',
+  primaryMid:  '#818cf8',
+  white:       '#ffffff',
+  pageBg:      '#f8fafc',
+  border:      '#f1f5f9',
+  borderMid:   '#e2e8f0',
+  textDark:    '#1e293b',
+  textMid:     '#64748b',
+  textMuted:   '#94a3b8',
+  success:     '#059669',
+  successBg:   '#ecfdf5',
+  blue:        '#2563eb',
+  blueBg:      '#eff6ff',
+};
+
+// ─── Icon System ──────────────────────────────────────────────────────────────
+const Ic = {
+  Search:   () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
+  File:     () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>,
+  Download: () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
+  Print:    () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>,
+  Generate: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>,
+  User:     () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
+  Calendar: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+  BookOpen: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,
+  Eye:      () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
+  CheckCircle: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
+  Close:    () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+  Globe:    () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>,
+};
+
+// ─── Shared input styles & handlers ──────────────────────────────────────────
+const inputBase = {
+  width: '100%', background: C.pageBg,
+  border: `1.5px solid ${C.borderMid}`,
+  borderRadius: 10, padding: '10px 14px',
+  fontSize: 13, fontFamily: "'Inter','Segoe UI',sans-serif",
+  color: C.textDark, outline: 'none', boxSizing: 'border-box',
+  transition: 'border-color 0.2s, box-shadow 0.2s, background 0.2s',
+};
+const handleFocus = e => { e.target.style.borderColor = C.primary; e.target.style.boxShadow = '0 0 0 3px rgba(67,24,255,0.09)'; e.target.style.background = '#fff'; };
+const handleBlur  = e => { e.target.style.borderColor = C.borderMid; e.target.style.boxShadow = 'none'; e.target.style.background = C.pageBg; };
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
 const Toast = ({ message, onClose }) => (
-  <div className="fixed bottom-12 right-12 z-[1000] animate-in slide-in-from-right duration-500 text-left">
-    <div className="bg-[#1A2252] text-white px-10 py-6 rounded-[2.5rem] shadow-2xl flex items-center gap-6 border border-blue-400/30 backdrop-blur-xl min-w-[450px]">
-      <div className="w-14 h-14 bg-green-500 rounded-2xl flex items-center justify-center text-3xl shadow-lg shadow-green-500/40">
-        <span className="animate-pulse">✓</span>
+  <div style={{
+    position: 'fixed', bottom: 28, right: 28, zIndex: 300,
+    background: C.navy, color: '#fff',
+    padding: '14px 18px', borderRadius: 14,
+    boxShadow: '0 8px 32px rgba(0,0,0,0.22)',
+    border: '1px solid rgba(255,255,255,0.08)',
+    display: 'flex', alignItems: 'center', gap: 12,
+    minWidth: 300, maxWidth: 400,
+    fontFamily: "'Inter','Segoe UI',sans-serif",
+    animation: 'slideUp 0.3s cubic-bezier(.4,0,.2,1) both',
+  }}>
+    <span style={{ width: 32, height: 32, borderRadius: 8, background: C.success, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: '#fff' }}>
+      <Ic.CheckCircle />
+    </span>
+    <div style={{ flex: 1 }}>
+      <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Document Center</p>
+      <p style={{ margin: '2px 0 0', fontSize: 12.5, fontWeight: 600 }}>{message}</p>
+    </div>
+    <button onClick={onClose}
+      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', display: 'flex', padding: 3, transition: 'color 0.15s' }}
+      onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+      onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.4)'}
+    ><Ic.Close /></button>
+  </div>
+);
+
+// ─── Field label ──────────────────────────────────────────────────────────────
+const FieldLabel = ({ icon: Icon, children }) => (
+  <label style={{
+    display: 'flex', alignItems: 'center', gap: 6,
+    fontSize: 11, fontWeight: 700, color: C.textMuted,
+    textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8,
+  }}>
+    {Icon && <span style={{ color: C.primary, display: 'flex' }}><Icon /></span>}
+    {children}
+  </label>
+);
+
+// ─── Document Previews ────────────────────────────────────────────────────────
+const PreviewCompletion = ({ formData }) => (
+  <div style={{ background: '#f0ebe1', padding: 32, outline: '10px solid #e6decb', boxShadow: '0 4px 24px rgba(0,0,0,0.10)', maxWidth: 580, width: '100%', margin: '0 auto', fontFamily: 'Georgia, serif' }}>
+    <div style={{ border: '1px solid #c2b28f', padding: 28, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+      <p style={{ color: '#888', fontStyle: 'italic', margin: '0 0 3px', fontSize: 11 }}>Polyglot Academy</p>
+      <p style={{ fontSize: 9, letterSpacing: '0.2em', color: '#aaa', textTransform: 'uppercase', margin: '0 0 24px' }}>Language Excellence Platform</p>
+      <h1 style={{ fontSize: 34, fontWeight: 400, color: '#111', letterSpacing: '0.1em', margin: '0 0 6px' }}>CERTIFICATE</h1>
+      <h2 style={{ fontSize: 20, fontWeight: 400, color: '#111', margin: '0 0 24px' }}>OF COMPLETION</h2>
+      <p style={{ fontSize: 12, color: '#666', margin: '0 0 14px', lineHeight: 1.7 }}>This certificate is proudly presented to</p>
+      <h3 style={{ fontSize: 30, fontStyle: 'italic', color: '#111', borderBottom: '1px solid #bbb', paddingBottom: 10, marginBottom: 14, width: '76%', fontWeight: 400 }}>
+        {formData.fullName || 'Student Full Name'}
+      </h3>
+      <p style={{ fontSize: 12, color: '#666', margin: '0 0 32px', lineHeight: 1.7 }}>
+        Upon the successful completion of<br />
+        <strong style={{ color: '#333' }}>{formData.courseLevel || 'Language Course — Level'}</strong>
+      </p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', width: '100%', padding: '0 8px' }}>
+        <div style={{ textAlign: 'center', width: '33%' }}>
+          <p style={{ fontSize: 12, fontWeight: 700, borderBottom: '1px solid #bbb', paddingBottom: 4, marginBottom: 4 }}>{formData.date || 'Date Awarded'}</p>
+          <p style={{ fontSize: 10, fontStyle: 'italic', color: '#999' }}>Date</p>
+        </div>
+        <div style={{ width: 52, height: 52, borderRadius: '50%', background: '#c9b585', border: '3px solid #fff', boxShadow: '0 2px 8px rgba(0,0,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 800, color: '#fff', letterSpacing: '0.05em' }}>SEAL</div>
+        <div style={{ textAlign: 'center', width: '33%' }}>
+          <div style={{ width: '100%', borderBottom: '1px solid #bbb', marginBottom: 4 }} />
+          <p style={{ fontSize: 10, fontStyle: 'italic', color: '#999' }}>Director / Instructor</p>
+        </div>
       </div>
-      <div className="flex-1">
-        <p className="text-xl font-black italic tracking-tight leading-none mb-1 text-white">System Log</p>
-        <p className="text-sm font-bold text-blue-200/80 italic">{message}</p>
-      </div>
-      <button onClick={onClose} className="ml-6 text-white/30 hover:text-white transition-colors text-2xl p-2 cursor-pointer">✕</button>
     </div>
   </div>
 );
 
+const PreviewReceipt = ({ formData }) => (
+  <div style={{ background: '#fff', padding: 40, boxShadow: '0 4px 24px rgba(0,0,0,0.08)', maxWidth: 580, width: '100%', margin: '0 auto', border: `1px solid ${C.borderMid}`, fontFamily: "'Inter','Segoe UI',sans-serif" }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: `5px solid ${C.textDark}`, paddingBottom: 16, marginBottom: 28 }}>
+      <div>
+        <div style={{ width: 38, height: 38, background: C.primary, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
+          <Ic.Globe />
+        </div>
+        <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: C.textDark }}>POLYGLOT ACADEMY</p>
+        <p style={{ margin: '2px 0 0', fontSize: 10, color: C.textMuted }}>Languages School</p>
+      </div>
+      <div style={{ textAlign: 'right', fontSize: 11, color: C.textMid, lineHeight: 1.8 }}>
+        <p style={{ margin: 0, fontWeight: 700, color: C.textDark, textTransform: 'uppercase' }}>Payment Receipt</p>
+        <p style={{ margin: '4px 0 0' }}>contact@polyglot.academy</p>
+        <p style={{ margin: 0 }}>www.polyglot.academy</p>
+      </div>
+    </div>
+    <h2 style={{ textAlign: 'center', fontSize: 16, fontWeight: 800, color: C.textDark, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 20 }}>School Receipt</h2>
+    <div style={{ fontSize: 12.5, marginBottom: 18, lineHeight: 1.8 }}>
+      <p style={{ margin: '2px 0' }}><strong>Date:</strong> {formData.date || '[Date]'}</p>
+      <p style={{ margin: '2px 0' }}><strong>Receipt No.:</strong> #PA-2025-001</p>
+      <p style={{ margin: '10px 0 2px' }}><strong>Received From:</strong></p>
+      <p style={{ margin: 0, fontWeight: 700, color: C.textDark, fontSize: 14 }}>{formData.fullName || '[Student Name]'}</p>
+    </div>
+    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, marginBottom: 20 }}>
+      <thead>
+        <tr style={{ background: C.pageBg }}>
+          <th style={{ textAlign: 'left', padding: '8px 12px', color: C.textMuted, fontWeight: 700, fontSize: 11, borderBottom: `1px solid ${C.borderMid}` }}>Description</th>
+          <th style={{ textAlign: 'right', padding: '8px 12px', color: C.textMuted, fontWeight: 700, fontSize: 11, borderBottom: `1px solid ${C.borderMid}` }}>Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        {[['Tuition Fee', '12,000 DZD'], ['Registration Fee', '1,500 DZD'], ['Materials Fee', '500 DZD']].map(([d, a]) => (
+          <tr key={d} style={{ borderBottom: `1px solid ${C.border}` }}>
+            <td style={{ padding: '10px 12px' }}>{d}</td>
+            <td style={{ padding: '10px 12px', textAlign: 'right' }}>{a}</td>
+          </tr>
+        ))}
+        <tr style={{ borderTop: `2px solid ${C.textDark}` }}>
+          <td style={{ padding: '12px 12px', fontWeight: 800, color: C.textDark }}>Total</td>
+          <td style={{ padding: '12px 12px', textAlign: 'right', fontWeight: 800, color: C.textDark }}>14,000 DZD</td>
+        </tr>
+      </tbody>
+    </table>
+    <p style={{ fontSize: 10.5, color: C.textMuted, borderTop: `1px solid ${C.border}`, paddingTop: 14, margin: 0, lineHeight: 1.6 }}>
+      Thank you for your payment. Please retain this receipt for your records. For inquiries, contact us at contact@polyglot.academy.
+    </p>
+  </div>
+);
+
+const PreviewEnrollment = ({ formData }) => (
+  <div style={{ background: '#fff', padding: 40, boxShadow: '0 4px 24px rgba(0,0,0,0.08)', maxWidth: 580, width: '100%', margin: '0 auto', border: `1px solid ${C.borderMid}`, textAlign: 'center', fontFamily: 'Georgia, serif' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28, paddingBottom: 20, borderBottom: `2px solid ${C.textDark}` }}>
+      <div style={{ width: 52, height: 52, background: C.primaryLight, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Ic.Globe />
+      </div>
+      <div style={{ textAlign: 'center' }}>
+        <p style={{ margin: 0, fontSize: 9, fontWeight: 700, color: C.textMid, textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: "'Inter',sans-serif" }}>Polyglot Academy</p>
+        <p style={{ margin: '4px 0 0', fontSize: 11, fontWeight: 700, color: C.textDark, textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: "'Inter',sans-serif" }}>Languages School</p>
+        <p style={{ margin: '2px 0 0', fontSize: 9, color: C.textMuted, fontFamily: "'Inter',sans-serif" }}>Official Academic Document</p>
+      </div>
+      <div style={{ fontSize: 11, fontWeight: 800, color: C.primary, fontFamily: "'Inter',sans-serif" }}>PA</div>
+    </div>
+    <h2 style={{ margin: '0 0 28px', fontSize: 17, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.textDark }}>Certificate of Enrollment</h2>
+    <p style={{ fontSize: 13, lineHeight: 1.85, color: '#374151', textAlign: 'justify', marginBottom: 12 }}>
+      This is to certify that <strong style={{ color: C.textDark }}>{formData.fullName ? formData.fullName.toUpperCase() : '[STUDENT FULL NAME]'}</strong> is officially enrolled as a student at <strong>Polyglot Academy</strong> and is duly registered for the current academic term.
+    </p>
+    <p style={{ fontSize: 13, lineHeight: 1.85, color: '#374151', textAlign: 'justify', marginBottom: 44 }}>
+      Issued on: <strong>{formData.date || '[Date]'}</strong>
+    </p>
+    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ width: 130, borderBottom: `1px solid ${C.borderMid}`, marginBottom: 6 }} />
+        <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.textDark, fontFamily: "'Inter',sans-serif" }}>Academy Director</p>
+        <p style={{ margin: '2px 0 0', fontSize: 10, color: C.textMuted, fontFamily: "'Inter',sans-serif" }}>Authorized Signatory</p>
+      </div>
+    </div>
+  </div>
+);
+
+const PreviewGeneric = ({ formData, doc }) => (
+  <div style={{ background: '#fff', padding: 40, boxShadow: '0 4px 24px rgba(0,0,0,0.08)', maxWidth: 580, width: '100%', margin: '0 auto', border: `1px solid ${C.borderMid}`, fontFamily: "'Inter','Segoe UI',sans-serif" }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 18, marginBottom: 24, borderBottom: `2px solid ${C.textDark}` }}>
+      <div>
+        <p style={{ margin: 0, fontSize: 12, fontWeight: 800, color: C.textDark }}>POLYGLOT ACADEMY</p>
+        <p style={{ margin: '2px 0 0', fontSize: 10, color: C.textMuted }}>Official Document</p>
+      </div>
+      <div style={{ width: 36, height: 36, background: C.primary, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Ic.Globe />
+      </div>
+    </div>
+    <h2 style={{ textAlign: 'center', fontSize: 18, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.textDark, margin: '0 0 28px' }}>{doc?.title}</h2>
+    <div style={{ background: C.pageBg, padding: '16px 20px', borderLeft: `4px solid ${C.primary}`, borderRadius: '0 8px 8px 0', marginBottom: 24, fontSize: 13, lineHeight: 1.8 }}>
+      <p style={{ margin: '0 0 6px' }}><strong>Name:</strong> {formData.fullName || '[Name]'}</p>
+      {formData.courseLevel && <p style={{ margin: '0 0 6px' }}><strong>Course / Level:</strong> {formData.courseLevel}</p>}
+      <p style={{ margin: 0 }}><strong>Date:</strong> {formData.date || '[Date]'}</p>
+    </div>
+    <p style={{ fontSize: 13, lineHeight: 1.8, color: '#374151', textAlign: 'justify', marginBottom: 40 }}>
+      This official document has been issued by Polyglot Academy and certifies the above information as accurate and duly recorded in the school's official records.
+    </p>
+    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ width: 130, borderBottom: `1px solid ${C.borderMid}`, marginBottom: 6 }} />
+        <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.textDark }}>Authorized Signatory</p>
+      </div>
+    </div>
+  </div>
+);
+
+// ─── Document List ────────────────────────────────────────────────────────────
+const documentsList = [
+  { id: 'enrollment', category: 'Academic Documents',       title: 'Enrollment Certificate',       desc: 'Official certificate confirming student enrollment.',          target: 'Student' },
+  { id: 'completion', category: 'Academic Documents',       title: 'Level Completion Certificate', desc: 'Certificate for a successfully completed language level.',      target: 'Student' },
+  { id: 'transcript', category: 'Academic Documents',       title: 'Grade Report / Transcript',    desc: 'Official academic transcript and grades record.',              target: 'Student' },
+  { id: 'placement',  category: 'Academic Documents',       title: 'Placement Test Result',        desc: 'Student placement test results and assigned level.',           target: 'Student' },
+  { id: 'receipt',    category: 'Administrative Documents', title: 'Payment Receipt',              desc: 'Official payment receipt for tuition and fees.',              target: 'Admin'   },
+  { id: 'warning',    category: 'Administrative Documents', title: 'Absence Warning Letter',       desc: 'Formal warning letter for excessive absences.',               target: 'Admin'   },
+  { id: 'schedule',   category: 'Administrative Documents', title: 'Personal Schedule',            desc: 'Personalized class schedule issued to a student.',            target: 'Student' },
+  { id: 'work_cert',  category: 'Faculty Documents',        title: 'Work Certificate',             desc: 'Official employment verification for faculty members.',       target: 'Faculty' },
+  { id: 'payslip',    category: 'Faculty Documents',        title: 'Payslip',                      desc: 'Monthly salary statement and detailed breakdown.',            target: 'Faculty' },
+];
+
+const categoryBadge = {
+  'Academic Documents':       { bg: C.primaryLight, color: C.primary   },
+  'Administrative Documents': { bg: '#ecfdf5',      color: '#059669'   },
+  'Faculty Documents':        { bg: '#fff7ed',      color: '#f97316'   },
+};
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 const Documents = () => {
-  const [activeTab, setActiveTab] = useState('All');
-  const [selectedDocId, setSelectedDocId] = useState('enrollment');
-  const [isGenerated, setIsGenerated] = useState(false);
-  const [docSearchQuery, setDocSearchQuery] = useState(''); 
-  const [toast, setToast] = useState({ show: false, message: '' });
-  const [currentUser, setCurrentUser] = useState(null);
+  // ── ALL ORIGINAL STATE — UNTOUCHED ───────────────────────────────────────
+  const [activeTab,      setActiveTab]      = useState('All');
+  const [selectedDocId,  setSelectedDocId]  = useState('enrollment');
+  const [isGenerated,    setIsGenerated]    = useState(false);
+  const [docSearchQuery, setDocSearchQuery] = useState('');
+  const [toast,          setToast]          = useState({ show: false, message: '' });
+  const [currentUser,    setCurrentUser]    = useState(null);
+  const [formData,       setFormData]       = useState({ searchQuery: '', fullName: '', courseLevel: '', date: '' });
 
-  const [formData, setFormData] = useState({
-    searchQuery: '',
-    fullName: '',
-    courseLevel: '',
-    date: ''
-  });
-
-  // 💡 جلب الأدمين أو السكريتيرة لي راهم مكونيكتيين باش نسجلوهم في الـ Log
+  // ── ALL ORIGINAL SUPABASE LOGIC — COMPLETELY UNTOUCHED ───────────────────
   useEffect(() => {
     const fetchUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -56,22 +279,33 @@ const Documents = () => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const documentsList = [
-    { id: 'enrollment', category: 'ACADEMIC DOCUMENTS', title: 'Enrollment Certificate', desc: 'Official certificate confirming student enrollment', target: 'Student' },
-    { id: 'completion', category: 'ACADEMIC DOCUMENTS', title: 'Level Completion Certificate', desc: 'Certificate for completed language level', target: 'Student' },
-    { id: 'transcript', category: 'ACADEMIC DOCUMENTS', title: 'Grade Report / Transcript', desc: 'Official academic transcript and grades', target: 'Student' },
-    { id: 'placement', category: 'ACADEMIC DOCUMENTS', title: 'Placement Test Result', desc: 'Student placement test results and level', target: 'Student' },
-    
-    { id: 'receipt', category: 'ADMINISTRATIVE DOCUMENTS', title: 'Payment Receipt', desc: 'Official payment receipt for tuition fees', target: 'Admin' },
-    { id: 'warning', category: 'ADMINISTRATIVE DOCUMENTS', title: 'Absence Warning Letter', desc: 'Formal warning for excessive absences', target: 'Admin' },
-    { id: 'schedule', category: 'ADMINISTRATIVE DOCUMENTS', title: 'Personal Schedule', desc: 'Personalized class schedule for student', target: 'Student' },
-    
-    { id: 'work_cert', category: 'FACULTY DOCUMENTS', title: 'Work Certificate', desc: 'Official employment verification certificate', target: 'Faculty' },
-    { id: 'payslip', category: 'FACULTY DOCUMENTS', title: 'Payslip', desc: 'Monthly salary statement and breakdown', target: 'Faculty' },
-  ];
+  const handleGenerate = async (e) => {
+    e.preventDefault();
+    if (!formData.fullName) {
+      showNotification('Please enter a name to generate the document.');
+      return;
+    }
+    setIsGenerated(true);
+    try {
+      const logData = {
+        document_type: selectedDocDetails.title,
+        target_person: formData.fullName,
+        generated_by: currentUser ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() : 'System Admin',
+        generated_at: new Date().toISOString(),
+      };
+      const { error } = await supabase.from('document_logs').insert([logData]);
+      if (error) console.warn("Log warning: Make sure 'document_logs' table exists.", error.message);
+      showNotification(`Document generated successfully for ${formData.fullName}.`);
+    } catch (err) {
+      console.error('Failed to log document generation:', err);
+    }
+  };
+
+  const handlePrint = () => window.print();
+  // ─────────────────────────────────────────────────────────────────────────
 
   const filteredDocs = documentsList.filter(doc => {
-    const matchesTab = activeTab === 'All' || doc.target === activeTab;
+    const matchesTab    = activeTab === 'All' || doc.target === activeTab;
     const matchesSearch = doc.title.toLowerCase().includes(docSearchQuery.toLowerCase());
     return matchesTab && matchesSearch;
   });
@@ -82,335 +316,370 @@ const Documents = () => {
     return acc;
   }, {});
 
-  const selectedDocDetails = documentsList.find(doc => doc.id === selectedDocId);
+  const selectedDocDetails = documentsList.find(d => d.id === selectedDocId);
 
   const handleSelectDoc = (id) => {
     setSelectedDocId(id);
     setIsGenerated(false);
-  };
-
-  // 💡 تطبيق الـ Diagram: التحقق وإنشاء الوثيقة وتسجيل العملية (Log Action)
-  const handleGenerate = async (e) => {
-    e.preventDefault();
-    
-    if (!formData.fullName) {
-      alert("⚠️ Please enter a name to generate the document.");
-      return;
-    }
-
-    setIsGenerated(true);
-
-    try {
-      // 💡 تسجيل العملية (Logging) في الداتا باز
-      const logData = {
-        document_type: selectedDocDetails.title,
-        target_person: formData.fullName,
-        generated_by: currentUser ? `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() : 'System Admin',
-        generated_at: new Date().toISOString()
-      };
-
-      // إذا ما كانش عندك طابلو document_logs، كومنتي هاد السطرين باش ما يخرجلكش إيرور
-      const { error } = await supabase.from('document_logs').insert([logData]);
-      if (error) console.warn("Log warning: Make sure 'document_logs' table exists.", error.message);
-
-      showNotification(`Document generated and logged successfully for ${formData.fullName}.`);
-    } catch (err) {
-      console.error("Failed to log document generation:", err);
-    }
-  };
-
-  const handlePrint = () => {
-    window.print();
+    setFormData({ searchQuery: '', fullName: '', courseLevel: '', date: '' });
   };
 
   const renderPreview = () => {
-    if (selectedDocId === 'completion') {
-      return (
-         <div className="bg-[#f0ebe1] p-10 outline outline-[12px] outline-[#e6decb] shadow-xl w-full max-w-2xl mx-auto flex flex-col items-center text-center">
-            <div className="border border-[#c2b28f] w-full h-full p-8 flex flex-col items-center justify-center">
-                <p className="font-serif italic text-gray-600 mb-1">Company Name</p>
-                <p className="text-xs tracking-widest text-gray-500 mb-8 uppercase">The Course or Training Module Name</p>
-                <h1 className="text-4xl font-serif text-black tracking-wider mb-2">CERTIFICATE</h1>
-                <h2 className="text-2xl font-serif text-black mb-8">OF COMPLETION</h2>
-                <p className="text-sm text-gray-700 mb-6 max-w-md mx-auto font-medium">Our company is pleased<br/>to be able to award this certificate to</p>
-                <h3 className="text-4xl italic text-black mb-6 border-b border-gray-400 pb-2 w-3/4 mx-auto" style={{fontFamily: "'Great Vibes', cursive"}}>
-                  {formData.fullName || 'Era Reichert'}
-                </h3>
-                <p className="text-sm text-gray-700 mb-12 max-w-md mx-auto font-medium">Upon the Successful Completion of Your Course Name,<br/>Module, Level or Grade</p>
-                <div className="flex justify-between w-full items-end mt-4 px-4">
-                  <div className="text-center w-1/3">
-                    <p className="text-sm font-bold border-b border-gray-400 pb-1 mb-1">{formData.date || 'March 10 2025'}</p>
-                    <p className="text-xs italic text-gray-600 font-serif">Date awarded</p>
-                  </div>
-                  <div className="w-16 h-16 rounded-full bg-[#c9b585] flex items-center justify-center border-4 border-white shadow-md text-white font-bold text-xs uppercase">Logo</div>
-                  <div className="text-center w-1/3">
-                    <p className="text-sm border-b border-gray-400 pb-1 mb-1">Alf Director</p>
-                    <p className="text-xs italic text-gray-600 font-serif">Name / Position</p>
-                  </div>
-                </div>
-            </div>
-         </div>
-      );
-    }
-
-    if (selectedDocId === 'receipt') {
-      return (
-        <div className="bg-white p-12 shadow-xl w-full max-w-2xl mx-auto border border-gray-200">
-           <div className="flex justify-between items-start border-b-8 border-gray-600 pb-4 mb-10">
-              <div className="w-12 h-12 bg-gray-800 text-white flex items-center justify-center font-bold text-2xl">T.</div>
-              <div className="text-right text-xs text-gray-600">
-                 <p className="font-bold text-gray-800 uppercase">TOLEDO, OH 43601</p>
-                 <p>INQUIRE@BRANDOPIA.MAIL</p>
-                 <p>WWW.TEMPLATE.NET</p>
-                 <p>222 555 7777</p>
-              </div>
-           </div>
-           <h2 className="text-2xl font-bold text-center mb-8">School Receipt</h2>
-           <div className="text-sm space-y-2 mb-8">
-              <p><span className="font-bold">Date:</span> {formData.date || 'January 15, 2050'}</p>
-              <p><span className="font-bold">Receipt No.:</span> 12345</p>
-           </div>
-           <div className="text-sm space-y-2 mb-8">
-              <p><span className="font-bold">Received From:</span></p>
-              <p className="font-bold">{formData.fullName || 'Bennie Goodwin'}</p>
-              <p><span className="font-bold">Payment Type:</span> Cash</p>
-              <p><span className="font-bold">Payment for:</span> Tuition Fees for Spring 2050</p>
-           </div>
-           <table className="w-full text-sm border-collapse mb-10">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="text-left py-2 px-4 text-gray-500 font-medium">Description</th>
-                  <th className="text-right py-2 px-4 text-gray-500 font-medium">Amount (USD)</th>
-                </tr>
-              </thead>
-              <tbody>
-                 <tr className="border-b border-gray-200">
-                    <td className="py-3 px-4">Tuition Fee (Spring 2050)</td>
-                    <td className="py-3 px-4 text-right">$2,500.00</td>
-                 </tr>
-                 <tr className="border-b border-gray-200">
-                    <td className="py-3 px-4">Activity Fee</td>
-                    <td className="py-3 px-4 text-right">$150.00</td>
-                 </tr>
-                 <tr className="border-b border-gray-400">
-                    <td className="py-3 px-4">Library Fee</td>
-                    <td className="py-3 px-4 text-right">$50.00</td>
-                 </tr>
-                 <tr>
-                    <td className="py-4 px-4 font-bold">Total</td>
-                    <td className="py-4 px-4 text-right font-bold">$2,700.00</td>
-                 </tr>
-              </tbody>
-           </table>
-           <div className="text-sm space-y-2 mb-8">
-             <p><span className="font-bold">Payment Method:</span> Credit Card</p>
-             <p><span className="font-bold">Payment Date:</span> {formData.date || 'January 15, 2050'}</p>
-           </div>
-           <p className="text-xs text-gray-600 mt-12 border-t border-gray-200 pt-4">
-             Thank you for your payment. For any further inquiries, please contact us at <strong>[YOUR EMAIL]</strong>.
-           </p>
-        </div>
-      );
-    }
-
-    if (selectedDocId === 'enrollment') {
-      return (
-        <div className="bg-white p-12 shadow-xl w-full max-w-2xl mx-auto border border-gray-200 text-center">
-            <div className="flex justify-between items-start mb-10">
-                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center text-blue-800 font-bold text-xs shadow-inner">Logo</div>
-                <div className="text-center">
-                   <p className="text-[10px] font-bold text-gray-600 uppercase">Department of Education</p>
-                   <p className="text-xs font-bold text-black uppercase mt-1">TULUNGATUNG ELEMENTARY SCHOOL</p>
-                   <p className="text-[9px] text-gray-500">Zamboanga City</p>
-                </div>
-                <div className="w-16 font-bold text-red-600 text-xl tracking-tighter">DepED</div>
-            </div>
-            <h2 className="text-xl font-bold tracking-widest mb-12 uppercase">CERTIFICATE OF ENROLMENT</h2>
-            <p className="text-sm leading-relaxed text-justify mb-6">
-                This is to certify that <strong>{formData.fullName ? formData.fullName.toUpperCase() : 'CORONEL, MICHAELA BIALILLA'}</strong> is officially enrolled.
-            </p>
-            <p className="text-sm leading-relaxed text-justify mb-16">
-               Issued on this {formData.date ? formData.date : '26th day of August, 2022'}.
-            </p>
-            <div className="flex justify-end mb-12">
-               <div className="text-center">
-                  <p className="font-bold text-sm">MARIA ALELI E. RIZADA</p>
-                  <p className="text-xs text-gray-600">Adviser</p>
-               </div>
-            </div>
-        </div>
-      );
-    }
-      
-     return (
-        <div className="bg-white p-12 shadow-xl w-full max-w-2xl mx-auto border border-gray-200">
-           <h2 className="text-2xl font-bold text-center mb-8 border-b pb-4">{selectedDocDetails?.title}</h2>
-           <p className="mb-4"><span className="font-bold">Name:</span> {formData.fullName || '[Name]'}</p>
-           <p className="mb-8"><span className="font-bold">Date:</span> {formData.date || '[Date]'}</p>
-           <div className="p-6 bg-gray-50 border-l-4 border-blue-600 text-gray-600 italic">
-              Official template placeholder for {selectedDocDetails?.title}.
-           </div>
-        </div>
-     );
+    if (selectedDocId === 'completion') return <PreviewCompletion formData={formData} />;
+    if (selectedDocId === 'receipt')    return <PreviewReceipt    formData={formData} />;
+    if (selectedDocId === 'enrollment') return <PreviewEnrollment formData={formData} />;
+    return <PreviewGeneric formData={formData} doc={selectedDocDetails} />;
   };
 
+  const tabs = ['All', 'Student', 'Faculty', 'Admin'];
+
+  // ─── Render ───────────────────────────────────────────────────────────────
   return (
-    <div className="animate-fade-in w-full flex flex-col relative text-[#0A1128] bg-gray-50 min-h-[700px]">
+    <>
+      <style>{`
+        @keyframes slideUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes fadeIn  { from{opacity:0} to{opacity:1} }
+        * { box-sizing: border-box; }
+        input::placeholder { color: #94a3b8; font-size: 13px; }
+        .doc-sb::-webkit-scrollbar { width: 4px; }
+        .doc-sb::-webkit-scrollbar-track { background: transparent; }
+        .doc-sb::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+        .doc-sb::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+        @media print {
+          body > *:not(#doc-print-area) { display: none !important; }
+          #doc-print-area { display: block !important; position: fixed; top:0; left:0; width:100%; }
+        }
+      `}</style>
+
       {toast.show && <Toast message={toast.message} onClose={() => setToast({ show: false, message: '' })} />}
-      <div className="flex w-full h-[800px] shadow-sm rounded-xl overflow-hidden border border-gray-200">
-         
-         <div className="w-[340px] bg-white border-r border-gray-200 flex flex-col h-full shrink-0">
-            <div className="p-6 pb-2 shrink-0">
-               <div className="relative mb-6">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">🔍</span>
-                  <input 
-                    type="text" 
-                    placeholder="Search documents..." 
-                    value={docSearchQuery}
-                    onChange={(e) => setDocSearchQuery(e.target.value)}
-                    className="w-full bg-gray-100 border-none rounded-full py-2.5 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-blue-100 transition-all" 
+
+      {/* ── Page wrapper (fits inside main content area) ── */}
+      <div style={{
+        flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden',
+        padding: 28, background: C.pageBg,
+        fontFamily: "'Inter','Segoe UI',sans-serif",
+      }}>
+
+        {/* Page header */}
+        <div style={{ marginBottom: 20, flexShrink: 0 }}>
+          <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: C.textDark }}>Document Center</h2>
+          <p style={{ margin: '4px 0 0', fontSize: 13, color: C.textMuted }}>
+            Generate, preview and export official school documents.
+          </p>
+        </div>
+
+        {/* ── 3-panel card ── */}
+        <div style={{
+          flex: 1, minHeight: 0, display: 'flex',
+          background: C.white, borderRadius: 16,
+          border: `1px solid ${C.borderMid}`,
+          boxShadow: '0 1px 8px rgba(0,0,0,0.06)',
+          overflow: 'hidden',
+        }}>
+
+          {/* ═══ LEFT SIDEBAR ═══════════════════════════════════════════════ */}
+          <aside style={{
+            width: 264, flexShrink: 0,
+            background: C.pageBg,
+            borderRight: `1px solid ${C.border}`,
+            display: 'flex', flexDirection: 'column',
+            height: '100%',
+          }}>
+            {/* Search + Tabs */}
+            <div style={{ padding: '16px 14px 12px', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
+              {/* Search */}
+              <div style={{ position: 'relative', marginBottom: 10 }}>
+                <span style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: C.textMuted, pointerEvents: 'none', display: 'flex' }}>
+                  <Ic.Search />
+                </span>
+                <input
+                  type="text"
+                  placeholder="Search documents…"
+                  value={docSearchQuery}
+                  onChange={e => setDocSearchQuery(e.target.value)}
+                  style={{ ...inputBase, paddingLeft: 32, height: 36, fontSize: 12.5, borderRadius: 9 }}
+                  onFocus={handleFocus} onBlur={handleBlur}
+                />
+              </div>
+
+              {/* Tab strip */}
+              <div style={{ display: 'flex', gap: 3, background: C.border, borderRadius: 8, padding: 3 }}>
+                {tabs.map(tab => (
+                  <button key={tab} onClick={() => setActiveTab(tab)}
+                    style={{
+                      flex: 1, padding: '5px 0', borderRadius: 6, border: 'none',
+                      fontSize: 11, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s',
+                      background: activeTab === tab ? C.white : 'transparent',
+                      color: activeTab === tab ? C.primary : C.textMuted,
+                      boxShadow: activeTab === tab ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+                    }}
+                  >{tab}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* Document list */}
+            <div className="doc-sb" style={{ flex: 1, overflowY: 'auto', padding: '10px 10px' }}>
+              {Object.keys(groupedDocs).length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '36px 16px', color: C.textMuted }}>
+                  <div style={{ marginBottom: 8, opacity: 0.5, display: 'flex', justifyContent: 'center' }}><Ic.File /></div>
+                  <p style={{ margin: 0, fontSize: 12, fontWeight: 600 }}>No documents found</p>
+                </div>
+              ) : (
+                Object.keys(groupedDocs).map(category => {
+                  const badge = categoryBadge[category] || { bg: C.pageBg, color: C.textMuted };
+                  return (
+                    <div key={category} style={{ marginBottom: 18 }}>
+                      {/* Category badge */}
+                      <div style={{ padding: '0 4px', marginBottom: 6 }}>
+                        <span style={{
+                          display: 'inline-block',
+                          fontSize: 10, fontWeight: 700,
+                          padding: '2px 9px', borderRadius: 20,
+                          background: badge.bg, color: badge.color,
+                          textTransform: 'uppercase', letterSpacing: '0.05em',
+                        }}>{category}</span>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        {groupedDocs[category].map(doc => {
+                          const isActive = selectedDocId === doc.id;
+                          return (
+                            <button key={doc.id} onClick={() => handleSelectDoc(doc.id)}
+                              style={{
+                                width: '100%', textAlign: 'left', padding: '9px 11px',
+                                borderRadius: 9, border: 'none', cursor: 'pointer',
+                                display: 'flex', alignItems: 'flex-start', gap: 9,
+                                background: isActive ? C.primary : 'transparent',
+                                transition: 'all 0.15s',
+                              }}
+                              onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = C.primaryLight; }}
+                              onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
+                            >
+                              <span style={{ color: isActive ? 'rgba(255,255,255,0.75)' : C.primary, marginTop: 1, flexShrink: 0 }}>
+                                <Ic.File />
+                              </span>
+                              <div style={{ minWidth: 0 }}>
+                                <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: isActive ? '#fff' : C.textDark, lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {doc.title}
+                                </p>
+                                <p style={{ margin: '3px 0 0', fontSize: 10.5, color: isActive ? 'rgba(255,255,255,0.62)' : C.textMuted, lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                                  {doc.desc}
+                                </p>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </aside>
+
+          {/* ═══ CENTER PANEL — FORM ════════════════════════════════════════ */}
+          <div style={{
+            width: 304, flexShrink: 0,
+            borderRight: `1px solid ${C.border}`,
+            display: 'flex', flexDirection: 'column',
+            height: '100%', background: C.white,
+          }}>
+            {/* Panel header */}
+            <div style={{ padding: '18px 20px 14px', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 34, height: 34, borderRadius: 9, background: C.primaryLight, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.primary, flexShrink: 0 }}>
+                  <Ic.Generate />
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <p style={{ margin: 0, fontSize: 13.5, fontWeight: 800, color: C.textDark, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {selectedDocDetails?.title}
+                  </p>
+                  <p style={{ margin: '2px 0 0', fontSize: 10.5, color: C.textMuted, lineHeight: 1.3 }}>{selectedDocDetails?.desc}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Form body */}
+            <div className="doc-sb" style={{ flex: 1, overflowY: 'auto', padding: '22px 20px' }}>
+              <form onSubmit={handleGenerate} noValidate style={{ display: 'flex', flexDirection: 'column', gap: 20, height: '100%' }}>
+
+                {/* Full name + Find */}
+                <div>
+                  <FieldLabel icon={Ic.User}>Person Name</FieldLabel>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ position: 'relative', flex: 1 }}>
+                      <span style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: C.textMuted, pointerEvents: 'none', display: 'flex' }}>
+                        <Ic.Search />
+                      </span>
+                      <input
+                        type="text" name="fullName"
+                        value={formData.fullName}
+                        onChange={handleInputChange}
+                        placeholder="Enter full name…"
+                        style={{ ...inputBase, paddingLeft: 32, height: 40, fontSize: 13 }}
+                        onFocus={handleFocus} onBlur={handleBlur}
+                      />
+                    </div>
+                    <button type="submit"
+                      style={{
+                        padding: '0 14px', borderRadius: 9,
+                        border: `1.5px solid ${C.borderMid}`,
+                        background: C.pageBg, color: C.textDark,
+                        fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                        transition: 'all 0.15s', whiteSpace: 'nowrap',
+                        fontFamily: "'Inter','Segoe UI',sans-serif",
+                        height: 40,
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = C.primaryLight; e.currentTarget.style.borderColor = '#c7d2fe'; e.currentTarget.style.color = C.primary; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = C.pageBg; e.currentTarget.style.borderColor = C.borderMid; e.currentTarget.style.color = C.textDark; }}
+                    >
+                      Find
+                    </button>
+                  </div>
+                </div>
+
+                {/* Course & Level */}
+                <div>
+                  <FieldLabel icon={Ic.BookOpen}>Course &amp; Level / Role</FieldLabel>
+                  <input
+                    type="text" name="courseLevel"
+                    value={formData.courseLevel}
+                    onChange={handleInputChange}
+                    placeholder="e.g. English — Level B2"
+                    style={inputBase}
+                    onFocus={handleFocus} onBlur={handleBlur}
                   />
-               </div>
+                </div>
 
-               <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg w-full mb-4">
-                  {['All', 'Student', 'Faculty', 'Admin'].map(tab => (
-                     <button 
-                        key={tab}
-                        onClick={() => setActiveTab(tab)} 
-                        className={`flex-1 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === tab ? 'bg-white text-[#0A1128] shadow-sm' : 'text-gray-500 hover:text-[#0A1128]'}`}
-                     >
-                        {tab}
-                     </button>
-                  ))}
-               </div>
-            </div>
+                {/* Date */}
+                <div>
+                  <FieldLabel icon={Ic.Calendar}>Issue Date</FieldLabel>
+                  <input
+                    type="text" name="date"
+                    value={formData.date}
+                    onChange={handleInputChange}
+                    placeholder="e.g. April 26, 2026"
+                    style={inputBase}
+                    onFocus={handleFocus} onBlur={handleBlur}
+                  />
+                </div>
 
-            <div className="overflow-y-auto flex-1 custom-scrollbar px-4 pb-4">
-               {Object.keys(groupedDocs).map((category) => (
-                  <div key={category} className="mb-6">
-                     <h4 className="text-[10px] font-bold text-gray-800 uppercase tracking-wider mb-2 ml-2">{category}</h4>
-                     <div className="space-y-1">
-                        {groupedDocs[category].map((doc) => (
-                           <button
-                              key={doc.id}
-                              onClick={() => handleSelectDoc(doc.id)}
-                              className={`w-full text-left p-3 rounded-xl transition-all flex items-start ${
-                                  selectedDocId === doc.id 
-                                    ? 'bg-[#2563eb] text-white shadow-md' 
-                                    : 'bg-transparent text-[#0A1128] hover:bg-gray-50'
-                              }`}
-                           >
-                              <div className={`mr-3 mt-0.5 w-5 h-5 flex items-center justify-center opacity-80 ${selectedDocId === doc.id ? 'text-white' : 'text-blue-600'}`}>
-                                  📄 
-                              </div>
-                              <div>
-                                 <p className={`font-bold text-xs mb-0.5 ${selectedDocId === doc.id ? 'text-white' : 'text-[#0A1128]'}`}>
-                                    {doc.title}
-                                 </p>
-                                 <p className={`text-[10px] leading-snug line-clamp-2 ${selectedDocId === doc.id ? 'text-blue-100' : 'text-gray-500'}`}>
-                                    {doc.desc}
-                                 </p>
-                              </div>
-                           </button>
-                        ))}
-                     </div>
-                  </div>
-               ))}
-            </div>
-         </div>
-
-         <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#f4f7f6]"> 
-            <div className="flex justify-between items-center p-4 border-b border-gray-200 bg-white shrink-0">
-               <div>
-                  <h2 className="text-xl font-bold text-[#0A1128] mb-1">Document Center</h2>
-               </div>
-               <div className="flex space-x-3">
-                  <button 
-                    onClick={handlePrint}
-                    disabled={!isGenerated} 
-                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center ${isGenerated ? 'bg-[#eff6ff] text-[#2563eb] hover:bg-blue-100 border border-blue-200 shadow-sm' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
+                {/* Generate CTA */}
+                <div style={{ marginTop: 'auto', paddingTop: 16 }}>
+                  <button type="submit"
+                    style={{
+                      width: '100%', height: 44, border: 'none', borderRadius: 10,
+                      background: C.primary, color: '#fff',
+                      fontSize: 13.5, fontWeight: 700, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      boxShadow: '0 4px 14px rgba(67,24,255,0.28)',
+                      transition: 'all 0.15s',
+                      fontFamily: "'Inter','Segoe UI',sans-serif",
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#3510d4'; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(67,24,255,0.38)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = C.primary; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(67,24,255,0.28)'; }}
+                    onMouseDown={e => e.currentTarget.style.transform = 'scale(0.985)'}
+                    onMouseUp={e => e.currentTarget.style.transform = 'translateY(-1px)'}
                   >
-                     <span className="mr-2">📥</span> Export PDF
+                    <Ic.Generate /> Generate Document
                   </button>
-                  <button 
-                    onClick={handlePrint}
-                    disabled={!isGenerated} 
-                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center ${isGenerated ? 'bg-[#eff6ff] text-[#2563eb] hover:bg-blue-100 border border-blue-200 shadow-sm' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
+                </div>
+              </form>
+            </div>
+          </div>
+
+          {/* ═══ RIGHT — PREVIEW PANEL ══════════════════════════════════════ */}
+          <div style={{
+            flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column',
+            height: '100%', background: '#f1f5f9',
+          }}>
+            {/* Preview toolbar */}
+            <div style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              padding: '12px 20px', background: C.white,
+              borderBottom: `1px solid ${C.border}`, flexShrink: 0,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ color: C.textMuted, display: 'flex' }}><Ic.Eye /></span>
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: C.textMid }}>Document Preview</span>
+                {isGenerated && (
+                  <span style={{
+                    fontSize: 10, fontWeight: 700,
+                    background: C.successBg, color: C.success,
+                    padding: '2px 9px', borderRadius: 20,
+                  }}>Ready</span>
+                )}
+              </div>
+
+              {/* Export / Print */}
+              <div style={{ display: 'flex', gap: 8 }}>
+                {[
+                  { icon: Ic.Download, label: 'Export PDF' },
+                  { icon: Ic.Print,    label: 'Print'      },
+                ].map(({ icon: Icon, label }) => (
+                  <button key={label} onClick={handlePrint} disabled={!isGenerated}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      padding: '7px 14px', borderRadius: 9,
+                      border: `1px solid ${isGenerated ? C.borderMid : C.border}`,
+                      background: isGenerated ? C.white : C.pageBg,
+                      color: isGenerated ? C.textDark : C.textMuted,
+                      fontSize: 12, fontWeight: 700,
+                      cursor: isGenerated ? 'pointer' : 'not-allowed',
+                      transition: 'all 0.15s',
+                      fontFamily: "'Inter','Segoe UI',sans-serif",
+                    }}
+                    onMouseEnter={e => { if (isGenerated) { e.currentTarget.style.borderColor = '#c7d2fe'; e.currentTarget.style.color = C.primary; } }}
+                    onMouseLeave={e => { if (isGenerated) { e.currentTarget.style.borderColor = C.borderMid; e.currentTarget.style.color = C.textDark; } }}
                   >
-                     <span className="mr-2">🖨️</span> Print
+                    <span style={{ color: isGenerated ? C.primary : C.textMuted, display: 'flex' }}><Icon /></span>
+                    {label}
                   </button>
-               </div>
+                ))}
+              </div>
             </div>
 
-            <div className="flex-1 flex overflow-hidden">
-               <div className="w-1/2 min-w-[400px] border-r border-gray-200 bg-white p-10 flex flex-col overflow-y-auto custom-scrollbar">
-                  <div className="mb-8">
-                     <h2 className="text-2xl font-bold text-[#0A1128] mb-1">{selectedDocDetails?.title}</h2>
-                     <p className="text-xs text-gray-500">{selectedDocDetails?.desc}</p>
+            {/* Preview area */}
+            <div id="doc-print-area" className="doc-sb"
+              style={{ flex: 1, overflowY: 'auto', padding: '32px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}
+            >
+              {!isGenerated ? (
+                <div style={{
+                  flex: 1, display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', justifyContent: 'center',
+                  gap: 16, color: C.textMuted, width: '100%',
+                }}>
+                  <div style={{
+                    width: 64, height: 64, borderRadius: 16,
+                    background: C.white, border: `1.5px solid ${C.borderMid}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: C.textMuted, boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+                  }}>
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                      <polyline points="14 2 14 8 20 8"/>
+                      <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+                    </svg>
                   </div>
-
-                  <form onSubmit={handleGenerate} className="space-y-8 flex-1">
-                     <div>
-                        <label className="block text-xs font-bold text-[#0A1128] mb-2">Search Person (Full Name)</label>
-                        <div className="flex space-x-2">
-                           <div className="relative flex-1">
-                              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">🔍</span>
-                              <input 
-                                type="text" 
-                                name="fullName"
-                                value={formData.fullName}
-                                onChange={handleInputChange}
-                                placeholder="Enter student/faculty..." 
-                                className="w-full bg-gray-50 border border-gray-200 rounded-lg py-2.5 pl-10 pr-4 text-sm outline-none focus:border-blue-500 transition-colors" 
-                              />
-                           </div>
-                           <button type="submit" className="bg-gray-100 hover:bg-gray-200 text-[#0A1128] px-5 rounded-lg text-xs font-bold transition-colors">
-                              Find
-                           </button>
-                        </div>
-                     </div>
-
-                     <div>
-                        <label className="block text-xs font-bold text-[#0A1128] mb-2">Course & Level / Role</label>
-                        <input type="text" name="courseLevel" value={formData.courseLevel} onChange={handleInputChange} className="w-full bg-transparent border-b border-gray-300 py-2 outline-none focus:border-blue-500 text-[#0A1128] text-sm transition-colors" />
-                     </div>
-
-                     <div>
-                        <label className="block text-xs font-bold text-[#0A1128] mb-2">Date</label>
-                        <input type="text" name="date" value={formData.date} onChange={handleInputChange} placeholder="DD/MM/YYYY" className="w-full bg-transparent border-b border-gray-300 py-2 outline-none focus:border-blue-500 text-[#0A1128] text-sm transition-colors" />
-                     </div>
-
-                     <div className="mt-auto pt-10 pb-4">
-                        <button type="submit" className="w-[200px] bg-[#2563eb] hover:bg-blue-700 text-white py-3 rounded-full font-bold text-sm shadow-sm transition-colors mx-auto block">
-                           Generate Document
-                        </button>
-                     </div>
-                  </form>
-               </div>
-
-               <div className="flex-1 bg-gray-100 flex flex-col items-center justify-center p-8 overflow-y-auto custom-scrollbar relative">
-                  <div className="absolute top-4 left-4">
-                     <p className="text-xs font-bold text-gray-500">Document Preview</p>
+                  <div style={{ textAlign: 'center' }}>
+                    <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: C.textDark }}>No Document Generated</p>
+                    <p style={{ margin: '6px 0 0', fontSize: 12.5, color: C.textMuted, maxWidth: 260, lineHeight: 1.6 }}>
+                      Select a template, fill in the details, then click{' '}
+                      <strong style={{ color: C.primary }}>Generate Document</strong>.
+                    </p>
                   </div>
-
-                  {!isGenerated ? (
-                     <div className="flex flex-col items-center text-gray-400 mt-10">
-                        <span className="text-5xl mb-4 opacity-50">📄</span>
-                        <h3 className="font-bold text-[#0A1128] mb-2">No Document Yet</h3>
-                        <p className="text-xs text-center max-w-xs leading-relaxed">
-                           Select a template and click "Generate Document" to view it.
-                        </p>
-                     </div>
-                  ) : (
-                     <div className="w-full flex justify-center animate-fade-in mt-10">
-                        {renderPreview()}
-                     </div>
-                  )}
-               </div>
+                </div>
+              ) : (
+                <div style={{ width: '100%', animation: 'fadeIn 0.3s ease both' }}>
+                  {renderPreview()}
+                </div>
+              )}
             </div>
-         </div>
+          </div>
+
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 

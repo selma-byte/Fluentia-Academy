@@ -515,7 +515,7 @@ const Login = () => {
                       Authenticating...
                     </>
                   ) : (
-                    <> Sign In <ArrowRightIcon /> </>
+                    <> Sign In  </>
                   )}
                 </button>
 

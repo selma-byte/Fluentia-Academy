@@ -319,7 +319,7 @@ const HomePage = () => {
                   onMouseEnter={e => { e.currentTarget.style.background='#3510d4'; e.currentTarget.style.transform='translateY(-1px)'; e.currentTarget.style.boxShadow='0 6px 20px rgba(67,24,255,0.45)'; }}
                   onMouseLeave={e => { e.currentTarget.style.background='#4318FF'; e.currentTarget.style.transform='none'; e.currentTarget.style.boxShadow='0 4px 14px rgba(67,24,255,0.35)'; }}
                 >
-                  Join Us <ArrowRightIcon />
+                  Join Us 
                 </button>
               </div>
             </nav>
@@ -502,7 +502,7 @@ const HomePage = () => {
                   onMouseEnter={e => e.currentTarget.style.color='#fff'}
                   onMouseLeave={e => e.currentTarget.style.color='#818cf8'}
                 >
-                  Take our Free Placement Test →
+                  Take our Free Placement Test 
                 </span>
               </p>
             </div>
