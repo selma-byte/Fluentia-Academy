@@ -299,18 +299,25 @@ const Reports = () => {
           setTeacherLanguageData(facultyData.length > 0 ? facultyData : [{ lang: 'No Data', count: 0 }]);
         }
 
-        // Finance
-        const { data: payments } = await supabase.from('payments').select('amount, created_at, status').eq('status', 'Paid');
-        const { data: expenses } = await supabase.from('expenses').select('amount, expense_date');
+        // Finance (مع حماية Error Handling باش إذا مكانش طابلو Expenses مايحبسش الكود)
         let finMap = { Jan:{r:0,e:0}, Feb:{r:0,e:0}, Mar:{r:0,e:0}, Apr:{r:0,e:0}, May:{r:0,e:0}, Jun:{r:0,e:0} };
+        
+        const { data: payments } = await supabase.from('payments').select('amount, created_at, status').eq('status', 'Paid');
         if (payments) payments.forEach(p => {
           const d = new Date(p.created_at);
           if (d.getFullYear() === currentYear) { const m = monthNames[d.getMonth()]; if (finMap[m]) finMap[m].r += Number(p.amount); }
         });
-        if (expenses) expenses.forEach(x => {
-          const d = new Date(x.expense_date);
-          if (d.getFullYear() === currentYear) { const m = monthNames[d.getMonth()]; if (finMap[m]) finMap[m].e += Number(x.amount); }
-        });
+
+        try {
+          const { data: expenses } = await supabase.from('expenses').select('amount, expense_date');
+          if (expenses) expenses.forEach(x => {
+            const d = new Date(x.expense_date);
+            if (d.getFullYear() === currentYear) { const m = monthNames[d.getMonth()]; if (finMap[m]) finMap[m].e += Number(x.amount); }
+          });
+        } catch (expErr) {
+          console.log("Expenses table not found, skipping expenses data.");
+        }
+        
         setFinanceData(Object.keys(finMap).map(k => ({ month: k, revenue: finMap[k].r, expenses: finMap[k].e })));
 
         // Attendance

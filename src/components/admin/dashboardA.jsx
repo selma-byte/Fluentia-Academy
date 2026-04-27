@@ -11,7 +11,6 @@ import ParentPortal from './ParentPortal';
 import Documents from './Documents';
 import Exams from './exams';
 import Payment from './payment';
-import SchoolSchedule from './SchoolSchedule';
 
 // --- ADMIN SPECIFIC MODULES — UNTOUCHED ---
 import TeacherManagement from './TeacherManagement';
@@ -125,7 +124,7 @@ const DashboardContent = ({ setActiveTab }) => {
   const [statsData, setStatsData] = useState({ students: 0, teachers: 0, courses: 0 });
   const [loading, setLoading]     = useState(true);
 
-  // ── All original Supabase logic — UNTOUCHED ──────────────────────────────
+  // ── 💡 Supabase Logic ──────────────────────────────
   useEffect(() => {
     const fetchDashboardStats = async () => {
       setLoading(true);
@@ -144,16 +143,16 @@ const DashboardContent = ({ setActiveTab }) => {
   }, []);
 
   const stats = [
-    { label: 'Total Students', val: loading ? '...' : statsData.students.toLocaleString(), icon: 'actStudent', iColor: '#4318FF', iBg: '#eef2ff', badge: '+12%',  bColor: '#059669', bBg: '#ecfdf5', tab: 'Students Management' },
-    { label: 'Total Teachers', val: loading ? '...' : statsData.teachers.toLocaleString(), icon: 'actClock',   iColor: '#f97316', iBg: '#fff7ed', badge: 'Stable', bColor: '#92400e', bBg: '#fef3c7', tab: 'Teacher Management'  },
-    { label: 'Total Courses',  val: loading ? '...' : statsData.courses.toLocaleString(),  icon: 'newCourse',  iColor: '#4318FF', iBg: '#eef2ff', badge: '+4 New', bColor: '#1d4ed8', bBg: '#eff6ff', tab: 'Scheduling Hub'      },
+    { label: 'Total Students', val: loading ? '...' : statsData.students.toLocaleString(), icon: 'actStudent', iColor: '#4318FF', iBg: '#eef2ff', badge: 'Active',  bColor: '#059669', bBg: '#ecfdf5', tab: 'Students Management' },
+    { label: 'Total Teachers', val: loading ? '...' : statsData.teachers.toLocaleString(), icon: 'actClock',   iColor: '#f97316', iBg: '#fff7ed', badge: 'Active', bColor: '#92400e', bBg: '#fef3c7', tab: 'Teacher Management'  },
+    { label: 'Total Courses',  val: loading ? '...' : statsData.courses.toLocaleString(),  icon: 'newCourse',  iColor: '#4318FF', iBg: '#eef2ff', badge: 'Running', bColor: '#1d4ed8', bBg: '#eff6ff', tab: 'Scheduling Hub'      },
   ];
 
   const activities = [
-    { icon: 'actStudent',  iColor: '#4318FF', iBg: '#eef2ff', title: 'New student registered',     sub: 'Elena Gilbert has joined the English department.',         time: '2H AGO'    },
-    { icon: 'actClock',    iColor: '#f97316', iBg: '#fff7ed', title: 'Teacher attendance updated', sub: 'Attendance records for 12 faculty members were finalized.', time: '5H AGO'    },
-    { icon: 'actCalendar', iColor: '#7c3aed', iBg: '#f5f3ff', title: 'Exam schedule published',    sub: 'Mid-term schedules for Semester 4 are now live.',           time: '6H AGO'    },
-    { icon: 'actDollar',   iColor: '#059669', iBg: '#ecfdf5', title: 'Fee payment confirmed',      sub: 'Transaction #TX9842 verified for 45 students.',             time: 'YESTERDAY' },
+    { icon: 'actStudent',  iColor: '#4318FF', iBg: '#eef2ff', title: 'New student registered',     sub: 'A new student has joined the academy.',         time: '2H AGO'    },
+    { icon: 'actClock',    iColor: '#f97316', iBg: '#fff7ed', title: 'Teacher attendance updated', sub: 'Attendance records for faculty members were finalized.', time: '5H AGO'    },
+    { icon: 'actCalendar', iColor: '#7c3aed', iBg: '#f5f3ff', title: 'Exam schedule published',    sub: 'Mid-term schedules are now live.',          time: '6H AGO'    },
+    { icon: 'actDollar',   iColor: '#059669', iBg: '#ecfdf5', title: 'Fee payment confirmed',      sub: 'Transaction verified for students.',             time: 'YESTERDAY' },
   ];
 
   const quickActions = [
@@ -169,7 +168,7 @@ const DashboardContent = ({ setActiveTab }) => {
         <div>
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#1e293b' }}>Welcome back, Admin</h1>
           <p style={{ margin: '4px 0 0', fontSize: 13, color: '#64748b' }}>
-            Here's a snapshot of the Polyglot Academy performance today.
+            Here's a snapshot of the Academy's performance today.
           </p>
         </div>
         <button style={{
@@ -223,9 +222,10 @@ const DashboardContent = ({ setActiveTab }) => {
               <span style={{ fontSize: 13, fontWeight: 800, color: '#991b1b' }}>Action Required</span>
             </div>
             <p style={{ margin: '0 0 14px', fontSize: 12, color: '#b91c1c', lineHeight: 1.6 }}>
-              3 teachers have not submitted their monthly attendance reports.
+              Review pending teacher payrolls for this month.
             </p>
             <button
+              onClick={() => setActiveTab('Payment')}
               style={{
                 width: '100%', padding: '11px 0', borderRadius: 10, border: 'none',
                 background: '#dc2626', color: '#fff', fontSize: 12, fontWeight: 700,
@@ -234,7 +234,7 @@ const DashboardContent = ({ setActiveTab }) => {
               onMouseEnter={e => e.currentTarget.style.background = '#b91c1c'}
               onMouseLeave={e => e.currentTarget.style.background = '#dc2626'}
             >
-              NOTIFY NOW
+              GO TO PAYMENT
             </button>
           </div>
 
@@ -247,10 +247,9 @@ const DashboardContent = ({ setActiveTab }) => {
 // ─── Admin Dashboard Shell ────────────────────────────────────────────────────
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('Dashboard');
-  const [examView, setExamView]   = useState('home');
   const navigate = useNavigate();
 
-  // ── All original Supabase logic — UNTOUCHED ──────────────────────────────
+  // ── Supabase Logic ──────────────────────────────
   const [schoolBranding, setSchoolBranding] = useState({ logo: null, name: 'Polyglot' });
 
   useEffect(() => {
@@ -276,7 +275,7 @@ const AdminDashboard = () => {
     }
   };
 
-  // ── Menu — UNTOUCHED ──────────────────────────────────────────────────────
+  // ── Menu ──────────────────────────────────────────────────────
   const menuItems = [
     { icon: 'dashboard',  text: 'Dashboard'           },
     { icon: 'students',   text: 'Students Management' },
@@ -292,7 +291,7 @@ const AdminDashboard = () => {
     { icon: 'school',     text: 'School Profile'      },
   ];
 
-  // ── Routing — UNTOUCHED ───────────────────────────────────────────────────
+  // ── Routing ───────────────────────────────────────────────────
   const renderTabContent = () => {
     switch (activeTab) {
       case 'Dashboard':           return <DashboardContent setActiveTab={setActiveTab} />;
@@ -302,7 +301,7 @@ const AdminDashboard = () => {
       case 'Scheduling Hub':      return <SchedulingHub />;
       case 'Communicate Parents': return <ParentPortal />;
       case 'Documents':           return <Documents />;
-      case 'Exams':               return <Exams examView={examView} setExamView={setExamView} />;
+      case 'Exams':               return <Exams />;
       case 'Payment':             return <Payment />;
       case 'Reports':             return <Reports />;
       case 'Users':               return <Users />;
@@ -319,7 +318,7 @@ const AdminDashboard = () => {
       overflow: 'hidden',
     }}>
 
-      {/* ── Sidebar — exact design system match ── */}
+      {/* ── Sidebar ── */}
       <aside style={{
         width: 240, minWidth: 240, background: '#0f172a',
         display: 'flex', flexDirection: 'column',
@@ -333,7 +332,7 @@ const AdminDashboard = () => {
           {schoolBranding.logo ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <img src={schoolBranding.logo} alt="Logo"
-                style={{ width: 36, height: 36, borderRadius: 10, objectFit: 'contain' }} />
+                style={{ width: 36, height: 36, borderRadius: 10, objectFit: 'contain', background: 'rgba(255,255,255,0.1)' }} />
               <div>
                 <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: '#fff', letterSpacing: '0.04em' }}>
                   {schoolBranding.name.toUpperCase()}
@@ -343,7 +342,6 @@ const AdminDashboard = () => {
             </div>
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              {/* Globe logo — matches student/secretary sidebar */}
               <div style={{
                 width: 36, height: 36, borderRadius: 10, flexShrink: 0,
                 background: 'linear-gradient(135deg, #4318FF 0%, #6b47ff 100%)',
@@ -413,10 +411,7 @@ const AdminDashboard = () => {
 
       {/* ── Main area ── */}
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-        {/* Topbar — UNTOUCHED */}
         <Topbar setActiveTab={setActiveTab} />
-
-        {/* Content */}
         <div className="page-scroll" style={{ flex: 1, overflowY: 'auto', padding: 28 }}>
           {renderTabContent()}
         </div>

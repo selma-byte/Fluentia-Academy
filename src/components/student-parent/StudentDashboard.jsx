@@ -185,6 +185,7 @@ const SchoolLogo = () => {
     </div>
   );
 };
+
 // ─── Nav config ───────────────────────────────────────────────────────────────
 const navLinks = [
   { id: 'Dashboard',       icon: Icons.Dashboard },
@@ -260,8 +261,15 @@ const StudentDashboard = () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user && user.email) {
+          
           const { data: studentData } = await supabase
-            .from('students').select('*').eq('email', user.email).single();
+            .from('students')
+            .select(`
+              *,
+              inscriptions ( id, groupe, cours ( langue ) )
+            `)
+            .eq('email', user.email)
+            .single();
 
           if (studentData) {
             setCurrentUser(studentData);
@@ -271,38 +279,46 @@ const StudentDashboard = () => {
               level: studentData.level || 'Enrolled Student'
             });
 
-            if (studentData.group_name) {
+            const activeGroups = studentData.inscriptions?.map(i => i.groupe) || [];
+            
+            if (activeGroups.length > 0) {
               const { data: classData } = await supabase
-                .from('classes').select('*').eq('name', studentData.group_name);
+                .from('classes')
+                .select('*')
+                .in('name', activeGroups);
 
               if (classData && classData.length > 0) {
                 const colors = ['#EEF2FF', '#FFF7ED', '#ECFDF5', '#F0F9FF'];
                 const accents = ['#4318FF', '#f59e0b', '#059669', '#0284c7'];
+                
                 const formattedClasses = classData.map((cls, index) => ({
                   id: cls.id,
-                  name: cls.name || cls.class_name || studentData.group_name,
+                  name: cls.language ? `${cls.language} (${cls.level})` : cls.name,
                   instructor: cls.teacher_name || "Assigned Teacher",
                   color: colors[index % colors.length],
                   accent: accents[index % accents.length],
                   students: cls.capacity || 20,
                   time: cls.schedule || "Mon & Wed 09:00",
-                  platform: "In-Person Learning"
+                  platform: "In-Person Learning",
+                  rawName: cls.name
                 }));
                 setMyClasses(formattedClasses);
               }
             }
 
-            if (studentData.language && studentData.level) {
+            const activeLanguages = studentData.inscriptions?.map(i => i.cours?.langue) || [studentData.language];
+            if (activeLanguages.length > 0 && studentData.level) {
               const { data: examData } = await supabase
-                .from('exams').select('*')
-                .ilike('language', `%${studentData.language}%`)
+                .from('exams')
+                .select('*')
+                .in('language', activeLanguages)
                 .eq('level', studentData.level);
 
               if (examData && examData.length > 0) {
                 const formattedExams = examData.map(ex => ({
                   id: ex.id,
                   name: ex.title || ex.exam_name || "Scheduled Exam",
-                  course: `Level ${ex.level || studentData.level}`,
+                  course: ex.language,
                   date: new Date(ex.date || ex.created_at).toLocaleDateString(),
                   status: ex.status || "Pending",
                   statusCol: ex.status === 'Completed' ? "completed" : "pending"
@@ -313,14 +329,15 @@ const StudentDashboard = () => {
           }
 
           const { data: commsData } = await supabase
-            .from('communications').select('*')
+            .from('communications')
+            .select('*')
             .in('type', ['announcement', 'notification', 'emergency'])
             .order('created_at', { ascending: false });
 
           if (commsData) {
             const myNotifs = commsData.filter(c => {
               const target = c.recipient_name?.toLowerCase() || '';
-              return target.includes('students') || target.includes('all community') || c.recipient_id === user.id;
+              return target.includes('students') || target.includes('all community') || c.recipient_id == user.id || c.recipient_id == studentData?.id;
             });
             setNotificationsList(myNotifs);
             setUnreadCount(myNotifs.length);
@@ -348,7 +365,6 @@ const StudentDashboard = () => {
     navigate('/login');
   };
 
-  // 💡 Submit Justification Function
   const submitJustification = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -356,18 +372,18 @@ const StudentDashboard = () => {
       if (!currentUser) throw new Error("User not found");
       
       const { error } = await supabase.from('communications').insert([{
-        type: 'justification',
+        type: 'notification',
         subject: `Absence Justification: ${studentInfo.full_name} (${justifyData.date})`,
         content: justifyData.reason,
         sender_id: currentUser.id,
         sender_role: 'student',
-        recipient_name: 'secretary',
+        recipient_name: 'Admin / Secretary',
         recipient_id: 'all'
       }]);
       
       if (error) throw error;
       
-      alert("✅ Justification submitted successfully. The administration will review it to schedule a recovery session.");
+      alert("✅ Justification submitted successfully. The administration will review it.");
       setIsJustifyModalOpen(false);
       setJustifyData({date: '', reason: ''});
     } catch (err) {
@@ -377,7 +393,6 @@ const StudentDashboard = () => {
     }
   };
 
-  // ── Calendar helper ───────────────────────────────────────────────────────
   const today     = new Date();
   const todayDate = today.getDate();
   const monthName = today.toLocaleString('en-US', { month: 'long', year: 'numeric' });
@@ -385,7 +400,6 @@ const StudentDashboard = () => {
   const offset    = firstDay === 0 ? 6 : firstDay - 1;
   const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
 
-  // ── Render sub-sections ───────────────────────────────────────────────────
   const renderMainContent = () => {
     if (activeTab === 'My Learning') {
       return (
@@ -435,9 +449,8 @@ const StudentDashboard = () => {
     if (activeTab === 'Payment')  return <StudentPayment />;
     if (activeTab === 'Settings') return <AccountSettings />;
 
-    const needsGroup = currentUser && (!currentUser.group_name || currentUser.status === 'Pending Group');
+    const needsGroup = currentUser && (!currentUser.inscriptions || currentUser.inscriptions.length === 0) && currentUser.status === 'Pending Group';
 
-    // ── Dashboard View ──────────────────────────────────────────────────────
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 28 }}>
 
@@ -456,7 +469,6 @@ const StudentDashboard = () => {
           </div>
         )}
 
-        {/* Header row */}
         <div>
           <p style={{ fontSize: 13, color: '#94a3b8', marginBottom: 4 }}>
             {today.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
@@ -469,35 +481,12 @@ const StudentDashboard = () => {
           </p>
         </div>
 
-        {/* Stat cards row */}
         <div style={{ display: 'flex', gap: 16 }}>
-          <StatCard
-            label="My Classes"
-            value={myClasses.length || 0}
-            badge="+Active"
-            badgeColor="blue"
-            icon={Icons.BookOpen}
-            iconBg="#EEF2FF"
-          />
-          <StatCard
-            label="Exams Scheduled"
-            value={examBoardData.length || 0}
-            badge="View All"
-            badgeColor="green"
-            icon={Icons.Award}
-            iconBg="#ECFDF5"
-          />
-          <StatCard
-            label="Pending Tasks"
-            value={homeworkData.filter(h => h.status === 'Pending').length}
-            badge="Due Soon"
-            badgeColor="orange"
-            icon={Icons.Tasks}
-            iconBg="#FFF7ED"
-          />
+          <StatCard label="My Classes" value={myClasses.length || 0} badge="+Active" badgeColor="blue" icon={Icons.BookOpen} iconBg="#EEF2FF" />
+          <StatCard label="Exams Scheduled" value={examBoardData.length || 0} badge="View All" badgeColor="green" icon={Icons.Award} iconBg="#ECFDF5" />
+          <StatCard label="Pending Tasks" value={homeworkData.filter(h => h.status === 'Pending').length} badge="Due Soon" badgeColor="orange" icon={Icons.Tasks} iconBg="#FFF7ED" />
         </div>
 
-        {/* Enrolled Classes */}
         <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #f1f5f9', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', padding: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
             <h2 style={{ fontSize: 15, fontWeight: 800, color: '#1e293b', margin: 0 }}>My Enrolled Classes</h2>
@@ -535,12 +524,11 @@ const StudentDashboard = () => {
             </div>
           ) : (
             <div style={{ padding: '32px 0', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
-              {needsGroup ? "الرجاء الانتظار ريثما يتم تعيينك في الفوج الجديد." : "No classes found for your group."}
+              {needsGroup ? "الرجاء الانتظار ريثما يتم تعيينك في الفوج الجديد." : "No classes found for your account."}
             </div>
           )}
         </div>
 
-        {/* Exam Schedule */}
         <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #f1f5f9', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', padding: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
             <h2 style={{ fontSize: 15, fontWeight: 800, color: '#1e293b', margin: 0 }}>Exam Schedule</h2>
@@ -586,21 +574,12 @@ const StudentDashboard = () => {
     );
   };
 
-  // ── Full layout ────────────────────────────────────────────────────────────
   return (
     <div style={{ display: 'flex', height: '100vh', background: '#f8fafc', fontFamily: "'Inter', 'Segoe UI', sans-serif", overflow: 'hidden' }}>
-
-      {/* ── Sidebar ── */}
-      <aside style={{
-        width: 240, background: '#0f172a', display: 'flex', flexDirection: 'column',
-        flexShrink: 0, height: '100%', zIndex: 20,
-      }}>
-        {/* Logo */}
+      <aside style={{ width: 240, background: '#0f172a', display: 'flex', flexDirection: 'column', flexShrink: 0, height: '100%', zIndex: 20 }}>
         <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
           <SchoolLogo />
         </div>
-
-        {/* Nav */}
         <nav style={{ flex: 1, padding: '12px 12px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
           {navLinks.map(item => {
             const isActive = activeTab === item.id;
@@ -620,8 +599,6 @@ const StudentDashboard = () => {
             );
           })}
         </nav>
-
-        {/* Logout */}
         <div style={{ padding: '12px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
           <button onClick={handleLogout} style={{
             width: '100%', display: 'flex', alignItems: 'center', gap: 12,
@@ -635,69 +612,29 @@ const StudentDashboard = () => {
         </div>
       </aside>
 
-      {/* ── Main ── */}
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-
-        {/* Top bar */}
-        <header style={{
-          height: 64, padding: '0 28px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          background: '#fff', borderBottom: '1px solid #f1f5f9', flexShrink: 0, zIndex: 10,
-        }}>
-          {/* Search */}
+        <header style={{ height: 64, padding: '0 28px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff', borderBottom: '1px solid #f1f5f9', flexShrink: 0, zIndex: 10 }}>
           <div style={{ position: 'relative', width: '100%', maxWidth: 400 }}>
-            <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }}>
-              <Icons.Search />
-            </span>
+            <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }}><Icons.Search /></span>
             <input type="text" placeholder="Search students, classes, or resources..."
-              style={{
-                width: '100%', background: '#f8fafc', border: '1px solid #f1f5f9',
-                borderRadius: 10, padding: '9px 14px 9px 40px', fontSize: 13, color: '#1e293b',
-                outline: 'none', boxSizing: 'border-box',
-              }} />
+              style={{ width: '100%', background: '#f8fafc', border: '1px solid #f1f5f9', borderRadius: 10, padding: '9px 14px 9px 40px', fontSize: 13, color: '#1e293b', outline: 'none', boxSizing: 'border-box' }} />
           </div>
-
-          {/* Right side */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-
-            {/* Bell */}
             <div style={{ position: 'relative' }} ref={notificationRef}>
               <button onClick={() => { setShowNotifications(!showNotifications); setUnreadCount(0); }}
-                style={{
-                  width: 38, height: 38, borderRadius: 10, border: '1px solid #f1f5f9',
-                  background: showNotifications ? '#4318FF' : '#f8fafc',
-                  color: showNotifications ? '#fff' : '#64748b',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-                  position: 'relative', transition: 'all .15s',
-                }}>
+                style={{ width: 38, height: 38, borderRadius: 10, border: '1px solid #f1f5f9', background: showNotifications ? '#4318FF' : '#f8fafc', color: showNotifications ? '#fff' : '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', position: 'relative', transition: 'all .15s' }}>
                 <Icons.Bell />
-                {unreadCount > 0 && (
-                  <span style={{
-                    position: 'absolute', top: 8, right: 8,
-                    width: 8, height: 8, background: '#ef4444', borderRadius: '50%',
-                    border: '2px solid #fff',
-                  }} />
-                )}
+                {unreadCount > 0 && <span style={{ position: 'absolute', top: 8, right: 8, width: 8, height: 8, background: '#ef4444', borderRadius: '50%', border: '2px solid #fff' }} />}
               </button>
-
-              {/* Dropdown */}
               {showNotifications && (
-                <div style={{
-                  position: 'absolute', right: 0, top: 'calc(100% + 10px)',
-                  width: 340, background: '#fff', borderRadius: 16,
-                  border: '1px solid #f1f5f9', boxShadow: '0 8px 32px rgba(0,0,0,0.10)',
-                  padding: 20, zIndex: 50,
-                }}>
+                <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 10px)', width: 340, background: '#fff', borderRadius: 16, border: '1px solid #f1f5f9', boxShadow: '0 8px 32px rgba(0,0,0,0.10)', padding: 20, zIndex: 50 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                     <h4 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#1e293b' }}>Inbox Alerts</h4>
-                    <span onClick={() => setShowNotifications(false)}
-                      style={{ fontSize: 12, fontWeight: 700, color: '#4318FF', cursor: 'pointer' }}>Clear All</span>
+                    <span onClick={() => setShowNotifications(false)} style={{ fontSize: 12, fontWeight: 700, color: '#4318FF', cursor: 'pointer' }}>Clear All</span>
                   </div>
                   <div style={{ maxHeight: 320, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {notificationsList.length > 0 ? notificationsList.map(n => (
-                      <div key={n.id} style={{
-                        padding: '12px 14px', borderRadius: 10, border: '1px solid #f1f5f9',
-                        cursor: 'pointer', transition: 'background .15s',
-                      }}>
+                      <div key={n.id} style={{ padding: '12px 14px', borderRadius: 10, border: '1px solid #f1f5f9', cursor: 'pointer', transition: 'background .15s' }}>
                         <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{n.subject || 'Announcement'}</p>
                         <p style={{ margin: '4px 0 0', fontSize: 12, color: '#64748b', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{n.content}</p>
                         <p style={{ margin: '6px 0 0', fontSize: 11, color: '#94a3b8' }}>{new Date(n.created_at).toLocaleDateString()}</p>
@@ -707,50 +644,30 @@ const StudentDashboard = () => {
                     )}
                   </div>
                   <button onClick={() => { setActiveTab('Classroom Tasks'); setTasksSubTab('Announcements'); setShowNotifications(false); }}
-                    style={{
-                      width: '100%', marginTop: 14, padding: '10px 0', borderRadius: 10,
-                      border: '1px solid #e0e7ff', background: '#f5f3ff', color: '#4318FF',
-                      fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                    }}>View All Announcements</button>
+                    style={{ width: '100%', marginTop: 14, padding: '10px 0', borderRadius: 10, border: '1px solid #e0e7ff', background: '#f5f3ff', color: '#4318FF', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>View All Announcements</button>
                 </div>
               )}
             </div>
-
-            {/* Divider */}
             <div style={{ width: 1, height: 32, background: '#f1f5f9' }} />
-
-            {/* User */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
-              onClick={() => setActiveTab('Settings')}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }} onClick={() => setActiveTab('Settings')}>
               <div style={{ textAlign: 'right' }}>
                 <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{studentInfo.full_name}</p>
                 <p style={{ margin: 0, fontSize: 11, color: '#94a3b8' }}>{studentInfo.level || 'Student'}</p>
               </div>
               <div style={{ position: 'relative' }}>
-                <img src="https://i.pravatar.cc/150?img=32" alt="Profile"
-                  style={{ width: 38, height: 38, borderRadius: 10, objectFit: 'cover', display: 'block' }} />
-                <div style={{
-                  position: 'absolute', bottom: -2, right: -2,
-                  width: 10, height: 10, background: '#22c55e', borderRadius: '50%', border: '2px solid #fff',
-                }} />
+                <img src="https://i.pravatar.cc/150?img=32" alt="Profile" style={{ width: 38, height: 38, borderRadius: 10, objectFit: 'cover', display: 'block' }} />
+                <div style={{ position: 'absolute', bottom: -2, right: -2, width: 10, height: 10, background: '#22c55e', borderRadius: '50%', border: '2px solid #fff' }} />
               </div>
             </div>
           </div>
         </header>
 
-        {/* Content area */}
         <div style={{ flex: 1, overflowY: 'auto', padding: 28, display: 'flex', gap: 24 }}>
-
-          {/* Main content */}
           <div style={{ flex: 1, minWidth: 0 }}>
             {renderMainContent()}
           </div>
-
-          {/* Right sidebar — Dashboard only */}
           {activeTab === 'Dashboard' && (
             <aside style={{ width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 20 }}>
-
-              {/* Calendar */}
               <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #f1f5f9', padding: 20 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                   <h4 style={{ margin: 0, fontSize: 13, fontWeight: 800, color: '#1e293b' }}>{monthName}</h4>
@@ -765,53 +682,29 @@ const StudentDashboard = () => {
                     const day = i + 1;
                     const isToday = day === todayDate;
                     return (
-                      <div key={day} style={{
-                        height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 12, fontWeight: isToday ? 800 : 500,
-                        borderRadius: 6,
-                        background: isToday ? '#4318FF' : 'transparent',
-                        color: isToday ? '#fff' : '#1e293b',
-                        opacity: isToday ? 1 : 0.7,
-                        cursor: 'default',
-                      }}>{day}</div>
+                      <div key={day} style={{ height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: isToday ? 800 : 500, borderRadius: 6, background: isToday ? '#4318FF' : 'transparent', color: isToday ? '#fff' : '#1e293b', opacity: isToday ? 1 : 0.7, cursor: 'default' }}>{day}</div>
                     );
                   })}
                 </div>
               </div>
-
-              {/* Task Hub */}
               <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #f1f5f9', padding: 20 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                   <h4 style={{ margin: 0, fontSize: 13, fontWeight: 800, color: '#1e293b' }}>Task Hub</h4>
-                  <button onClick={() => { setActiveTab('Classroom Tasks'); setTasksSubTab('Homeworks'); }}
-                    style={{ fontSize: 11, fontWeight: 700, color: '#4318FF', background: 'none', border: 'none', cursor: 'pointer' }}>
-                    View All
-                  </button>
+                  <button onClick={() => { setActiveTab('Classroom Tasks'); setTasksSubTab('Homeworks'); }} style={{ fontSize: 11, fontWeight: 700, color: '#4318FF', background: 'none', border: 'none', cursor: 'pointer' }}>View All</button>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {homeworkData.map((hw, idx) => (
-                    <div key={idx} style={{
-                      padding: '12px 14px', borderRadius: 12, border: '1px solid #f1f5f9',
-                      borderLeft: `3px solid ${hw.color}`,
-                    }}>
+                    <div key={idx} style={{ padding: '12px 14px', borderRadius: 12, border: '1px solid #f1f5f9', borderLeft: `3px solid ${hw.color}` }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
                         <p style={{ margin: 0, fontSize: 12, fontWeight: 800, color: '#1e293b' }}>{hw.title}</p>
-                        <span style={{
-                          fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20,
-                          background: hw.status === 'Pending' ? '#fff7ed' : '#ecfdf5',
-                          color:      hw.status === 'Pending' ? '#f59e0b'  : '#059669',
-                        }}>{hw.status}</span>
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20, background: hw.status === 'Pending' ? '#fff7ed' : '#ecfdf5', color: hw.status === 'Pending' ? '#f59e0b' : '#059669' }}>{hw.status}</span>
                       </div>
                       <p style={{ margin: 0, fontSize: 11, color: '#64748b' }}>{hw.desc}</p>
-                      <p style={{ margin: '8px 0 0', fontSize: 11, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <Icons.Clock /> Due: {hw.due}
-                      </p>
+                      <p style={{ margin: '8px 0 0', fontSize: 11, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 4 }}><Icons.Clock /> Due: {hw.due}</p>
                     </div>
                   ))}
                 </div>
               </div>
-
-              {/* Quick Actions - 💡 Added Justification Button here */}
               <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #f1f5f9', padding: 20 }}>
                 <h4 style={{ margin: '0 0 14px', fontSize: 13, fontWeight: 800, color: '#1e293b' }}>Quick Actions</h4>
                 {[
@@ -821,28 +714,19 @@ const StudentDashboard = () => {
                   { label: 'Submit Justification', action: () => setIsJustifyModalOpen(true) },
                 ].map((action, idx) => (
                   <button key={idx} onClick={() => {
-                    if (action.action) {
-                      action.action();
-                    } else {
+                    if (action.action) { action.action(); } else {
                       setActiveTab(action.tab);
-                      if (action.subKey === 'tasksSubTab')   setTasksSubTab(action.subVal);
+                      if (action.subKey === 'tasksSubTab') setTasksSubTab(action.subVal);
                       if (action.subKey === 'learningSubTab') setLearningSubTab(action.subVal);
                     }
-                  }} style={{
-                    width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    padding: '10px 14px', borderRadius: 10, border: '1px solid #f1f5f9',
-                    background: '#f8fafc', fontSize: 12, fontWeight: 700, color: '#1e293b',
-                    cursor: 'pointer', marginBottom: 8, transition: 'all .15s',
-                  }}>{action.label} <Icons.ChevronRight /></button>
+                  }} style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderRadius: 10, border: '1px solid #f1f5f9', background: '#f8fafc', fontSize: 12, fontWeight: 700, color: '#1e293b', cursor: 'pointer', marginBottom: 8, transition: 'all .15s' }}>{action.label} <Icons.ChevronRight /></button>
                 ))}
               </div>
-
             </aside>
           )}
         </div>
       </main>
 
-      {/* 💡 Justification Modal Component */}
       {isJustifyModalOpen && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(4px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ background: '#fff', borderRadius: 20, padding: 32, width: '100%', maxWidth: 480, boxShadow: '0 20px 60px rgba(0,0,0,0.2)', position: 'relative' }}>
@@ -851,22 +735,18 @@ const StudentDashboard = () => {
               <span style={{ fontSize: 24 }}>📝</span>
               <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#1e293b' }}>Absence Justification</h2>
             </div>
-            
             <form onSubmit={submitJustification} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>If you were marked absent, submit your reason below. The administration will review it to schedule a recovery session.</p>
-              
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 8 }}>Date of Absence</label>
                 <input type="date" required value={justifyData.date} onChange={e => setJustifyData({...justifyData, date: e.target.value})} 
                   style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1px solid #f1f5f9', background: '#f8fafc', fontSize: 13, outline: 'none', color: '#1e293b', fontFamily: 'inherit' }} />
               </div>
-              
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 8 }}>Reason & Explanation</label>
                 <textarea required rows="4" placeholder="Explain your absence in detail..." value={justifyData.reason} onChange={e => setJustifyData({...justifyData, reason: e.target.value})} 
                   style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: '1px solid #f1f5f9', background: '#f8fafc', fontSize: 13, outline: 'none', resize: 'none', color: '#1e293b', fontFamily: 'inherit' }} />
               </div>
-              
               <button type="submit" disabled={isSubmitting} 
                 style={{ marginTop: 8, background: '#4318FF', color: '#fff', padding: '14px', borderRadius: 10, border: 'none', fontSize: 14, fontWeight: 700, cursor: isSubmitting ? 'not-allowed' : 'pointer', opacity: isSubmitting ? 0.7 : 1, transition: 'all .2s' }}>
                 {isSubmitting ? 'Sending...' : 'Send to Administration'}
@@ -875,7 +755,6 @@ const StudentDashboard = () => {
           </div>
         </div>
       )}
-
     </div>
   );
 };

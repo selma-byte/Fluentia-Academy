@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { supabase } from '../../supabaseClient';
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -16,8 +16,6 @@ const Icons = {
   Qr:       () => <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="3" height="3"/><rect x="7" y="14" width="3" height="3"/><rect x="3" y="18" width="3" height="3"/><rect x="7" y="18" width="3" height="3"/></svg>,
   Payment:  () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>,
   Shield:   () => <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
-  ChevronRight: () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>,
-  History:  () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="12 8 12 12 14 14"/><path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5"/></svg>,
 };
 
 // ─── Reusable: Info row ───────────────────────────────────────────────────────
@@ -95,12 +93,10 @@ const AccountSettings = () => {
   const [selectedDoc,  setSelectedDoc]  = useState(null);
   const [loading,      setLoading]      = useState(true);
   const [saveSuccess,  setSaveSuccess]  = useState(false);
-  const [avatarUrl,    setAvatarUrl]    = useState(
-    'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=300'
-  );
+  const [avatarUrl,    setAvatarUrl]    = useState('https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=300');
   const fileInputRef = useRef(null);
 
-  // ── State: profile pulled from students table ─────────────────────────────
+  // ── State: profile ─────────────────────────────
   const [profile, setProfile] = useState({
     full_name: 'Loading...', student_id: '---', program: '---',
     email: '---', phone: '---', dob: 'Not Provided',
@@ -110,16 +106,11 @@ const AccountSettings = () => {
     payment_status: 'Pending', exam_type: '---',
   });
 
-  // ── State: payment history pulled from payments table ────────────────────
   const [payments, setPayments] = useState([]);
-
-  // ── State: grades pulled from grades table ────────────────────────────────
   const [grades, setGrades] = useState([]);
 
-  // ── State: notification preferences (local only) ─────────────────────────
-  const [notifications, setNotifications] = useState({
-    email: true, assignments: false, schedule: true, exams: true,
-  });
+  // ── State: notification preferences ─────────────────────────
+  const [notifications, setNotifications] = useState({ email: true, assignments: false, schedule: true, exams: true });
 
   // ── Fetch all data ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -128,68 +119,69 @@ const AccountSettings = () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        // 1. Student profile (students table)
+        // 💡 1. Fetch Student Profile + Inscriptions (Multi-course logic)
         const { data: student } = await supabase
-          .from('students').select('*').eq('email', user.email).single();
+          .from('students')
+          .select(`*, inscriptions(groupe, cours(langue))`)
+          .eq('email', user.email)
+          .single();
 
         if (student) {
           const fullName = `${student.first_name || ''} ${student.last_name || ''}`.trim();
+          
+          // Format active languages and groups from inscriptions
+          const activeLanguages = student.inscriptions?.map(i => i.cours?.langue).join(' / ') || student.language || '---';
+          const activeGroups = student.inscriptions?.map(i => i.groupe).join(' / ') || student.group_name || '---';
 
-          // 2. Grades (grades table) — avg over /20
+          // 2. Fetch Grades
           let avgStr = 'N/A';
-          const { data: gradeRows } = await supabase
-            .from('grades').select('*').eq('student_name', fullName);
-
+          const { data: gradeRows } = await supabase.from('grades').select('*').eq('student_id', student.id);
+          
           if (gradeRows && gradeRows.length > 0) {
             let total = 0, count = 0;
             gradeRows.forEach(g => {
-              const mark = g.score ? parseFloat(g.score) : (parseFloat(g.grade) || 0);
-              const max  = parseFloat(g.max_grade) || 20;
-              total += (mark / max) * 20;
+              const mark = parseFloat(g.score) || 0;
+              total += mark;
               count++;
             });
-            if (count > 0) avgStr = `${(total / count).toFixed(2)} / 20`;
-            setGrades(gradeRows.slice(0, 5)); // last 5 grades
+            if (count > 0) avgStr = `${(total / count).toFixed(2)} / 100`;
+            setGrades(gradeRows.slice(0, 5));
           }
 
-          // 3. Payment history (payments table) — by student_id
+          // 3. Fetch Payments
           const { data: payRows } = await supabase
             .from('payments')
-            .select('*')
+            .select('*, cours(langue)')
             .eq('student_id', student.id)
             .order('payment_date', { ascending: false });
 
           if (payRows) {
             setPayments(payRows.map(p => ({
               id:     p.id,
-              date:   p.payment_date
-                        ? new Date(p.payment_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-                        : 'N/A',
+              date:   p.payment_date ? new Date(p.payment_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A',
               amount: `${p.amount || 0} DZD`,
               method: p.payment_method || 'Cash',
               status: p.status || 'Paid',
-              notes:  p.notes || '',
+              notes:  p.cours?.langue ? `Course: ${p.cours.langue}` : p.notes || '',
             })));
           }
 
           setProfile({
             full_name:       fullName,
-            student_id:      `STD-${student.id || Math.floor(Math.random() * 9000 + 1000)}`,
-            program:         `${student.language || 'Language'} — ${student.level || 'Level'}`,
+            student_id:      `STD-${student.id.substring(0,6).toUpperCase()}`,
+            program:         `${activeLanguages} — ${student.level || 'N/A'}`,
             email:           student.email || user.email,
             phone:           student.phone || 'Not Provided',
             dob:             student.dob || 'Not Provided',
             gender:          student.gender || 'Not Provided',
             address:         student.address || 'Not Provided',
-            language:        student.language || '---',
+            language:        activeLanguages,
             level:           student.level || '---',
-            group_name:      student.group_name || '---',
+            group_name:      activeGroups,
             exam_type:       student.exam_type || '---',
             payment_status:  student.status === 'Paid' ? 'Paid' : student.status === 'Overdue' ? 'Overdue' : 'Active',
-            enrollment_year: student.enrollment_date
-              ? new Date(student.enrollment_date).getFullYear()
-              : (student.created_at ? new Date(student.created_at).getFullYear() : '2026'),
-            average: avgStr,
+            enrollment_year: student.enrollment_date ? new Date(student.enrollment_date).getFullYear() : '2026',
+            average:         avgStr,
           });
         }
       } catch (err) {
@@ -202,26 +194,9 @@ const AccountSettings = () => {
   }, []);
 
   const handleToggle = (s) => setNotifications(prev => ({ ...prev, [s]: !prev[s] }));
-
-  // ── Photo change — local preview (no DB change) ───────────────────────────
-  const handlePhotoChange = (e) => {
-    const file = e.target.files?.[0];
-    if (file) setAvatarUrl(URL.createObjectURL(file));
-  };
-
-  // ── Save profile (visual feedback only — no extra DB writes) ─────────────
-  const handleSave = () => {
-    setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 2500);
-  };
-
-  // ── Download trigger ──────────────────────────────────────────────────────
-  const handleDownload = (title) => {
-    const a = document.createElement('a');
-    a.href = '#';
-    a.download = `${title}.pdf`;
-    a.click();
-  };
+  const handlePhotoChange = (e) => { const file = e.target.files?.[0]; if (file) setAvatarUrl(URL.createObjectURL(file)); };
+  const handleSave = () => { setSaveSuccess(true); setTimeout(() => setSaveSuccess(false), 2500); };
+  const handleDownload = (title) => { const a = document.createElement('a'); a.href = '#'; a.download = `${title}.pdf`; a.click(); };
 
   // ─────────────────────────────────────────────────────────────────────────
   // ID CARD VIEW
@@ -247,7 +222,7 @@ const AccountSettings = () => {
                     { label: 'Full Name',          value: profile.full_name, big: true },
                     { label: 'Language & Level',   value: profile.program              },
                     { label: 'Institutional Email',value: profile.email                },
-                    { label: 'Group',              value: profile.group_name           },
+                    { label: 'Groups',             value: profile.group_name           },
                     { label: 'Campus Location',    value: 'Polyglot Academy, Algiers'  },
                   ].map(({ label, value, big }) => (
                     <div key={label} className="space-y-0.5">
@@ -259,8 +234,6 @@ const AccountSettings = () => {
               </div>
               <div className="flex items-center gap-6 text-[#A3AED0] text-[9px] font-black uppercase tracking-widest pt-4">
                 <span>ID: {profile.student_id}</span>
-                <span>•</span>
-                <span>{profile.language} Department</span>
                 <span>•</span>
                 <span>Year {profile.enrollment_year}</span>
               </div>
@@ -276,8 +249,7 @@ const AccountSettings = () => {
               </p>
             </div>
 
-            {/* Decoration */}
-            <div className="absolute -right-20 -top-20 text-[300px] font-black opacity-[0.03] select-none italic pointer-events-none">F</div>
+            <div className="absolute -right-20 -top-20 text-[300px] font-black opacity-[0.03] select-none italic pointer-events-none">S</div>
           </div>
 
           <div className="mt-10 flex justify-center gap-4">
@@ -302,7 +274,6 @@ const AccountSettings = () => {
       {/* ── Profile hero card ───────────────────────────────────────────── */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-8 rounded-[40px] shadow-sm border border-gray-100">
         <div className="flex items-center gap-7">
-          {/* Avatar */}
           <div className="relative shrink-0">
             <div className="w-24 h-24 rounded-[28px] bg-[#F4F7FE] overflow-hidden border-[5px] border-white shadow-xl shadow-blue-900/10 cursor-pointer" onClick={() => fileInputRef.current?.click()}>
               <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover hover:opacity-90 transition-opacity" />
@@ -313,7 +284,6 @@ const AccountSettings = () => {
             <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
           </div>
 
-          {/* Name block */}
           <div className="space-y-1.5">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="bg-[#EEF2FF] text-[#4318FF] text-[9px] font-black px-4 py-1.5 rounded-full uppercase tracking-widest border border-[#4318FF]/10 shadow-sm inline-flex items-center gap-1.5">
@@ -325,16 +295,12 @@ const AccountSettings = () => {
               {loading ? 'Loading...' : profile.full_name}
             </h1>
             <div className="flex flex-wrap gap-5 text-[#A3AED0] text-[10px] font-black uppercase tracking-widest pt-1">
-              <span className="underline decoration-[#4318FF] decoration-2 underline-offset-4">
-                {profile.student_id}
-              </span>
-              <span>{profile.language} · {profile.level} · {profile.group_name}</span>
-              <span>Type: {profile.exam_type}</span>
+              <span className="underline decoration-[#4318FF] decoration-2 underline-offset-4">{profile.student_id}</span>
+              <span>{profile.language} · Level {profile.level}</span>
             </div>
           </div>
         </div>
 
-        {/* Save */}
         <div className="flex gap-3 mt-6 md:mt-0">
           <button onClick={handleSave}
             className="text-white px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all shadow-2xl shadow-blue-900/20 active:scale-95 flex items-center gap-2"
@@ -354,22 +320,18 @@ const AccountSettings = () => {
           <div className="bg-white p-10 rounded-[40px] shadow-sm border border-gray-100">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-y-8 gap-x-14 pb-8 border-b border-gray-50">
 
-              {/* Identification */}
               <div className="space-y-7">
                 <SectionHeader icon={Icons.User} label="Identification" />
                 <InfoItem label="Full Legal Name"      value={profile.full_name} />
-                {/* ✅ Birth Date + Gender on SAME row */}
                 <div className="grid grid-cols-2 gap-5">
                   <InfoItem label="Birth Date"         value={profile.dob}    />
                   <InfoItem label="Gender"             value={profile.gender} />
                 </div>
-                <InfoItem label="Language"             value={profile.language} />
+                <InfoItem label="Languages"            value={profile.language} />
                 <InfoItem label="Level"                value={profile.level}    />
-                <InfoItem label="Group"                value={profile.group_name} />
-                <InfoItem label="Registration Type"    value={profile.exam_type} />
+                <InfoItem label="Groups"               value={profile.group_name} />
               </div>
 
-              {/* Contact */}
               <div className="space-y-7">
                 <SectionHeader icon={Icons.Phone} label="Contact Registry" />
                 <InfoItem label="Institutional Email"  value={profile.email}   />
@@ -383,7 +345,7 @@ const AccountSettings = () => {
               <SectionHeader icon={Icons.Academic} label="Academic Overview" />
               <div className="grid grid-cols-2 md:grid-cols-4 gap-5 mb-8">
                 <StatCard label="Enrolled"        value={profile.enrollment_year} />
-                <StatCard label="Language"        value={profile.language}        />
+                <StatCard label="Languages"       value={profile.language.split(' / ').length} sub="Active Courses" />
                 <StatCard label="Current Level"   value={profile.level}           />
                 <StatCard label="Avg Grade"       value={profile.average}         />
               </div>
@@ -396,29 +358,25 @@ const AccountSettings = () => {
                     <table className="w-full text-left text-xs">
                       <thead className="bg-[#F4F7FE]">
                         <tr>
-                          {['Assessment', 'Score', 'Max', 'Remarks'].map(h => (
+                          {['Assessment', 'Course', 'Score', 'Status'].map(h => (
                             <th key={h} className="py-3 px-4 font-black text-[#A3AED0] uppercase text-[9px] tracking-widest">{h}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-50">
                         {grades.map((g, i) => {
-                          const score = parseFloat(g.score || g.grade || 0);
-                          const max   = parseFloat(g.max_grade || 20);
-                          const pct   = max > 0 ? ((score / max) * 100).toFixed(0) : 0;
+                          const isPass = g.status === 'Passed';
                           return (
                             <tr key={i} className="hover:bg-gray-50/60 transition-colors">
-                              <td className="py-3 px-4 font-black text-[#1B254B] uppercase text-[11px]">
-                                {g.subject || g.course || `Assessment ${i + 1}`}
-                              </td>
+                              <td className="py-3 px-4 font-black text-[#1B254B] uppercase text-[11px]">{g.exam_title || `Exam ${i + 1}`}</td>
+                              <td className="py-3 px-4 text-[#A3AED0] font-bold">{g.course}</td>
                               <td className="py-3 px-4">
-                                <span className={`font-black text-[12px] ${pct >= 70 ? 'text-green-600' : 'text-red-500'}`}>
-                                  {score}
+                                <span className={`font-black text-[12px] ${isPass ? 'text-green-600' : 'text-red-500'}`}>
+                                  {g.score} / 100
                                 </span>
                               </td>
-                              <td className="py-3 px-4 font-bold text-[#A3AED0]">{max}</td>
-                              <td className="py-3 px-4 font-bold text-[#A3AED0] text-[10px]">
-                                {g.remarks || g.notes || (pct >= 70 ? 'Good standing' : 'Needs improvement')}
+                              <td className="py-3 px-4 font-bold text-[10px]">
+                                <span className={isPass ? 'text-green-600' : 'text-red-500'}>{g.status}</span>
                               </td>
                             </tr>
                           );
@@ -444,7 +402,7 @@ const AccountSettings = () => {
                 <table className="w-full text-left text-xs">
                   <thead className="bg-[#F4F7FE]">
                     <tr>
-                      {['Date', 'Amount', 'Method', 'Status', 'Notes'].map(h => (
+                      {['Date', 'Amount', 'Method', 'Status', 'Course Info'].map(h => (
                         <th key={h} className="py-3 px-4 font-black text-[#A3AED0] uppercase text-[9px] tracking-widest">{h}</th>
                       ))}
                     </tr>
@@ -456,7 +414,7 @@ const AccountSettings = () => {
                         <td className="py-3 px-4 font-black text-[#1B254B]">{p.amount}</td>
                         <td className="py-3 px-4 font-bold text-[#A3AED0]">{p.method}</td>
                         <td className="py-3 px-4"><StatusBadge status={p.status} /></td>
-                        <td className="py-3 px-4 font-bold text-[#A3AED0] text-[10px]">{p.notes || '—'}</td>
+                        <td className="py-3 px-4 font-bold text-[#4318FF] text-[10px]">{p.notes || '—'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -496,26 +454,24 @@ const AccountSettings = () => {
                 onClick={() => setSelectedDoc({ title: 'Latest Payment Receipt',    code: payments[0] ? `REC-${payments[0].id}` : 'REC-N/A' })} />
               <DocLink title="Academic Transcript"
                 onClick={() => setSelectedDoc({ title: 'Official Grade Transcript',  code: `TRN-${profile.enrollment_year}-S`  })} />
-              <DocLink title="Level Completion Cert."
-                onClick={() => setSelectedDoc({ title: 'Level Completion Certificate', code: `COMP-${profile.level}-${profile.enrollment_year}` })} />
             </div>
           </div>
 
           {/* Quick summary card */}
           <div className="bg-[#111C44] p-8 rounded-[40px] shadow-2xl relative overflow-hidden">
-            <div className="absolute -right-12 -bottom-12 opacity-[0.04] font-black text-[160px] italic select-none pointer-events-none">F</div>
+            <div className="absolute -right-12 -bottom-12 opacity-[0.04] font-black text-[160px] italic select-none pointer-events-none">S</div>
             <p className="text-[9px] font-black text-[#818cf8] uppercase tracking-[0.25em] mb-4 relative">Your Standing</p>
             <div className="space-y-3 relative">
               {[
-                { label: 'Language', value: profile.language },
+                { label: 'Languages', value: profile.language },
                 { label: 'Level',    value: profile.level    },
-                { label: 'Group',    value: profile.group_name },
+                { label: 'Groups',   value: profile.group_name },
                 { label: 'Avg',      value: profile.average  },
-                { label: 'Payments', value: `${payments.filter(p => p.status === 'Paid').length} / ${payments.length} paid` },
+                { label: 'Payments', value: `${payments.filter(p => p.status === 'Paid').length} paid` },
               ].map(({ label, value }) => (
                 <div key={label} className="flex justify-between items-center">
                   <span className="text-[10px] font-black text-[#94a3b8] uppercase tracking-widest">{label}</span>
-                  <span className="text-[11px] font-black text-white uppercase italic">{value || '---'}</span>
+                  <span className="text-[11px] font-black text-white uppercase italic text-right max-w-[150px] truncate" title={value}>{value || '---'}</span>
                 </div>
               ))}
             </div>
@@ -529,7 +485,6 @@ const AccountSettings = () => {
           onClick={() => setSelectedDoc(null)}>
           <div className="bg-white rounded-[50px] p-12 max-w-lg w-full shadow-2xl relative overflow-hidden"
             onClick={e => e.stopPropagation()}>
-            {/* Close */}
             <button onClick={() => setSelectedDoc(null)}
               className="absolute top-8 right-8 text-[#A3AED0] hover:text-[#1B254B] transition-colors font-black text-xl p-2">
               ✕
@@ -540,14 +495,12 @@ const AccountSettings = () => {
               {selectedDoc.title}
             </h3>
 
-            {/* Contextual summary */}
             <div className="mb-6 bg-[#F4F7FE] rounded-3xl p-6 space-y-2">
               {[
                 { label: 'Student',     value: profile.full_name   },
                 { label: 'ID',          value: profile.student_id  },
                 { label: 'Language',    value: profile.language     },
-                { label: 'Level',       value: profile.level        },
-                { label: 'Group',       value: profile.group_name   },
+                { label: 'Groups',      value: profile.group_name   },
                 ...(selectedDoc.title.toLowerCase().includes('payment') && payments[0]
                   ? [
                       { label: 'Last Payment', value: payments[0].date   },
@@ -558,12 +511,11 @@ const AccountSettings = () => {
               ].map(({ label, value }) => (
                 <div key={label} className="flex justify-between text-[11px]">
                   <span className="font-black text-[#A3AED0] uppercase tracking-widest">{label}</span>
-                  <span className="font-black text-[#1B254B] uppercase">{value || '---'}</span>
+                  <span className="font-black text-[#1B254B] uppercase text-right max-w-[180px] truncate" title={value}>{value || '---'}</span>
                 </div>
               ))}
             </div>
 
-            {/* PDF placeholder */}
             <div className="p-8 bg-[#F4F7FE] rounded-[36px] border-4 border-dashed border-white flex flex-col items-center gap-3 mb-8">
               <div className="bg-[#4318FF] text-white w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg font-black text-sm italic">PDF</div>
               <p className="text-xs font-black text-[#1B254B] uppercase tracking-widest text-center">Securely Generated Academic Record</p>

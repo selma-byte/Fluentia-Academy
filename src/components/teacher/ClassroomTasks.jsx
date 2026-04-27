@@ -91,7 +91,6 @@ const ClassroomTasks = () => {
         const { data: { user } } = await supabase.auth.getUser();
         let tName = 'Teacher Name';
         let tId = null;
-        let classNamesList = [];
 
         if (user && user.email) {
           const { data: staffData } = await supabase.from('staff').select('*').eq('email', user.email).single();
@@ -103,18 +102,48 @@ const ClassroomTasks = () => {
           }
         }
 
-        const { data: clsData } = await supabase.from('classes').select('*').eq('teacher_name', tName);
-        if (clsData && clsData.length > 0) {
-          setClasses(clsData);
-          classNamesList = clsData.map(c => c.name || c.class_name);
+        if (tId) {
+          // 💡 1. نجيبو الأفواج اللي يقري فيهم هاد الأستاذ من جدول `affectations`
+          const { data: affectationsData } = await supabase
+            .from('affectations')
+            .select('groupe, cours(langue)')
+            .eq('teacher_id', tId);
+
+          const groupNamesList = affectationsData ? affectationsData.map(a => a.groupe) : [];
+          
+          if (groupNamesList.length > 0) {
+            // جلب معلومات الأفواج باش نعرضوها في الـ Dropdown
+            const { data: clsData } = await supabase.from('classes').select('*').in('name', groupNamesList);
+            setClasses(clsData || []);
+
+            // 💡 2. نجيبو التلاميد اللي مسجلين في هاد الأفواج من جدول `inscriptions`
+            const { data: inscData } = await supabase
+              .from('inscriptions')
+              .select('students(*), groupe, cours(langue)')
+              .in('groupe', groupNamesList)
+              .eq('statut', 'Active');
+
+            if (inscData) {
+              const mappedStudents = inscData.map(i => ({
+                ...i.students,
+                group_name: i.groupe,
+                course_lang: i.cours?.langue
+              }));
+              setStudents(mappedStudents);
+            }
+          }
+
+          // جلب الامتحانات
+          const { data: activeExams } = await supabase.from('exams').select('*')
+            .eq('teacher_id', tId).eq('status', 'Active');
+          if (activeExams) setAssignedExams(activeExams);
+
+          const { data: compExams } = await supabase.from('exams').select('*')
+            .eq('teacher_id', tId).eq('status', 'Completed');
+          if (compExams) setCompletedExams(compExams);
         }
 
-        if (classNamesList.length > 0) {
-          // 💡 تأكدي بلي كولون absence_count راهو كاين فالداتا باز
-          const { data } = await supabase.from('students').select('*').in('group_name', classNamesList);
-          setStudents(data || []);
-        }
-
+        // جلب تلاميذ امتحان المستوى
         if (tName !== 'Teacher Name') {
           const { data: apps } = await supabase.from('appointments').select('*')
             .ilike('sub_title', `%Prof: ${tName}%`).eq('status', 'Upcoming');
@@ -127,16 +156,6 @@ const ClassroomTasks = () => {
             setPlacementStudents(myPlacementStudents);
           }
         }
-
-        if (tId) {
-          const { data: activeExams } = await supabase.from('exams').select('*')
-            .eq('teacher_id', tId).eq('status', 'Active');
-          if (activeExams) setAssignedExams(activeExams);
-
-          const { data: compExams } = await supabase.from('exams').select('*')
-            .eq('teacher_id', tId).eq('status', 'Completed');
-          if (compExams) setCompletedExams(compExams);
-        }
       } catch (err) {
         console.error(err);
       } finally {
@@ -146,7 +165,7 @@ const ClassroomTasks = () => {
     fetchTeacherData();
   }, []);
 
-  const activeClassObject = classes.find(c => (c.name || c.class_name) === selectedClass);
+  const activeClassObject = classes.find(c => c.name === selectedClass);
 
   const handleExamChange = (e) => {
     const exId = e.target.value;
@@ -190,18 +209,16 @@ const ClassroomTasks = () => {
           });
           setViewExamGrades(mapped);
         }
-      } catch (err) {
-        console.error('Error formatting grades:', err);
-      } finally {
-        setLoading(false);
-      }
+      } catch (err) { console.error(err); } finally { setLoading(false); }
     }
   };
 
   const saveAttendance = async () => {
     if (!selectedClass) return alert('Select a class first!');
     setLoading(true);
-    const records = students.filter(s => s.group_name === selectedClass).map(s => ({
+    
+    // تسجيل الغيابات بناءً على التلاميد لي معروضين
+    const recordsToInsert = displayStudents.map(s => ({
       date: new Date().toISOString().split('T')[0],
       student_name: `${s.first_name} ${s.last_name}`,
       student_id: s.id,
@@ -211,27 +228,39 @@ const ClassroomTasks = () => {
       time_slot: timeSlot,
     }));
     
-    if (records.length === 0) { setLoading(false); return alert('No students found in this class!'); }
+    if (recordsToInsert.length === 0) { setLoading(false); return alert('No students found in this class!'); }
     
     try {
-      const { error } = await supabase.from('attendance').insert(records);
+      const { error } = await supabase.from('attendance').insert(recordsToInsert);
       if (error) throw error;
       
-      // 💡 الميزة الذكية رقم 1: تتبع الغيابات وإنذار الإدارة
-      const absentRecords = records.filter(r => r.status === 'Absent');
+      // 💡 الميزة الذكية: تتبع الغيابات وإنذار الإدارة وتنبيه الطالب
+      const absentRecords = recordsToInsert.filter(r => r.status === 'Absent');
+      
       for (let rec of absentRecords) {
-        const st = students.find(s => s.id === rec.student_id);
+        const st = displayStudents.find(s => s.id === rec.student_id);
         const newAbsenceCount = (st.absence_count || 0) + 1;
 
-        // تحديث عداد الغيابات في حساب الطالب
+        // 1. تحديث عداد الغيابات للطالب
         await supabase.from('students').update({ absence_count: newAbsenceCount }).eq('id', st.id);
 
-        // إذا وصل لغيابين أو أكثر، نبعثو إنذار للسكريتيرة
+        // 2. إرسال إشعار مباشر للطالب بلي تم تسجيلو غائب
+        await supabase.from('communications').insert([{
+          type: 'notification',
+          subject: 'Attendance Alert ⚠️',
+          content: `You were marked ABSENT today in ${selectedClass}. Total absences: ${newAbsenceCount}.`,
+          recipient_name: `${st.first_name} ${st.last_name}`,
+          recipient_id: st.id,
+          sender_id: currentTeacherId,
+          sender_role: 'Teacher'
+        }]);
+
+        // 3. إذا وصل لغيابين أو أكثر، نبعثو إنذار للسكريتيرة
         if (newAbsenceCount >= 2) {
           await supabase.from('communications').insert([{
             type: 'emergency',
             subject: `⚠️ Repeated Absence Alert: ${st.first_name} ${st.last_name}`,
-            content: `Student ${st.first_name} ${st.last_name} has reached ${newAbsenceCount} absences in ${selectedClass}. Please contact them at ${st.phone} to justify their absence.`,
+            content: `Student ${st.first_name} ${st.last_name} has reached ${newAbsenceCount} absences in ${selectedClass}. Please contact them at ${st.phone} to justify.`,
             recipient_name: 'staff',
             sender_id: currentTeacherId,
             sender_role: 'system'
@@ -239,19 +268,16 @@ const ClassroomTasks = () => {
         }
       }
 
+      // تحديث عدد الحصص المنجزة للفوج
       if (activeClassObject) {
         const newCompleted = (activeClassObject.completed_sessions || 0) + 1;
         const total = activeClassObject.total_sessions || 24;
         if (newCompleted <= total) {
-          const { error: classError } = await supabase.from('classes')
-            .update({ completed_sessions: newCompleted }).eq('id', activeClassObject.id);
-          if (!classError) {
-            setClasses(classes.map(c => c.id === activeClassObject.id
-              ? { ...c, completed_sessions: newCompleted } : c));
-          }
+          await supabase.from('classes').update({ completed_sessions: newCompleted }).eq('id', activeClassObject.id);
+          setClasses(classes.map(c => c.id === activeClassObject.id ? { ...c, completed_sessions: newCompleted } : c));
         }
       }
-      alert('✅ Attendance saved successfully! Alerts sent for repeated absences.');
+      alert('✅ Attendance saved successfully! Alerts sent to absent students.');
     } catch (err) {
       alert(err.message);
     } finally {
@@ -269,8 +295,7 @@ const ClassroomTasks = () => {
           if (!st) return;
           await supabase.from('students').update({ status: 'Tested', test_score: gradeValue }).eq('id', sId);
           await supabase.from('appointments').update({ status: 'Completed' })
-            .ilike('sub_title', `%Prof: ${currentTeacher}%`)
-            .eq('title', `${st.first_name} ${st.last_name}`);
+            .ilike('sub_title', `%Prof: ${currentTeacher}%`).eq('title', `${st.first_name} ${st.last_name}`);
         });
         await Promise.all(updates);
         alert('Placement test grades submitted. The secretary can now enroll the students.');
@@ -281,8 +306,9 @@ const ClassroomTasks = () => {
       } else {
         const examObj = assignedExams.find(ex => ex.id.toString() === selectedExamId);
         if (!examObj) return;
+        
         const records = Object.entries(gradesDataInput).map(([sId, gradeValue]) => {
-          const student = students.find(s => s.id.toString() === sId);
+          const student = displayStudents.find(s => s.id.toString() === sId);
           const scoreNum = parseFloat(gradeValue) || 0;
           const gradeLetter = scoreNum >= 80 ? 'A' : scoreNum >= 60 ? 'B' : scoreNum >= 50 ? 'C' : 'F';
           const passStatus = scoreNum >= 50 ? 'Passed' : 'Failed';
@@ -303,18 +329,28 @@ const ClassroomTasks = () => {
         const { error: gradesError } = await supabase.from('grades').insert(records);
         if (gradesError) throw gradesError;
 
-        // 💡 الميزة الذكية رقم 2: تحديث النقطة للسكريتيرة
-        // باش النقطة تولي تبان عند السكريتيرة كي تروح دير (Process Result)
+        // 💡 الميزة الذكية: تحديث النقطة في البروفايل وإرسال إشعار للطالب
         const studentUpdates = Object.entries(gradesDataInput).map(async ([sId, gradeValue]) => {
-            await supabase.from('students').update({
-                test_score: gradeValue 
-            }).eq('id', sId);
+            const student = displayStudents.find(s => s.id.toString() === sId);
+            // 1. تحديث النقطة
+            await supabase.from('students').update({ test_score: gradeValue }).eq('id', sId);
+            // 2. إرسال الإشعار
+            await supabase.from('communications').insert([{
+              type: 'notification',
+              subject: 'New Grade Posted 📊',
+              content: `Prof. ${currentTeacher} has posted a new grade (${gradeValue}) for ${examObj.title}.`,
+              recipient_name: `${student.first_name} ${student.last_name}`,
+              recipient_id: sId,
+              sender_role: 'Teacher',
+              sender_id: currentTeacherId
+            }]);
         });
         await Promise.all(studentUpdates);
 
         const { error: examError } = await supabase.from('exams').update({ status: 'Completed' }).eq('id', selectedExamId);
         if (examError) throw examError;
-        alert('✅ Grades submitted successfully! The administration can now process the results.');
+        
+        alert('✅ Grades submitted successfully! Students have been notified.');
         
         const completedExam = { ...examObj, status: 'Completed' };
         setAssignedExams(assignedExams.filter(ex => ex.id.toString() !== selectedExamId));
@@ -408,7 +444,7 @@ const ClassroomTasks = () => {
                 <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} style={inputStyle}>
                   <option value="">Choose a class...</option>
                   {classes.map(c => (
-                    <option key={c.id} value={c.name || c.class_name}>{c.name || c.class_name}</option>
+                    <option key={c.id} value={c.name}>{c.name}</option>
                   ))}
                 </select>
                 {activeClassObject && (

@@ -7,47 +7,49 @@ const Users = () => {
   const [usersData, setUsersData] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // 💡 State for Delete Modal
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [userToDelete, setUserToDelete] = useState(null);
+
   // دالة لجلب المستخدمين الحقيقيين (الطلاب من students والموظفين من staff)
   const fetchUsers = async () => {
     setLoading(true);
     let allUsers = [];
 
-    // جلب الطلاب النشطين
-    const { data: students } = await supabase.from('students').select('*').eq('status', 'Active');
+    // جلب الطلاب
+    const { data: students } = await supabase.from('students').select('*');
     if (students) {
       const formattedStudents = students.map(s => ({
-        id: `stu_${s.id}`,
+        id: s.id,
+        rawId: s.id,
+        table: 'students',
         name: `${s.first_name || ''} ${s.last_name || ''}`.trim() || 'Unknown',
         role: 'Student',
         email: s.email || 'No Email',
-        status: 'Online',
-        lastSeen: 'Now',
+        status: s.status === 'Active' ? 'Online' : 'Offline',
+        group: s.group_name || 'No Group',
+        level: s.level || 'N/A',
         avatar: (s.first_name?.[0] || 'S') + (s.last_name?.[0] || '')
       }));
       allUsers = [...allUsers, ...formattedStudents];
     }
 
-    // جلب الموظفين (أساتذة، سكرتيرات، كادر)
+    // جلب الموظفين (أساتذة، سكرتيرات، مدير)
     const { data: staff } = await supabase.from('staff').select('*');
     if (staff) {
       const formattedStaff = staff.map(s => ({
-        id: `staff_${s.id}`,
+        id: s.id,
+        rawId: s.id,
+        table: 'staff',
         name: `${s.first_name || ''} ${s.last_name || ''}`.trim() || 'Unknown',
         role: s.role || 'Teacher',
         email: s.email || 'No Email',
-        status: 'Offline',
-        lastSeen: '2h ago',
+        status: 'Online',
+        group: s.department || 'Staff',
+        level: 'Staff',
         avatar: (s.first_name?.[0] || 'T') + (s.last_name?.[0] || '')
       }));
       allUsers = [...allUsers, ...formattedStaff];
-    }
-
-    // Fallback if empty
-    if (allUsers.length === 0) {
-      allUsers = [
-        { id: 1, name: "Malak Ahmed", role: "Super Admin", email: "malak.admin@school.com", status: "Online", lastSeen: "Now", avatar: "MA" },
-        { id: 2, name: "Prof. Sarah Ben", role: "Teacher", email: "sarah.b@school.com", status: "Offline", lastSeen: "2h ago", avatar: "SB" },
-      ];
     }
 
     setUsersData(allUsers);
@@ -58,7 +60,7 @@ const Users = () => {
     fetchUsers();
   }, []);
 
-  const roles = ['All', 'Teacher', 'Secretary', 'Student', 'Parent', 'Lady Cleaning'];
+  const roles = ['All', 'Admin', 'Teacher', 'Secretary', 'Student'];
 
   // ==========================================
   // LOGIC HANDLERS
@@ -69,29 +71,41 @@ const Users = () => {
     setShowDeleteModal(true);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (userToDelete) {
-      setUsersData(usersData.filter(u => u.id !== userToDelete.id));
-      setShowDeleteModal(false);
-      setUserToDelete(null);
-      // Logic for Supabase/Backend delete would go here
+      try {
+        // 1. Delete from Supabase Database based on their table (students or staff)
+        const { error } = await supabase
+          .from(userToDelete.table)
+          .delete()
+          .eq('id', userToDelete.rawId);
+
+        if (error) throw error;
+
+        // 2. Remove from UI immediately
+        setUsersData(usersData.filter(u => u.id !== userToDelete.id));
+        setShowDeleteModal(false);
+        setUserToDelete(null);
+        alert('✅ User deleted successfully.');
+      } catch (err) {
+        alert('❌ Error deleting user: ' + err.message);
+      }
     }
   };
 
   const filteredUsers = usersData.filter(user => {
-    const matchesRole = activeFilter === 'All' || user.role === activeFilter;
+    const matchesRole = activeFilter === 'All' || user.role.toLowerCase() === activeFilter.toLowerCase();
     const matchesSearch = user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.email.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesRole && matchesSearch;
   });
 
   const getRoleStyle = (role) => {
-    switch (role) {
-      case 'Super Admin': return 'bg-red-50 text-red-600 border-red-100';
-      case 'Teacher': return 'bg-blue-50 text-blue-600 border-blue-100';
-      case 'Secretary': return 'bg-purple-50 text-purple-600 border-purple-100';
-      case 'Student': return 'bg-green-50 text-green-600 border-green-100';
-      case 'Parent': return 'bg-orange-50 text-orange-600 border-orange-100';
+    switch (role.toLowerCase()) {
+      case 'admin': return 'bg-red-50 text-red-600 border-red-100';
+      case 'teacher': return 'bg-blue-50 text-blue-600 border-blue-100';
+      case 'secretary': return 'bg-purple-50 text-purple-600 border-purple-100';
+      case 'student': return 'bg-green-50 text-green-600 border-green-100';
       default: return 'bg-gray-50 text-gray-600 border-gray-100';
     }
   };
@@ -197,7 +211,7 @@ const Users = () => {
             <div className={`absolute top-6 right-6 w-3 h-3 rounded-full border-2 border-white shadow-sm ${user.status === 'Online' ? 'bg-green-500' : 'bg-gray-300'}`}></div>
 
             {/* User Avatar */}
-            <div className="w-20 h-20 bg-gray-50 rounded-[1.8rem] flex items-center justify-center text-2xl font-black text-[#1A2252] mb-6 group-hover:bg-[#1A2252] group-hover:text-white transition-colors duration-500 shadow-inner">
+            <div className="w-20 h-20 bg-gray-50 rounded-[1.8rem] flex items-center justify-center text-2xl font-black text-[#1A2252] mb-6 group-hover:bg-[#1A2252] group-hover:text-white transition-colors duration-500 shadow-inner uppercase">
               {user.avatar}
             </div>
 
@@ -206,16 +220,22 @@ const Users = () => {
               <h3 className="text-xl font-black text-[#1A2252] mb-1 italic truncate">{user.name}</h3>
               <p className="text-[10px] text-gray-400 font-bold mb-4 truncate">{user.email}</p>
               
-              <span className={`px-4 py-1.5 rounded-xl text-[9px] font-black border uppercase tracking-widest ${getRoleStyle(user.role)}`}>
-                {user.role}
-              </span>
+              <div className="flex flex-wrap gap-2 mb-4">
+                <span className={`px-4 py-1.5 rounded-xl text-[9px] font-black border uppercase tracking-widest ${getRoleStyle(user.role)}`}>
+                  {user.role}
+                </span>
+                <span className="px-4 py-1.5 rounded-xl text-[9px] font-black border uppercase tracking-widest bg-gray-50 text-gray-600 border-gray-100 truncate max-w-[120px]">
+                  {user.group}
+                </span>
+              </div>
             </div>
 
-            {/* Actions Footer - Removed Last Activity, Added Delete Only */}
+            {/* Actions Footer - Added Delete Only */}
             <div className="pt-6 border-t border-gray-50 flex justify-end items-center">
               <button 
                 onClick={() => openDeleteModal(user)}
                 className="w-12 h-12 bg-gray-50 text-[#1A2252] rounded-2xl flex items-center justify-center hover:bg-red-50 hover:text-red-600 transition-all duration-300 cursor-pointer shadow-sm group-hover:scale-110 active:scale-95"
+                title="Delete User"
               >
                 <span className="text-xl">🗑️</span>
               </button>

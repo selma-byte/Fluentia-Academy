@@ -53,6 +53,16 @@ const Ic = {
   X:         () => <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
 };
 
+// ─── Helper Logic for Inscriptions & Courses ──────────────────────────────────
+const getOrCreateCours = async (langue) => {
+  let { data } = await supabase.from('cours').select('*').eq('langue', langue).limit(1).single();
+  if (!data) {
+    const { data: newCrs } = await supabase.from('cours').insert([{ langue, titre: `${langue} Course` }]).select().single();
+    return newCrs;
+  }
+  return data;
+};
+
 // ─── Shared Styles ────────────────────────────────────────────────────────────
 const inputBase = {
   width: '100%', background: C.pageBg,
@@ -188,9 +198,10 @@ const RegistrationRequestsTab = () => {
   const [schedTime, setSchedTime] = useState('10:00');
   const [schedRoom, setSchedRoom] = useState('');
 
+  // 💡 Updated Fetch to pull requested info properly (using inscriptions mapping or relying on legacy fields if present)
   const fetchRequests = async () => {
     const { data } = await supabase.from('students').select('*').eq('exam_type', 'Placement').order('enrollment_date', { ascending: false });
-    if (data) setRequests(data.map(req => ({ ...req, name: `${req.first_name} ${req.last_name}`, type: req.child_name ? 'Parent' : 'Student', parent: req.child_name ? 'Parent / Guardian' : null, status: req.status === 'Tested' ? 'Passed' : req.status === 'pending' ? 'Pending' : req.status })));
+    if (data) setRequests(data.map(req => ({ ...req, name: `${req.first_name} ${req.last_name}`, type: req.child_name || req.parent_name ? 'Parent' : 'Student', parent: req.child_name || req.parent_name ? 'Parent / Guardian' : null, status: req.status === 'Tested' ? 'Passed' : req.status === 'pending' ? 'Pending' : req.status })));
   };
   const fetchClasses      = async () => { const { data } = await supabase.from('classes').select('*'); if (data) setClassesData(data); };
   const fetchStaffAndRooms= async () => {
@@ -214,7 +225,6 @@ const RegistrationRequestsTab = () => {
   const handleOpenScheduleModal = (req) => { setSelectedStudent(req); setIsScheduleModalOpen(true); };
   const handleOpenInfoModal     = (req) => { setSelectedStudent(req); setIsViewInfoModalOpen(true); };
 
-  // ALL ORIGINAL SUPABASE HANDLERS — UNTOUCHED
   const handleSaveSchedule = async () => {
     setLoading(true);
     try {
@@ -244,16 +254,21 @@ const RegistrationRequestsTab = () => {
       const selectedClass = classesData.find(c => c.id === enrollClassId);
       const currentCount = selectedClass.enrolled_count || 0;
       if (currentCount >= selectedClass.capacity) return alert("This group is full.");
+      
       const { error: authError } = await supabase.auth.signUp({ email: selectedStudent.email, password: selectedStudent.phone });
       if (authError && authError.message !== "User already registered") throw authError;
       await supabase.from('classes').update({ enrolled_count: currentCount + 1 }).eq('id', enrollClassId);
-      await supabase.from('students').update({ status: 'Active', exam_type: 'Course', group_name: selectedClass.name, level: enrollLevel, test_score: enrollGrade }).eq('id', selectedStudent.id);
+      
+      // 💡 NEW LOGIC: Update student and insert into inscriptions
+      await supabase.from('students').update({ status: 'Active', exam_type: 'Course', test_score: enrollGrade }).eq('id', selectedStudent.id);
+      const cours = await getOrCreateCours(selectedStudent.language);
+      await supabase.from('inscriptions').insert([{ student_id: selectedStudent.id, cours_id: cours.id, groupe: selectedClass.name, annee_scolaire: '2025-2026', statut: 'Active' }]);
+      
       alert(`${selectedStudent.name} enrolled in ${selectedClass.name} successfully.`);
       setIsEnrollMode(false); fetchRequests();
     } catch (err) { alert("Enrollment error: " + err.message); }
   };
 
-  // Enroll Mode View
   if (isEnrollMode) {
     const matchingClasses = classesData.filter(c => c.language === selectedStudent?.language && c.level === enrollLevel);
     return (
@@ -423,24 +438,51 @@ const RegistrationRequestsTab = () => {
 
 // ─── TAB 2: Active Records ─────────────────────────────────────────────────────
 const StudentRecordsTab = () => {
-  const [currentView,           setCurrentView]           = useState('list');
-  const [selectedStudent,       setSelectedStudent]       = useState(null);
-  const [searchQuery,           setSearchQuery]           = useState('');
-  const [filterLang,            setFilterLang]            = useState('All');
-  const [filterLevel,           setFilterLevel]           = useState('All');
-  const [studentsData,          setStudentsData]          = useState([]);
-  const [classesData,           setClassesData]           = useState([]);
-  const [loading,               setLoading]               = useState(false);
-  const [isProcessModalOpen,    setIsProcessModalOpen]    = useState(false);
-  const [processData,           setProcessData]           = useState({ newLevel: 'A1' });
-  const [isAssignGroupModalOpen,setIsAssignGroupModalOpen]= useState(false);
-  const [assignGroupData,       setAssignGroupData]       = useState({ classId: '' });
-  const [isEditModalOpen,       setIsEditModalOpen]       = useState(false);
-  const [editFormData,          setEditFormData]          = useState({ id: null, firstName: '', lastName: '', email: '', phone: '', level: '' });
+  const [currentView,             setCurrentView]           = useState('list');
+  const [selectedStudent,         setSelectedStudent]       = useState(null);
+  const [searchQuery,             setSearchQuery]           = useState('');
+  const [filterLang,              setFilterLang]            = useState('All');
+  const [filterLevel,             setFilterLevel]           = useState('All');
+  const [studentsData,            setStudentsData]          = useState([]);
+  const [classesData,             setClassesData]           = useState([]);
+  const [loading,                 setLoading]               = useState(false);
+  const [isProcessModalOpen,      setIsProcessModalOpen]    = useState(false);
+  const [processData,             setProcessData]           = useState({ newLevel: 'A1' });
+  const [isAssignGroupModalOpen,  setIsAssignGroupModalOpen]= useState(false);
+  const [assignGroupData,         setAssignGroupData]       = useState({ classId: '' });
+  const [isEditModalOpen,         setIsEditModalOpen]       = useState(false);
+  const [editFormData,            setEditFormData]          = useState({ id: null, firstName: '', lastName: '', email: '', phone: '', level: '' });
+  
+  // 💡 NEW: states for adding multiple courses + time conflict
+  const [isAddCourseModalOpen, setIsAddCourseModalOpen] = useState(false);
+  const [addCourseData, setAddCourseData] = useState({ language: 'English', level: 'A1', classId: '' });
+  const [timeConflictMsg, setTimeConflictMsg] = useState(null);
 
+  // 💡 Updated to fetch inscriptions for multi-course display
   const fetchActiveStudents = async () => {
-    const { data } = await supabase.from('students').select('*').or('status.eq.Active,status.eq.Pending Group');
-    if (data) setStudentsData(data.map(s => ({ ...s, firstName: s.first_name || '', lastName: s.last_name || '', language: s.language || '', level: s.level || '', group: s.group_name || '', status: s.status || '', phone: s.phone || '', email: s.email || '', address: s.address || '', parentName: s.parent_name || '', parentContact: s.parent_contact || '', enrollmentDate: s.enrollment_date || '', test_score: s.test_score || '' })));
+    const { data } = await supabase.from('students').select(`
+      *,
+      inscriptions ( id, annee_scolaire, groupe, statut, cours(langue) )
+    `).or('status.eq.Active,status.eq.Pending Group');
+
+    if (data) {
+      setStudentsData(data.map(s => {
+        const activeInsc = s.inscriptions?.filter(i => i.statut === 'Active') || [];
+        // Map UI helper fields from inscriptions so the original UI design works without breaking
+        const primaryLang = activeInsc.length > 0 ? activeInsc[0].cours?.langue : s.language;
+        const allGroups = activeInsc.map(i => i.groupe).join(' & ') || s.group_name || '';
+        
+        return {
+          ...s,
+          firstName: s.first_name || '', lastName: s.last_name || '', 
+          language: primaryLang || '', level: s.level || '', group: allGroups,
+          status: s.status || '', phone: s.phone || '', email: s.email || '', 
+          address: s.address || '', enrollmentDate: s.enrollment_date || '', 
+          test_score: s.test_score || '',
+          rawInscriptions: activeInsc // Store for Time Conflict checks
+        };
+      }));
+    }
   };
   const fetchClasses = async () => { const { data } = await supabase.from('classes').select('*'); if (data) setClassesData(data); };
   useEffect(() => { fetchActiveStudents(); fetchClasses(); }, []);
@@ -452,14 +494,14 @@ const StudentRecordsTab = () => {
     return matchLang && matchLevel && matchSearch;
   });
 
-  // ALL ORIGINAL HANDLERS — UNTOUCHED
   const handleProcessResult = async (e) => {
     e.preventDefault(); setLoading(true);
     try {
       const score = parseFloat(selectedStudent.test_score);
       await supabase.from('enrollment_history').insert([{ student_id: selectedStudent.id, student_name: `${selectedStudent.firstName} ${selectedStudent.lastName}`, level_completed: selectedStudent.level, group_name: selectedStudent.group, grade: isNaN(score) ? null : score }]);
       const isArchiving = processData.newLevel === 'Archived';
-      const { error: updateError } = await supabase.from('students').update({ level: isArchiving ? selectedStudent.level : processData.newLevel, group_name: null, status: isArchiving ? 'Archived' : 'Pending Group', test_score: selectedStudent.test_score }).eq('id', selectedStudent.id);
+      // 💡 update student
+      const { error: updateError } = await supabase.from('students').update({ level: isArchiving ? selectedStudent.level : processData.newLevel, status: isArchiving ? 'Archived' : 'Pending Group', test_score: selectedStudent.test_score }).eq('id', selectedStudent.id);
       if (updateError) throw updateError;
       alert(isArchiving ? `${selectedStudent.firstName} has been archived.` : `${selectedStudent.firstName} moved to level ${processData.newLevel} — awaiting group assignment.`);
       setIsProcessModalOpen(false); fetchActiveStudents();
@@ -474,18 +516,23 @@ const StudentRecordsTab = () => {
       const currentCount = selectedClass.enrolled_count || 0;
       if (currentCount >= selectedClass.capacity) throw new Error("This group is full.");
       await supabase.from('classes').update({ enrolled_count: currentCount + 1 }).eq('id', assignGroupData.classId);
-      await supabase.from('students').update({ group_name: selectedClass.name, status: 'Active' }).eq('id', selectedStudent.id);
+      
+      // 💡 Also insert into inscriptions
+      const cours = await getOrCreateCours(selectedStudent.language);
+      await supabase.from('inscriptions').insert([{ student_id: selectedStudent.id, cours_id: cours.id, groupe: selectedClass.name, annee_scolaire: '2025-2026', statut: 'Active' }]);
+      await supabase.from('students').update({ status: 'Active' }).eq('id', selectedStudent.id);
+      
       alert(`${selectedStudent.firstName} assigned to ${selectedClass.name}.`);
       setIsAssignGroupModalOpen(false); fetchActiveStudents();
     } catch (err) { alert(err.message); } finally { setLoading(false); }
   };
 
   const handleDeleteStudent = async (id, name) => {
-    if (window.confirm(`Permanently delete ${name}? This cannot be undone.`)) {
+    if (window.confirm(`Are you sure you want to ARCHIVE ${name}? Their data will be saved.`)) {
       try {
-        const { error } = await supabase.from('students').delete().eq('id', id);
+        const { error } = await supabase.from('students').update({ status: 'Archived' }).eq('id', id);
         if (error) throw error;
-        alert(`${name} deleted successfully.`); fetchActiveStudents();
+        alert(`${name} archived successfully.`); fetchActiveStudents();
       } catch (err) { alert("Error: " + err.message); }
     }
   };
@@ -499,6 +546,47 @@ const StudentRecordsTab = () => {
       if (error) throw error;
       alert('Student updated successfully.'); setIsEditModalOpen(false); fetchActiveStudents();
     } catch (err) { alert("Error: " + err.message); } finally { setLoading(false); }
+  };
+
+  // 💡 NEW: Time Conflict & Add Course Handlers
+  const handleVerifyTimeConflict = (classId) => {
+    setAddCourseData({ ...addCourseData, classId });
+    setTimeConflictMsg(null);
+    if (!classId) return;
+    const selectedClass = classesData.find(c => c.id === classId);
+    
+    // 1. Check if Locked
+    if (selectedClass?.enrollment_status === 'Locked') {
+      setTimeConflictMsg("🚨 This group is LOCKED. The program is too advanced for new enrollments.");
+      return;
+    }
+
+    // 2. Check overlap with current student classes
+    const currentClassNames = selectedStudent.rawInscriptions?.map(i => i.groupe) || [];
+    const studentClasses = classesData.filter(c => currentClassNames.includes(c.name));
+    
+    const conflict = studentClasses.find(c => c.schedule && selectedClass.schedule && c.schedule === selectedClass.schedule);
+    if (conflict) {
+      setTimeConflictMsg(`⚠️ Time Conflict! Student already has ${conflict.name} at this time (${conflict.schedule}).`);
+    }
+  };
+
+  const handleSaveNewCourse = async (e) => {
+    e.preventDefault();
+    if (!addCourseData.classId || timeConflictMsg) return;
+    setLoading(true);
+    try {
+      const selectedClass = classesData.find(c => c.id === addCourseData.classId);
+      const currentCount = selectedClass.enrolled_count || 0;
+      if (currentCount >= selectedClass.capacity) throw new Error("This group is full.");
+      
+      await supabase.from('classes').update({ enrolled_count: currentCount + 1 }).eq('id', addCourseData.classId);
+      const cours = await getOrCreateCours(addCourseData.language);
+      await supabase.from('inscriptions').insert([{ student_id: selectedStudent.id, cours_id: cours.id, groupe: selectedClass.name, annee_scolaire: '2025-2026', statut: 'Active' }]);
+      
+      alert(`Successfully added ${addCourseData.language} to ${selectedStudent.firstName}.`);
+      setIsAddCourseModalOpen(false); fetchActiveStudents();
+    } catch(err) { alert("Error: "+err.message); } finally { setLoading(false); }
   };
 
   if (currentView === 'profile' && selectedStudent) {
@@ -522,9 +610,15 @@ const StudentRecordsTab = () => {
             <div style={{ flex: 1 }}>
               <h3 style={{ margin: '0 0 4px', fontSize: 17, fontWeight: 800, color: C.textDark }}>{selectedStudent.firstName} {selectedStudent.lastName}</h3>
               <p style={{ margin: 0, fontSize: 12, color: C.textMuted }}>ID: {selectedStudent.id} · Enrolled: {selectedStudent.enrollmentDate}</p>
-              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: C.blue, background: C.blueBg, padding: '2px 9px', borderRadius: 20 }}>{selectedStudent.language}</span>
-                <span style={{ fontSize: 11, fontWeight: 700, color: C.purple, background: C.purpleBg, padding: '2px 9px', borderRadius: 20 }}>Level {selectedStudent.level}</span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                {/* 💡 Display all languages as badges */}
+                {selectedStudent.rawInscriptions?.length > 0 ? selectedStudent.rawInscriptions.map((insc, idx) => (
+                  <span key={idx} style={{ display: 'inline-flex', alignItems: 'center', fontSize: 11, fontWeight: 700, color: C.blue, background: C.blueBg, border: '1px solid #bfdbfe', padding: '3px 10px', borderRadius: 20 }}>
+                     <span style={{ marginRight: 4 }}>📚</span> {insc.cours?.langue} ({insc.groupe})
+                  </span>
+                )) : (
+                  <span style={{ fontSize: 11, fontWeight: 700, color: C.blue, background: C.blueBg, padding: '2px 9px', borderRadius: 20 }}>{selectedStudent.language}</span>
+                )}
                 <StatusBadge status={selectedStudent.status} />
               </div>
             </div>
@@ -563,7 +657,7 @@ const StudentRecordsTab = () => {
       </FilterBar>
 
       <TableCard>
-        <thead><tr><Th>Student ID</Th><Th>Name</Th><Th>Language</Th><Th>Level / Group</Th><Th center>Actions</Th></tr></thead>
+        <thead><tr><Th>Student ID</Th><Th>Name</Th><Th>Enrolled Courses</Th><Th>Level / Groups</Th><Th center>Actions</Th></tr></thead>
         <tbody>
           {filteredStudents.length > 0 ? filteredStudents.map(student => (
             <tr key={student.id} onMouseEnter={e => e.currentTarget.style.background = C.pageBg} onMouseLeave={e => e.currentTarget.style.background = 'transparent'} style={{ transition: 'background 0.12s' }}>
@@ -572,13 +666,23 @@ const StudentRecordsTab = () => {
                 <p style={{ margin: 0, fontWeight: 700, color: C.textDark }}>{student.firstName} {student.lastName}</p>
                 {student.status === 'Pending Group' && <span style={{ fontSize: 10.5, fontWeight: 700, color: C.orange }}>Needs Group Assignment</span>}
               </Td>
-              <Td><span style={{ fontSize: 13, fontWeight: 600, color: C.textDark }}>{student.language}</span></Td>
+              <Td>
+                {/* 💡 Display multi-course logic nicely */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {student.rawInscriptions?.length > 0 ? student.rawInscriptions.map((i, idx) => (
+                    <span key={idx} style={{ fontSize: 12, fontWeight: 600, color: C.blue }}>• {i.cours?.langue}</span>
+                  )) : <span style={{ fontSize: 13, fontWeight: 600, color: C.textDark }}>{student.language}</span>}
+                </div>
+              </Td>
               <Td>
                 <span style={{ fontSize: 13, fontWeight: 700, color: C.textDark }}>{student.level}</span>
                 <span style={{ fontSize: 12, color: C.textMuted }}> · {student.group || '—'}</span>
               </Td>
               <Td center>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  {/* 💡 The new PLUS button for adding a second course */}
+                  <ActionBtn icon={Ic.Plus} onClick={() => { setSelectedStudent(student); setAddCourseData({ language: 'English', level: 'A1', classId: '' }); setTimeConflictMsg(null); setIsAddCourseModalOpen(true); }} title="Add Another Course" />
+                  
                   <OutlineBtn onClick={() => { setSelectedStudent(student); setCurrentView('profile'); }} style={{ padding: '5px 12px', fontSize: 12 }}>Open Record</OutlineBtn>
                   {student.status === 'Pending Group' ? (
                     <button onClick={() => { setSelectedStudent(student); setAssignGroupData({ classId: '' }); setIsAssignGroupModalOpen(true); }}
@@ -592,7 +696,7 @@ const StudentRecordsTab = () => {
                     </button>
                   )}
                   <ActionBtn icon={Ic.Edit}  onClick={() => openEditModal(student)}                        title="Edit Student" />
-                  <ActionBtn icon={Ic.Trash} onClick={() => handleDeleteStudent(student.id, student.firstName)} title="Delete Student" danger />
+                  <ActionBtn icon={Ic.Trash} onClick={() => handleDeleteStudent(student.id, student.firstName)} title="Archive Student" danger />
                 </div>
               </Td>
             </tr>
@@ -601,6 +705,46 @@ const StudentRecordsTab = () => {
           )}
         </tbody>
       </TableCard>
+
+      {/* 💡 NEW MODAL: Add Course Modal (With Time Conflict checking) */}
+      {isAddCourseModalOpen && selectedStudent && (
+        <Modal title="Enroll in Another Course" subtitle={`Adding course for ${selectedStudent.firstName} ${selectedStudent.lastName}`} onClose={() => setIsAddCourseModalOpen(false)}>
+           <form onSubmit={handleSaveNewCourse} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+               <FormField label="Language">
+                 <select value={addCourseData.language} onChange={e => { setAddCourseData({ ...addCourseData, language: e.target.value, classId: '' }); setTimeConflictMsg(null); }} style={selectStyle} onFocus={onFocus} onBlur={onBlur}>
+                   <option>English</option><option>Français</option><option>Deutsch</option><option>Español</option>
+                 </select>
+               </FormField>
+               <FormField label="Level">
+                 <select value={addCourseData.level} onChange={e => { setAddCourseData({ ...addCourseData, level: e.target.value, classId: '' }); setTimeConflictMsg(null); }} style={selectStyle} onFocus={onFocus} onBlur={onBlur}>
+                   {['A1','A2','B1','B2','C1','C2'].map(l => <option key={l}>{l}</option>)}
+                 </select>
+               </FormField>
+            </div>
+            <FormField label="Select Group">
+              <select value={addCourseData.classId} onChange={e => handleVerifyTimeConflict(e.target.value)} style={{ ...selectStyle, borderColor: timeConflictMsg ? '#fca5a5' : '#bfdbfe', background: timeConflictMsg ? C.dangerBg : C.blueBg, color: timeConflictMsg ? C.danger : C.blue }} onFocus={onFocus} onBlur={onBlur}>
+                 <option value="">— Select Group —</option>
+                 {classesData.filter(c => c.language === addCourseData.language && c.level === addCourseData.level).map(c => { 
+                   const full = (c.enrolled_count||0) >= (c.capacity||20); 
+                   const locked = c.enrollment_status === 'Locked';
+                   return <option key={c.id} value={c.id} disabled={full || locked}>{c.name} {full?'(FULL)':''} {locked?'(🔒 Closed)':''}</option>; 
+                 })}
+              </select>
+            </FormField>
+
+            {timeConflictMsg && (
+               <div style={{ padding: '10px 14px', background: C.dangerBg, color: C.danger, fontSize: 12.5, fontWeight: 700, borderRadius: 8, border: `1px solid #fca5a5` }}>
+                 {timeConflictMsg}
+               </div>
+            )}
+
+            <PrimaryBtn type="submit" disabled={loading || !!timeConflictMsg} style={{ width: '100%', justifyContent: 'center', marginTop: 4 }}>
+              <Ic.Check /> {loading ? 'Saving…' : 'Enroll Student'}
+            </PrimaryBtn>
+           </form>
+        </Modal>
+      )}
 
       {isProcessModalOpen && (
         <Modal title="Process Result" subtitle={`Student: ${selectedStudent?.firstName} ${selectedStudent?.lastName}`} onClose={() => setIsProcessModalOpen(false)} width={400}>
@@ -676,9 +820,13 @@ const StudentArchiveTab = () => {
   const [currentView,      setCurrentView]      = useState('list');
   const [loading,          setLoading]          = useState(false);
 
+  // 💡 Archive uses Inscriptions just like Records to be accurate
   const fetchArchived = async () => {
-    const { data } = await supabase.from('students').select('*').eq('status', 'Archived');
-    if (data) setArchivedStudents(data.map(s => ({ ...s, name: `${s.first_name || ''} ${s.last_name || ''}`.trim() })));
+    const { data } = await supabase.from('students').select(`*, inscriptions(id, groupe, cours(langue))`).eq('status', 'Archived');
+    if (data) setArchivedStudents(data.map(s => {
+      const langs = s.inscriptions?.map(i => i.cours?.langue).join(', ') || s.language || 'N/A';
+      return { ...s, name: `${s.first_name || ''} ${s.last_name || ''}`.trim(), language: langs };
+    }));
   };
   useEffect(() => { fetchArchived(); }, []);
 
@@ -689,7 +837,6 @@ const StudentArchiveTab = () => {
     setCurrentView('profile');
   };
 
-  // ORIGINAL HANDLER — UNTOUCHED
   const handleRestore = async (student) => {
     if (window.confirm(`Restore ${student.name} to Active Records?`)) {
       setLoading(true);
@@ -767,13 +914,13 @@ const StudentArchiveTab = () => {
         <SearchBar value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search archive by name or ID…" width={300} />
       </FilterBar>
       <TableCard>
-        <thead><tr><Th>Student ID</Th><Th>Name</Th><Th>Language</Th><Th>Last Level</Th><Th center>Actions</Th></tr></thead>
+        <thead><tr><Th>Student ID</Th><Th>Name</Th><Th>Languages</Th><Th>Last Level</Th><Th center>Actions</Th></tr></thead>
         <tbody>
           {filteredArchived.length > 0 ? filteredArchived.map(student => (
             <tr key={student.id} onMouseEnter={e => e.currentTarget.style.background = C.pageBg} onMouseLeave={e => e.currentTarget.style.background = 'transparent'} style={{ transition: 'background 0.12s' }}>
               <Td><span style={{ fontSize: 12, fontWeight: 700, color: C.textMuted }}>#{student.id}</span></Td>
               <Td><span style={{ fontWeight: 700, color: C.textDark }}>{student.name}</span></Td>
-              <Td><span style={{ color: C.textMid }}>{student.language || 'N/A'}</span></Td>
+              <Td><span style={{ color: C.textMid }}>{student.language}</span></Td>
               <Td><span style={{ color: C.textMid }}>{student.level || 'N/A'}</span></Td>
               <Td center>
                 <div style={{ display: 'flex', justifyContent: 'center', gap: 8 }}>
@@ -802,6 +949,9 @@ const StudentRegistrationTab = () => {
   const [singleData,  setSingleData]  = useState({ firstName: '', lastName: '', language: 'English', level: 'A1', classId: '', phone: '', email: '', parentEmail: '', exam_type: 'Course' });
   const [parentData,  setParentData]  = useState({ firstName: '', lastName: '', email: '', phone: '' });
   const [kidsList,    setKidsList]    = useState([{ firstName: '', lastName: '', language: 'English', level: 'A1', classId: '', phone: '', email: '', exam_type: 'Course' }]);
+  
+  // 💡 Conflict State for Manual Registration
+  const [singleConflictMsg, setSingleConflictMsg] = useState(null);
 
   useEffect(() => { const f = async () => { const { data } = await supabase.from('classes').select('*'); if (data) setClassesData(data); }; f(); }, []);
 
@@ -809,9 +959,18 @@ const StudentRegistrationTab = () => {
   const removeKid = (index) => setKidsList(kidsList.filter((_, i) => i !== index));
   const handleKidChange = (index, field, value) => { const n = [...kidsList]; n[index][field] = value; setKidsList(n); };
 
-  // ALL ORIGINAL HANDLERS — UNTOUCHED
+  const handleSingleClassChange = (classId) => {
+     setSingleData({ ...singleData, classId });
+     setSingleConflictMsg(null);
+     const c = classesData.find(x => x.id === classId);
+     if (c?.enrollment_status === 'Locked') {
+        setSingleConflictMsg("🚨 This group is locked! Programme avancé.");
+     }
+  };
+
   const handleSave = async (e) => {
     e.preventDefault(); setLoading(true);
+    if (singleConflictMsg) { setLoading(false); return; }
     try {
       if (regMode === 'Single') {
         const isPlacement = singleData.exam_type === 'Placement';
@@ -827,8 +986,16 @@ const StudentRegistrationTab = () => {
         const { error: authError } = await supabase.auth.signUp({ email: singleData.email, password: singleData.phone });
         if (authError && authError.message !== "User already registered") throw authError;
         if (singleData.parentEmail) { const { error: pErr } = await supabase.auth.signUp({ email: singleData.parentEmail, password: singleData.phone }); if (pErr && pErr.message !== "User already registered") console.error(pErr); }
-        const { error: dbError } = await supabase.from('students').insert([{ first_name: singleData.firstName, last_name: singleData.lastName, email: singleData.email, phone: singleData.phone, parent_email: singleData.parentEmail || null, language: singleData.language, level: singleData.level, group_name: selectedClassName, exam_type: singleData.exam_type, status: isPlacement ? 'Pending' : 'Active', enrollment_date: new Date().toISOString().split('T')[0] }]);
+        
+        // 💡 Save Student & Inscription
+        const { data: newStudent, error: dbError } = await supabase.from('students').insert([{ first_name: singleData.firstName, last_name: singleData.lastName, email: singleData.email, phone: singleData.phone, parent_email: singleData.parentEmail || null, language: singleData.language, level: singleData.level, exam_type: singleData.exam_type, status: isPlacement ? 'Pending' : 'Active', enrollment_date: new Date().toISOString().split('T')[0] }]).select().single();
         if (dbError) throw dbError;
+
+        if (!isPlacement && selectedClassName) {
+           const cours = await getOrCreateCours(singleData.language);
+           await supabase.from('inscriptions').insert([{ student_id: newStudent.id, cours_id: cours.id, groupe: selectedClassName, annee_scolaire: '2025-2026', statut: 'Active' }]);
+        }
+
         alert(isPlacement ? "Placement test request submitted." : "Student registered successfully.");
         setSingleData({ firstName: '', lastName: '', language: 'English', level: 'A1', classId: '', phone: '', email: '', parentEmail: '', exam_type: 'Course' });
       } else {
@@ -836,6 +1003,7 @@ const StudentRegistrationTab = () => {
         if (kidsList.length === 0) return alert("Please add at least one child.");
         const { error: pErr } = await supabase.auth.signUp({ email: parentData.email, password: parentData.phone });
         if (pErr && pErr.message !== "User already registered") console.error(pErr);
+        
         for (let i = 0; i < kidsList.length; i++) {
           const kid = kidsList[i];
           const isPlacement = kid.exam_type === 'Placement';
@@ -846,12 +1014,19 @@ const StudentRegistrationTab = () => {
             selectedClassName = selectedClass.name;
             const currentCount = selectedClass.enrolled_count || 0;
             if (currentCount >= selectedClass.capacity) return alert(`Group for ${kid.firstName} is full.`);
+            if (selectedClass.enrollment_status === 'Locked') return alert(`Group for ${kid.firstName} is Locked.`);
             await supabase.from('classes').update({ enrolled_count: currentCount + 1 }).eq('id', kid.classId);
           }
           const { error: authErr } = await supabase.auth.signUp({ email: kid.email, password: kid.phone });
           if (authErr && authErr.message !== "User already registered") throw authErr;
-          const { error: dbErr } = await supabase.from('students').insert([{ first_name: kid.firstName, last_name: kid.lastName, email: kid.email, phone: kid.phone, parent_email: parentData.email, parent_name: `${parentData.firstName} ${parentData.lastName}`, parent_contact: parentData.phone, language: kid.language, level: kid.level, group_name: selectedClassName, exam_type: kid.exam_type, status: isPlacement ? 'Pending' : 'Active', enrollment_date: new Date().toISOString().split('T')[0] }]);
+          
+          const { data: newKid, error: dbErr } = await supabase.from('students').insert([{ first_name: kid.firstName, last_name: kid.lastName, email: kid.email, phone: kid.phone, parent_email: parentData.email, parent_name: `${parentData.firstName} ${parentData.lastName}`, parent_contact: parentData.phone, language: kid.language, level: kid.level, exam_type: kid.exam_type, status: isPlacement ? 'Pending' : 'Active', enrollment_date: new Date().toISOString().split('T')[0] }]).select().single();
           if (dbErr) throw dbErr;
+
+          if (!isPlacement && selectedClassName) {
+            const cours = await getOrCreateCours(kid.language);
+            await supabase.from('inscriptions').insert([{ student_id: newKid.id, cours_id: cours.id, groupe: selectedClassName, annee_scolaire: '2025-2026', statut: 'Active' }]);
+          }
         }
         alert(`Family registered successfully (${kidsList.length} children).`);
         setParentData({ firstName: '', lastName: '', email: '', phone: '' });
@@ -899,14 +1074,19 @@ const StudentRegistrationTab = () => {
                       </select>
                     </FormField>
                     <FormField label="Available Groups">
-                      <select value={singleData.classId} onChange={e => setSingleData({ ...singleData, classId: e.target.value })} style={{ ...selectStyle, borderColor: '#bfdbfe', color: C.blue, background: C.blueBg }} onFocus={onFocus} onBlur={onBlur}>
+                      <select value={singleData.classId} onChange={e => handleSingleClassChange(e.target.value)} style={{ ...selectStyle, borderColor: singleConflictMsg ? '#fca5a5' : '#bfdbfe', color: singleConflictMsg ? C.danger : C.blue, background: singleConflictMsg ? C.dangerBg : C.blueBg }} onFocus={onFocus} onBlur={onBlur}>
                         <option value="">— Select Group —</option>
-                        {classesData.filter(c => c.language === singleData.language && c.level.includes(singleData.level)).map(c => { const full = (c.enrolled_count||0) >= (c.capacity||20); return <option key={c.id} value={c.id} disabled={full}>{c.name}{full?' — FULL':''}</option>; })}
+                        {classesData.filter(c => c.language === singleData.language && c.level.includes(singleData.level)).map(c => { 
+                          const full = (c.enrolled_count||0) >= (c.capacity||20); 
+                          const locked = c.enrollment_status === 'Locked';
+                          return <option key={c.id} value={c.id} disabled={full || locked}>{c.name} {full?'(FULL)':''} {locked?'(🔒 Closed)':''}</option>; 
+                        })}
                       </select>
                     </FormField>
                   </>
                 )}
               </div>
+              {singleConflictMsg && <div style={{ marginTop: 10, padding: 10, background: C.dangerBg, color: C.danger, fontSize: 12, fontWeight: 700, borderRadius: 8 }}>{singleConflictMsg}</div>}
             </SectionCard>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               <SectionCard title="Personal Info">
@@ -970,7 +1150,11 @@ const StudentRegistrationTab = () => {
                       </select>
                       <select value={kid.classId} onChange={e => handleKidChange(index, 'classId', e.target.value)} style={{ ...selectStyle, fontSize: 12 }} onFocus={onFocus} onBlur={onBlur}>
                         <option value="">— Assign Group —</option>
-                        {classesData.filter(c => c.language === kid.language && c.level.includes(kid.level)).map(c => { const full = (c.enrolled_count||0) >= (c.capacity||20); return <option key={c.id} value={c.id} disabled={full}>{c.name}{full?' — FULL':''}</option>; })}
+                        {classesData.filter(c => c.language === kid.language && c.level.includes(kid.level)).map(c => { 
+                          const full = (c.enrolled_count||0) >= (c.capacity||20); 
+                          const locked = c.enrollment_status === 'Locked';
+                          return <option key={c.id} value={c.id} disabled={full || locked}>{c.name} {full?'(FULL)':''} {locked?'(🔒 Closed)':''}</option>; 
+                        })}
                       </select>
                     </>
                   )}
@@ -989,7 +1173,7 @@ const StudentRegistrationTab = () => {
         )}
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 20, marginTop: 8, borderTop: `1px solid ${C.border}` }}>
-          <PrimaryBtn type="submit" disabled={loading} style={{ padding: '11px 28px', fontSize: 13.5 }}>
+          <PrimaryBtn type="submit" disabled={loading || singleConflictMsg} style={{ padding: '11px 28px', fontSize: 13.5 }}>
             <Ic.Check /> {loading ? 'Processing…' : regMode === 'Single' ? 'Save & Register Student' : `Register Family (${kidsList.length} Kids)`}
           </PrimaryBtn>
         </div>
@@ -1005,14 +1189,13 @@ const StaffRegistrationTab = () => {
 
   const handleInputChange = (e) => { const { name, value } = e.target; setFormData(prev => ({ ...prev, [name]: value })); };
 
-  // ORIGINAL HANDLER — UNTOUCHED
   const handleSave = async (e) => {
     e.preventDefault(); setLoading(true);
     try {
       const { data: authData, error: authError } = await supabase.auth.signUp({ email: formData.email, password: formData.phone });
       if (authError && authError.message !== "User already registered") throw authError;
       const uid = authData.user?.id;
-      const { error: dbError } = await supabase.from('staff').insert([{ auth_id: uid, first_name: formData.firstName, last_name: formData.lastName, email: formData.email, phone: formData.phone, department: formData.department, role: formData.role }]);
+      const { error: dbError } = await supabase.from('staff').insert([{ auth_id: uid, first_name: formData.firstName, last_name: formData.lastName, email: formData.email, phone: formData.phone, department: formData.department, role: formData.role, status: 'Active' }]);
       if (dbError) throw dbError;
       alert(`${formData.firstName} added successfully. They can log in using their email and phone number.`);
       setFormData({ firstName: '', lastName: '', email: '', phone: '', department: 'English', role: 'Teacher' });

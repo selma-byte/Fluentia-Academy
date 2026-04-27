@@ -21,7 +21,7 @@ const StudentPayment = () => {
   const [loading, setLoading] = useState(true);
 
   // ==========================================
-  // 💡 Database Logic - STRICTLY PRESERVED
+  // 💡 Database Logic - Multi-Course Support
   // ==========================================
   useEffect(() => {
     const fetchFinancialData = async () => {
@@ -29,32 +29,43 @@ const StudentPayment = () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
+        // 1. نجيبو الطالب مع التسجيلات تاعو
         const { data: student } = await supabase
           .from('students')
-          .select('first_name, last_name, level, language, status, id')
+          .select('id, first_name, last_name, level, language, status, inscriptions(cours(langue))')
           .eq('email', user.email)
           .single();
 
         if (student) {
           const fullName = `${student.first_name || ''} ${student.last_name || ''}`.trim();
-          const studentStatus = student.status || 'Pending';
+          
+          // تحديد الكورسات اللي مسجل فيهم (أو اللغة الافتراضية)
+          const activeLanguages = student.inscriptions && student.inscriptions.length > 0 
+            ? student.inscriptions.map(i => i.cours?.langue).join(', ')
+            : student.language || 'Language';
 
-          setStudentInfo({
-            name: fullName,
-            id: `STD-${student.id || '2026'}`,
-            program: `${student.language || 'Language'} (${student.level || 'Level'})`,
-            balance: studentStatus.toLowerCase() === 'paid' ? '0 DZD' : 'Pending Payment',
-            status: studentStatus
-          });
-
+          // 2. نجيبو الخلاص من جدول payments
           const { data: payments } = await supabase
             .from('payments')
             .select('*')
-            .eq('student_name', fullName)
-            .order('created_at', { ascending: false });
+            .eq('student_id', student.id)
+            .order('payment_date', { ascending: false });
+
+          let totalPaidThisMonth = 0;
+          let formattedPayments = [];
 
           if (payments && payments.length > 0) {
-            const formattedPayments = payments.map((p, idx) => {
+            const currentMonth = new Date().getMonth();
+            const currentYear = new Date().getFullYear();
+
+            formattedPayments = payments.map((p, idx) => {
+              const payDate = new Date(p.payment_date || p.created_at);
+              
+              // حساب الخلاص تاع هاد الشهر
+              if (payDate.getMonth() === currentMonth && payDate.getFullYear() === currentYear) {
+                 totalPaidThisMonth += parseFloat(p.amount) || 0;
+              }
+
               let payStatus = p.status || 'Verified';
               if (payStatus.toLowerCase() === 'unpaid' || payStatus.toLowerCase() === 'pending') {
                 payStatus = 'Pending';
@@ -64,15 +75,32 @@ const StudentPayment = () => {
 
               return {
                 id: p.id || idx,
-                date: new Date(p.created_at || p.date).toLocaleDateString('en-GB'),
+                date: payDate.toLocaleDateString('en-GB'),
                 amount: p.amount ? `${p.amount} DZD` : 'TBD',
-                transactionId: p.transaction_id || `PAY-${Math.floor(100000 + Math.random() * 900000)}`,
+                transactionId: `PAY-${p.id.toString().substring(0,6)}`,
                 status: payStatus,
-                label: p.type || p.description || 'Course Installment'
+                label: p.notes || 'Course Installment'
               };
             });
             setPaymentHistory(formattedPayments);
           }
+
+          // 3. حساب الكريدي (Balance)
+          // السعر الافتراضي للكورس هو 3000، نضربوه في عدد الكورسات اللي مسجل فيهم
+          const numberOfCourses = student.inscriptions && student.inscriptions.length > 0 ? student.inscriptions.length : 1;
+          const expectedMonthlyPayment = numberOfCourses * 3000;
+          let pendingBalance = expectedMonthlyPayment - totalPaidThisMonth;
+          if (pendingBalance < 0) pendingBalance = 0; // إذا خلص بالزيادة
+
+          let accountStatus = pendingBalance === 0 ? 'Paid' : 'Pending';
+
+          setStudentInfo({
+            name: fullName,
+            id: `STD-${student.id.toString().substring(0,5)}`,
+            program: `${activeLanguages} (Level ${student.level || 'TBD'})`,
+            balance: pendingBalance === 0 ? '0 DZD' : `${pendingBalance.toLocaleString()} DZD`,
+            status: accountStatus
+          });
         }
       } catch (err) {
         console.error("Error fetching financial data:", err);
@@ -120,7 +148,7 @@ const StudentPayment = () => {
                   ].map((info, idx) => (
                     <div key={idx} className="flex justify-between items-center py-2 border-b border-gray-50/50">
                       <span className="text-[9px] font-black text-[#A3AED0] uppercase tracking-widest">{info.label}</span>
-                      <span className={`text-[12px] font-black uppercase italic ${
+                      <span className={`text-[12px] font-black uppercase italic text-right ${
                         info.label === 'Account' 
                         ? (info.value.toLowerCase() === 'paid' ? 'text-emerald-500' : 'text-orange-500')
                         : 'text-[#1B254B]'
@@ -147,8 +175,8 @@ const StudentPayment = () => {
                 <h3 className="text-[10px] font-black text-[#1B254B] uppercase tracking-[0.3em] mb-6 border-b border-gray-50 pb-3 italic">Fee Distribution Matrix</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {[
-                    { label: `${studentInfo.program} Track`, cost: "Assigned", code: "LANG-CORE" },
-                    { label: "Core Admin Fees", cost: "Included", code: "ADM-X" },
+                    { label: `Course Fees`, cost: "3,000 DZD / Month", code: "LANG-CORE" },
+                    { label: "Admin Fees", cost: "Included", code: "ADM-X" },
                   ].map((item, i) => (
                     <div key={i} className="flex justify-between items-center p-4 bg-[#F4F7FE]/50 rounded-2xl hover:bg-[#F4F7FE] transition-colors cursor-help">
                       <div className="flex flex-col">
@@ -210,7 +238,7 @@ const StudentPayment = () => {
               ))
             ) : (
               <div className="flex-1 flex items-center justify-center text-center p-6">
-                 <p className="text-[10px] font-bold uppercase tracking-widest text-gray-300">No records assigned.</p>
+                 <p className="text-[10px] font-bold uppercase tracking-widest text-gray-300">No payment records found.</p>
               </div>
             )}
           </div>

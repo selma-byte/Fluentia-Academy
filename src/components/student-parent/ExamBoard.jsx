@@ -15,7 +15,7 @@ const ExamBoard = () => {
   const [loading, setLoading] = useState(true);
 
   // ==========================================
-  // 💡 Database Logic - STRICTLY PRESERVED
+  // 💡 Database Logic - Multi-Course Support
   // ==========================================
   useEffect(() => {
     const fetchExams = async () => {
@@ -23,39 +23,48 @@ const ExamBoard = () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        const { data: student } = await supabase
+        // 1. نجيبو معلومات الطالب والتسجيلات تاعو
+        const { data: studentData } = await supabase
           .from('students')
-          .select('language, level')
+          .select('level, language, inscriptions(cours(langue))')
           .eq('email', user.email)
           .single();
 
-        if (student && student.language && student.level) {
-          const { data: exams, error } = await supabase
-            .from('exams')
-            .select('*')
-            .ilike('language', `%${student.language}%`)
-            .eq('level', student.level)
-            .order('date', { ascending: true });
+        if (studentData) {
+          // نجبدو اللغات اللي مسجل فيهم (من جدول inscriptions أو من الـ fallback)
+          const activeLanguages = studentData.inscriptions && studentData.inscriptions.length > 0 
+            ? studentData.inscriptions.map(i => i.cours?.langue) 
+            : [studentData.language];
 
-          if (exams) {
-            const today = new Date();
-            const formattedExams = exams.map((ex, idx) => {
-              const examDate = new Date(ex.date);
-              let status = ex.status || (examDate < today ? "Completed" : "Upcoming");
-              let statusColor = status === 'Completed' ? "text-emerald-500 bg-emerald-50" : "text-orange-500 bg-orange-50";
+          if (activeLanguages.length > 0 && studentData.level) {
+            // 2. نجيبو الامتحانات اللي تطابق اللغات والمستوى تاع الطالب
+            const { data: exams, error } = await supabase
+              .from('exams')
+              .select('*')
+              .in('language', activeLanguages)
+              .eq('level', studentData.level)
+              .order('date', { ascending: true });
 
-              return {
-                id: ex.id || `0${idx + 1}`,
-                name: ex.exam_title || ex.name || "Scheduled Exam",
-                course: ex.course || `${student.language} ${student.level}`,
-                time: ex.time || "10:00 AM",
-                date: ex.date ? new Date(ex.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : "TBA",
-                location: ex.room || ex.location || "Main Hall",
-                status: status,
-                statusColor: statusColor
-              };
-            });
-            setExamsData(formattedExams);
+            if (exams) {
+              const today = new Date();
+              const formattedExams = exams.map((ex, idx) => {
+                const examDate = new Date(ex.date);
+                let status = ex.status || (examDate < today ? "Completed" : "Upcoming");
+                let statusColor = status === 'Completed' ? "text-emerald-500 bg-emerald-50" : "text-orange-500 bg-orange-50";
+
+                return {
+                  id: ex.id || `0${idx + 1}`,
+                  name: ex.title || ex.exam_name || ex.name || "Scheduled Exam",
+                  course: ex.language ? `${ex.language} Level ${ex.level}` : "Enrolled Course",
+                  time: ex.time || "10:00 AM",
+                  date: ex.date ? new Date(ex.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : "TBA",
+                  location: ex.room || ex.location || "Main Hall",
+                  status: status,
+                  statusColor: statusColor
+                };
+              });
+              setExamsData(formattedExams);
+            }
           }
         }
       } catch (err) {
@@ -142,7 +151,7 @@ const ExamBoard = () => {
           ) : (
             <div className="py-20 flex flex-col items-center justify-center space-y-4 opacity-40">
                 <div className="w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center text-gray-300"><Icons.Info /></div>
-                <p className="text-center text-gray-500 font-bold uppercase text-[11px] tracking-widest">No scheduled evaluationsLocalized.</p>
+                <p className="text-center text-gray-500 font-bold uppercase text-[11px] tracking-widest">No scheduled evaluations.</p>
             </div>
           )}
         </div>
@@ -157,14 +166,14 @@ const ExamBoard = () => {
           
           <div className="w-full space-y-8">
               <div className="text-center relative">
-                 <p className="text-[10px] font-black text-[#A3AED0] uppercase mb-1">Prep Score</p>
-                 <p className="text-4xl font-black text-[#1B254B] italic tracking-tighter">85%</p>
-                 <div className="absolute top-0 right-0 w-2 h-2 bg-[#01B574] rounded-full animate-pulse shadow-lg"></div>
+                 <p className="text-[10px] font-black text-[#A3AED0] uppercase mb-1">Pending Exams</p>
+                 <p className="text-4xl font-black text-[#1B254B] italic tracking-tighter">{pendingCount}</p>
+                 {pendingCount > 0 && <div className="absolute top-0 right-0 w-2 h-2 bg-[#f59e0b] rounded-full animate-pulse shadow-lg"></div>}
               </div>
 
               <div className="space-y-3 px-1">
                  <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
-                    <span className="text-[#A3AED0]">Syllabus</span>
+                    <span className="text-[#A3AED0]">Syllabus Progress</span>
                     <span className="text-[#4318FF]">100%</span>
                  </div>
                  <div className="h-2 w-full bg-[#F4F7FE] rounded-full overflow-hidden">
@@ -174,7 +183,7 @@ const ExamBoard = () => {
 
               <div className="p-4 bg-[#F4F7FE] rounded-2xl border border-indigo-50">
                  <p className="text-[10px] font-bold text-[#A3AED0] leading-relaxed uppercase text-center italic">
-                   Cycle-specific curriculum modules completed.
+                    Cycle-specific curriculum modules completed.
                  </p>
               </div>
           </div>

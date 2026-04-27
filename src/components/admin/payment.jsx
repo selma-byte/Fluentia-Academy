@@ -94,6 +94,7 @@ const Payment = () => {
 
   // ── Form ─────────────────────────────────────────────────────────────────
   const [selectedId, setSelectedId] = useState('');
+  const [selectedCoursId, setSelectedCoursId] = useState(''); // 💡 جديد: نربطو الخلاص بالكورس
   const [payAmount,  setPayAmount]  = useState('3000');
   const [payMethod,  setPayMethod]  = useState('Cash');
   const [payNotes,   setPayNotes]   = useState('');
@@ -115,13 +116,20 @@ const Payment = () => {
   };
 
   // ── Fetch ─────────────────────────────────────────────────────────────────
-  // All original Supabase logic — UNTOUCHED
   const fetchData = async () => {
     setLoading(true);
     try {
-      const { data: studentsData } = await supabase.from('students').select('*').neq('status', 'Archived');
+      // 💡 جلب التلاميد مع الكورسات لي راهم مسجلين فيهم (Multi-course) ونحو الأرشيف
+      const { data: studentsData } = await supabase
+        .from('students')
+        .select('*, inscriptions(id, cours_id, groupe, cours(langue))')
+        .neq('status', 'Archived');
+
+      // 💡 جلب الخلاص مع الكورس اللي خلصو عليه
       const { data: paymentsData } = await supabase
-        .from('payments').select('*, students(first_name, last_name)').order('payment_date', { ascending: false });
+        .from('payments')
+        .select('*, students(first_name, last_name), cours(langue)')
+        .order('payment_date', { ascending: false });
 
       const sData = studentsData || [];
       const pData = paymentsData || [];
@@ -132,8 +140,10 @@ const Payment = () => {
       setMembers(sData.map(s => ({
         id:          s.id,
         name:        `${s.first_name || ''} ${s.last_name || ''}`.trim(),
-        language:    s.language || 'English',
-        group:       s.level || s.group_name || 'Standard',
+        // 💡 عرض اللغات كامل اللي راه يقراهم الطالب
+        language:    s.inscriptions?.map(i => i.cours?.langue).join(', ') || s.language || 'N/A',
+        inscriptions: s.inscriptions || [], 
+        group:       s.inscriptions?.map(i => i.groupe).join(', ') || s.group_name || 'Standard',
         status:      s.status === 'Paid' ? 'Paid' : s.status === 'Overdue' ? 'Overdue' : 'Due Soon',
         balance:     s.status === 'Paid' ? 0 : 3000,
         dueDate:     'End of Month',
@@ -145,13 +155,15 @@ const Payment = () => {
         date:       new Date(p.payment_date || p.created_at).toLocaleDateString('en-GB'),
         rawDate:    new Date(p.payment_date || p.created_at),
         member:     p.students ? `${p.students.first_name} ${p.students.last_name}` : p.member_name,
+        langue:     p.cours?.langue || 'N/A', // 💡 إظهار الكورس في الطابلو
+        cours_id:   p.cours_id,
         student_id: p.student_id,
         amount:     `${p.amount} DZD`,
         status:     p.status,
         method:     p.payment_method || 'Cash',
       })));
 
-      const { data: staffData } = await supabase.from('staff').select('*');
+      const { data: staffData } = await supabase.from('staff').select('*').neq('status', 'Archived');
       if (staffData) {
         setStaffList(staffData.map(s => ({
           id:     s.id,
@@ -176,31 +188,43 @@ const Payment = () => {
 
   useEffect(() => { fetchData(); }, []);
 
-  // ── All original payment logic — UNTOUCHED ────────────────────────────────
+  // ── Payment Logic ────────────────────────────────────────────────────────
   const processStudentPayment = async () => {
     try {
       if (!selectedId) return showNotification('Please select a student!');
+      if (!selectedCoursId) return showNotification('Please select a course to pay for!'); // 💡 تأكيد اختيار الكورس
+      
       const student = members.find(m => m.id.toString() === selectedId.toString());
       if (!student) return;
 
       const currentMonth = new Date().getMonth();
       const currentYear  = new Date().getFullYear();
+      
+      // 💡 التحقق من الدفع لنفس الكورس في نفس الشهر
       const hasPaid = paymentHistory.some(p =>
         p.student_id === selectedId &&
+        p.cours_id === selectedCoursId && 
         p.rawDate.getMonth() === currentMonth &&
         p.rawDate.getFullYear() === currentYear
       );
+      
       if (hasPaid) {
-        alert('This student has already paid for the current month!');
+        alert('This student has already paid for THIS course for the current month!');
         return;
       }
 
+      // 💡 تسجيل الدفع مع `cours_id`
       const { error: payError } = await supabase.from('payments').insert([{
-        student_id: selectedId, member_name: student.name,
-        amount: parseFloat(payAmount), status: 'Paid',
-        payment_method: payMethod, notes: payNotes,
+        student_id: selectedId, 
+        member_name: student.name,
+        cours_id: selectedCoursId,
+        amount: parseFloat(payAmount), 
+        status: 'Paid',
+        payment_method: payMethod, 
+        notes: payNotes,
       }]);
       if (payError) throw payError;
+      
       await supabase.from('students').update({ status: 'Paid' }).eq('id', selectedId);
 
       setReceiptData({ name: student.name, amount: payAmount, method: payMethod, date: new Date().toLocaleString('en-GB'), txn: `TXN-${Math.floor(Math.random() * 90000) + 10000}` });
@@ -264,7 +288,7 @@ const Payment = () => {
   const filteredMembers = members.filter(m =>
     m.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
     (statusFilter === 'All' || m.status === statusFilter) &&
-    (langFilter   === 'All' || m.language === langFilter)
+    (langFilter   === 'All' || m.language.includes(langFilter))
   );
 
   const staffWithStatus = staffList.map(s => ({
@@ -276,7 +300,7 @@ const Payment = () => {
     (roleFilter === 'All' || s.role.toLowerCase() === roleFilter.toLowerCase())
   );
 
-  const uniqueLanguages = [...new Set(members.map(m => m.language).filter(Boolean))];
+  const uniqueLanguages = [...new Set(members.flatMap(m => m.language.split(', ')).filter(Boolean))];
 
   const selectedMember = (currentView === 'student' ? members : staffList)
     .find(m => m.id?.toString() === selectedId?.toString());
@@ -316,7 +340,7 @@ const Payment = () => {
 
           {/* Add payment */}
           <button
-            onClick={() => { setSelectedId(''); setPayNotes(''); setShowAddPaymentModal(true); }}
+            onClick={() => { setSelectedId(''); setSelectedCoursId(''); setPayNotes(''); setShowAddPaymentModal(true); }}
             style={{
               display: 'flex', alignItems: 'center', gap: 7,
               padding: '9px 18px', borderRadius: 10, border: 'none',
@@ -403,7 +427,7 @@ const Payment = () => {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
                     <div>
                       <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#1e293b' }}>{m.name}</p>
-                      <p style={{ margin: '3px 0 0', fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>{m.language} · {m.group}</p>
+                      <p style={{ margin: '3px 0 0', fontSize: 11, color: '#4318FF', fontWeight: 700 }}>{m.language}</p>
                     </div>
                     <StatusBadge status={m.status} />
                   </div>
@@ -453,20 +477,21 @@ const Payment = () => {
               <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600 }}>
                 <thead>
                   <tr style={{ background: '#f8fafc' }}>
-                    {['Date', 'Member', 'Amount', 'Method', 'Status', 'Actions'].map(h => (
+                    {['Date', 'Member', 'Course', 'Amount', 'Method', 'Status', 'Actions'].map(h => (
                       <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 10, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {paymentHistory.length === 0 ? (
-                    <tr><td colSpan={6} style={{ padding: '32px 0', textAlign: 'center', color: '#94a3b8', fontWeight: 600, fontSize: 13 }}>No payments recorded yet.</td></tr>
+                    <tr><td colSpan={7} style={{ padding: '32px 0', textAlign: 'center', color: '#94a3b8', fontWeight: 600, fontSize: 13 }}>No payments recorded yet.</td></tr>
                   ) : paymentHistory.map((row, i) => (
                     <tr key={i} style={{ borderTop: '1px solid #f8fafc' }}
                       onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                       <td style={{ padding: '12px 16px', fontSize: 12, color: '#64748b', fontWeight: 600 }}>{row.date}</td>
                       <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{row.member}</td>
+                      <td style={{ padding: '12px 16px', fontSize: 12, fontWeight: 700, color: '#4318FF' }}>{row.langue}</td>
                       <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{row.amount}</td>
                       <td style={{ padding: '12px 16px', fontSize: 12, color: '#64748b', fontWeight: 600 }}>{row.method}</td>
                       <td style={{ padding: '12px 16px' }}><StatusBadge status={row.status} /></td>
@@ -631,7 +656,7 @@ const Payment = () => {
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
                   Select {currentView === 'student' ? 'Student' : 'Staff Member'}
                 </label>
-                <select value={selectedId} onChange={e => setSelectedId(e.target.value)}
+                <select value={selectedId} onChange={e => { setSelectedId(e.target.value); setSelectedCoursId(''); }}
                   style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #e2e8f0', background: '#f8fafc', fontSize: 13, fontWeight: 600, outline: 'none', cursor: 'pointer' }}>
                   <option value="">Choose target...</option>
                   {(currentView === 'student' ? members : staffList).map(m => (
@@ -639,6 +664,22 @@ const Payment = () => {
                   ))}
                 </select>
               </div>
+
+              {/* 💡 Course Selection (يظهر غير للتلاميد) */}
+              {currentView === 'student' && selectedMember && (
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#4318FF', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
+                    Select Course to Pay For
+                  </label>
+                  <select value={selectedCoursId} onChange={e => setSelectedCoursId(e.target.value)}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '2px solid #eef2ff', background: '#fff', fontSize: 13, fontWeight: 700, color: '#4318FF', outline: 'none', cursor: 'pointer' }}>
+                    <option value="">-- Choose Course --</option>
+                    {selectedMember.inscriptions?.map(insc => (
+                      <option key={insc.cours_id} value={insc.cours_id}>{insc.cours?.langue} ({insc.groupe})</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* Selected member preview */}
               {selectedMember && (
