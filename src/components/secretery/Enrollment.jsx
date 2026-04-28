@@ -5,8 +5,10 @@ const Enrollment = () => {
   const [modalView, setModalView] = useState(null); 
   const [classesData, setClassesData] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [teachersList, setTeachersList] = useState([]);
+  const [roomsList, setRoomsList] = useState([]); // 💡 ستيت جديد للقاعات
 
-  // 💡 جلب الأفواج مع حالة الغلق (Enrollment Status)
+  // 💡 جلب الأفواج 
   const fetchClasses = async () => {
     const { data } = await supabase
       .from('classes')
@@ -15,20 +17,33 @@ const Enrollment = () => {
     if (data) setClassesData(data);
   };
 
-  useEffect(() => { fetchClasses(); }, []);
+  // 💡 جلب الأساتذة والقاعات من الداتا باز
+  const fetchTeachersAndRooms = async () => {
+    const { data: teachers } = await supabase.from('staff').select('*').eq('role', 'Teacher').eq('status', 'Active'); 
+    if (teachers) setTeachersList(teachers);
 
+    const { data: rooms } = await supabase.from('rooms').select('*').order('name');
+    if (rooms) setRoomsList(rooms);
+  };
+
+  useEffect(() => { 
+    fetchClasses(); 
+    fetchTeachersAndRooms();
+  }, []);
+
+  // 💡 الفورميلار بالتفاصيل تاعك كاملة
   const [formData, setFormData] = useState({
     language: 'English',
     level: 'A1',
-    teacher_id: '', // تبدلت لـ ID باش نخدمو بجدول affectations
+    teacher_id: '', 
     capacity: 20,
     total_sessions: 24, 
     sessions_per_week: 2, 
     course_type: 'Regular',
     targetClassId: '',
     schedules: [
-      { day: 'Mon', startTime: '10:00', endTime: '12:00', room: 'Salle 05' },
-      { day: 'Wed', startTime: '10:00', endTime: '12:00', room: 'Salle 05' }
+      { day: 'Mon', startTime: '10:00', endTime: '12:00', room: '' },
+      { day: 'Wed', startTime: '10:00', endTime: '12:00', room: '' }
     ]
   });
 
@@ -43,12 +58,13 @@ const Enrollment = () => {
     if (!error) fetchClasses();
   };
 
+  // 💡 حساب عدد الحصص في الأسبوع
   const handleSessionsPerWeekChange = (e) => {
     const count = parseInt(e.target.value) || 1;
     const newSchedules = [...formData.schedules];
     if (count > newSchedules.length) {
       for (let i = newSchedules.length; i < count; i++) {
-        newSchedules.push({ day: 'Mon', startTime: '10:00', endTime: '12:00', room: 'Salle 05' });
+        newSchedules.push({ day: 'Mon', startTime: '10:00', endTime: '12:00', room: '' });
       }
     } else {
       newSchedules.length = count; 
@@ -77,7 +93,6 @@ const Enrollment = () => {
     setSelectedNewStudent('');
 
     try {
-      // جلب التلاميذ من جدول inscriptions (الطريقة الجديدة)
       const { data: inscData, error } = await supabase
         .from('inscriptions')
         .select('students (*)')
@@ -87,7 +102,6 @@ const Enrollment = () => {
       if (error) throw error;
       setGroupStudents(inscData?.map(i => i.students) || []);
 
-      // جلب التلاميذ اللي يستناو نفس اللغة والمستوى
       const { data: availData } = await supabase
         .from('students')
         .select('id, first_name, last_name, level')
@@ -116,19 +130,16 @@ const Enrollment = () => {
         return;
       }
       
-      // 1. إضافة في جدول inscriptions
       const { data: cours } = await supabase.from('cours').select('id').eq('langue', selectedGroup.language).single();
       await supabase.from('inscriptions').insert([{
         student_id: selectedNewStudent,
         cours_id: cours.id,
         groupe: selectedGroup.name,
-        annee_scolaire: '2025-2026'
+        annee_scolaire: '2025-2026',
+        statut: 'Active'
       }]);
 
-      // 2. تحديث حالة الطالب
       await supabase.from('students').update({ status: 'Active' }).eq('id', selectedNewStudent);
-
-      // 3. تحديث عدد المسجلين
       await supabase.from('classes').update({ enrolled_count: currentCount + 1 }).eq('id', selectedGroup.id);
 
       alert("✅ تم إضافة التلميذ بنجاح!");
@@ -149,7 +160,6 @@ const Enrollment = () => {
       const fullSchedule = formData.schedules.map(s => `${s.day} (${s.startTime}-${s.endTime}) - ${s.room}`).join(' | ');
       const groupName = `${formData.language} ${formData.level} - Group ${classesData.length + 1}`;
 
-      // 1. إنشاء الفوج في جدول classes
       const { data: newClass, error: classError } = await supabase.from('classes').insert([{
         name: groupName,
         language: formData.language,
@@ -162,12 +172,11 @@ const Enrollment = () => {
 
       if (classError) throw classError;
 
-      // 2. ربط الأستاذ بالفوج (جدول affectations)
       if (formData.teacher_id) {
         const { data: cours } = await supabase.from('cours').select('id').eq('langue', formData.language).single();
         await supabase.from('affectations').insert([{
           teacher_id: formData.teacher_id,
-          cours_id: cours.id,
+          cours_id: cours?.id,
           groupe: groupName,
           annee_scolaire: '2025-2026'
         }]);
@@ -182,15 +191,6 @@ const Enrollment = () => {
       setLoading(false);
     }
   };
-  
-  const [teachersList, setTeachersList] = useState([]);
-  useEffect(() => {
-    const fetchTeachers = async () => {
-      const { data } = await supabase.from('staff').select('*').eq('role', 'Teacher').eq('status', 'Active'); 
-      if (data) setTeachersList(data);
-    };
-    fetchTeachers();
-  }, []);
 
   return (
     <div className="animate-fade-in w-full h-full flex flex-col relative p-4">
@@ -231,14 +231,14 @@ const Enrollment = () => {
                   </td>
                   <td className="py-4 px-6 text-center">
                     <div className="w-20 mx-auto">
-                      <div className="text-[10px] font-bold mb-1">{row.completed_sessions || 0}/{row.total_sessions || 24}</div>
+                      <div className="text-[10px] font-bold mb-1">{row.enrolled_count || 0}/{row.capacity || 20}</div>
                       <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
-                        <div className="bg-blue-600 h-full" style={{ width: `${((row.completed_sessions || 0) / (row.total_sessions || 24)) * 100}%` }}></div>
+                        <div className="bg-blue-600 h-full" style={{ width: `${((row.enrolled_count || 0) / (row.capacity || 20)) * 100}%` }}></div>
                       </div>
                     </div>
                   </td>
                   <td className="py-4 px-6 text-center space-x-2">
-                    <button onClick={() => handleViewStudents(row)} className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg cursor-pointer">👥 Students</button>
+                    <button onClick={() => handleViewStudents(row)} className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg cursor-pointer font-bold">👥 Students</button>
                   </td>
                 </tr>
               ))}
@@ -253,21 +253,46 @@ const Enrollment = () => {
           <div className="w-full max-w-2xl bg-white rounded-[2rem] shadow-2xl p-8 overflow-y-auto max-h-[90vh]">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-[#0A1128]">Group Creation Wizard</h2>
-              <button onClick={() => setModalView(null)} className="text-gray-400 text-2xl">✕</button>
+              <button onClick={() => setModalView(null)} className="text-gray-400 text-2xl hover:text-red-500">✕</button>
             </div>
             
             <form onSubmit={handleSaveAll} className="space-y-6">
               <div className="grid grid-cols-2 gap-4">
                 <FormField label="Language">
-                  <select value={formData.language} onChange={(e)=>setFormData({...formData, language: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm font-bold">
-                    <option>English</option><option>Français</option><option>Deutsch</option>
+                  <select value={formData.language} onChange={(e)=>setFormData({...formData, language: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm font-bold outline-none focus:border-blue-500">
+                    <option>English</option><option>Français</option><option>Deutsch</option><option>Español</option>
                   </select>
                 </FormField>
-                <FormField label="Teacher (Affectation)">
-                  <select value={formData.teacher_id} onChange={(e)=>setFormData({...formData, teacher_id: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm font-bold">
-                    <option value="">-- Choose Teacher --</option>
-                    {teachersList.map(t => <option key={t.id} value={t.id}>Prof. {t.first_name}</option>)}
+                <FormField label="Level">
+                  <select value={formData.level} onChange={(e)=>setFormData({...formData, level: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm font-bold outline-none focus:border-blue-500">
+                    {['A1','A2','B1','B2','C1','C2'].map(l => <option key={l}>{l}</option>)}
                   </select>
+                </FormField>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField label="Teacher (Affectation)">
+                  <select value={formData.teacher_id} onChange={(e)=>setFormData({...formData, teacher_id: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm font-bold outline-none focus:border-blue-500">
+                    <option value="">-- Choose Teacher --</option>
+                    {teachersList.map(t => <option key={t.id} value={t.id}>Prof. {t.first_name} {t.last_name}</option>)}
+                  </select>
+                </FormField>
+                <FormField label="Max Capacity">
+                  <input type="number" value={formData.capacity} onChange={(e)=>setFormData({...formData, capacity: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm font-bold outline-none focus:border-blue-500" />
+                </FormField>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <FormField label="Course Type">
+                  <select value={formData.course_type} onChange={(e)=>setFormData({...formData, course_type: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm font-bold outline-none focus:border-blue-500">
+                    <option>Regular</option><option>Intensive</option><option>Weekend</option>
+                  </select>
+                </FormField>
+                <FormField label="Total Sessions">
+                  <input type="number" value={formData.total_sessions} onChange={(e)=>setFormData({...formData, total_sessions: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm font-bold outline-none focus:border-blue-500" />
+                </FormField>
+                <FormField label="Sessions / Week">
+                  <input type="number" min="1" max="7" value={formData.sessions_per_week} onChange={handleSessionsPerWeekChange} className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm font-bold outline-none focus:border-blue-500" />
                 </FormField>
               </div>
 
@@ -279,8 +304,13 @@ const Enrollment = () => {
                       <option>Mon</option><option>Tue</option><option>Wed</option><option>Thu</option><option>Fri</option><option>Sat</option><option>Sun</option>
                     </select>
                     <input type="time" value={sch.startTime} onChange={(e)=>handleScheduleChange(i, 'startTime', e.target.value)} className="flex-1 text-xs outline-none" />
-                    <select value={sch.room} onChange={(e)=>handleScheduleChange(i, 'room', e.target.value)} className="flex-1 text-xs font-bold border-none outline-none">
-                      <option>Salle 05</option><option>Lab 02</option><option>Salle 12</option>
+                    <span className="text-gray-400 font-bold">-</span>
+                    <input type="time" value={sch.endTime} onChange={(e)=>handleScheduleChange(i, 'endTime', e.target.value)} className="flex-1 text-xs outline-none" />
+                    
+                    {/* 💡 قراءة القاعات من الداتا باز */}
+                    <select value={sch.room} onChange={(e)=>handleScheduleChange(i, 'room', e.target.value)} className="flex-1 text-xs font-bold border-none outline-none" required>
+                      <option value="">-- Room --</option>
+                      {roomsList.map(r => <option key={r.id} value={r.name}>{r.name} ({r.capacity})</option>)}
                     </select>
                   </div>
                 ))}
@@ -298,12 +328,12 @@ const Enrollment = () => {
       {modalView === 'studentsList' && selectedGroup && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="w-full max-w-3xl bg-white rounded-[2rem] shadow-2xl flex flex-col max-h-[85vh]">
-            <div className="bg-gray-50 p-6 border-b flex justify-between items-center">
+            <div className="bg-gray-50 p-6 border-b flex justify-between items-center rounded-t-[2rem]">
               <div>
-                <h2 className="text-2xl font-bold">Roster: {selectedGroup.name}</h2>
+                <h2 className="text-2xl font-bold text-[#0A1128]">Roster: {selectedGroup.name}</h2>
                 <div className="text-[10px] font-black text-blue-600 mt-1 uppercase tracking-tighter">Status: {selectedGroup.enrollment_status} • Count: {groupStudents.length}/{selectedGroup.capacity}</div>
               </div>
-              <button onClick={() => setModalView(null)} className="text-gray-400 text-2xl">✕</button>
+              <button onClick={() => setModalView(null)} className="text-gray-400 text-2xl hover:text-red-500">✕</button>
             </div>
 
             {selectedGroup.enrollment_status === 'Open' && (
@@ -311,30 +341,33 @@ const Enrollment = () => {
                 <select 
                   value={selectedNewStudent} 
                   onChange={(e)=>setSelectedNewStudent(e.target.value)}
-                  className="flex-1 bg-white border border-green-200 rounded-xl p-2 text-xs font-bold"
+                  className="flex-1 bg-white border border-green-200 rounded-xl p-2 text-xs font-bold outline-none focus:border-green-500"
                 >
-                  <option value="">-- Quick Enroll Student --</option>
+                  <option value="">-- Quick Enroll Pending Student --</option>
                   {availableStudents.map(s => <option key={s.id} value={s.id}>{s.first_name} {s.last_name} ({s.level})</option>)}
                 </select>
-                <button onClick={handleAssignToThisGroup} className="bg-green-600 text-white px-4 rounded-xl text-xs font-bold cursor-pointer hover:bg-green-700">Add</button>
+                <button onClick={handleAssignToThisGroup} className="bg-green-600 text-white px-6 rounded-xl text-xs font-bold cursor-pointer hover:bg-green-700 shadow-md">Add</button>
               </div>
             )}
 
-            <div className="p-6 overflow-y-auto">
+            <div className="p-6 overflow-y-auto custom-scrollbar">
               <table className="w-full text-left text-sm">
                 <thead className="text-gray-400 font-bold text-[10px] uppercase">
-                  <tr><th className="pb-4">Name</th><th className="pb-4">Phone</th><th className="pb-4 text-center">Actions</th></tr>
+                  <tr><th className="pb-4">Student Name</th><th className="pb-4">Phone</th><th className="pb-4 text-center">Actions</th></tr>
                 </thead>
                 <tbody>
                   {groupStudents.map(s => (
-                    <tr key={s.id} className="border-t">
-                      <td className="py-3 font-bold">{s.first_name} {s.last_name}</td>
-                      <td className="py-3 text-gray-500">{s.phone}</td>
-                      <td className="py-3 text-center">
-                        <button className="text-red-400 hover:text-red-600 text-xs font-bold">Unenroll</button>
+                    <tr key={s.id} className="border-t border-gray-100 hover:bg-gray-50">
+                      <td className="py-4 font-bold text-[#0A1128]">{s.first_name} {s.last_name}</td>
+                      <td className="py-4 text-gray-500 font-medium">{s.phone}</td>
+                      <td className="py-4 text-center">
+                        <button className="text-red-400 hover:text-red-600 text-xs font-bold bg-red-50 px-3 py-1.5 rounded-lg">Unenroll</button>
                       </td>
                     </tr>
                   ))}
+                  {groupStudents.length === 0 && (
+                    <tr><td colSpan="3" className="py-8 text-center text-gray-400 text-sm font-bold">No students enrolled yet.</td></tr>
+                  )}
                 </tbody>
               </table>
             </div>
