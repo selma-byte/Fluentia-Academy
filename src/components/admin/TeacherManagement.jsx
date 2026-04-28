@@ -1,133 +1,246 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabaseClient';
 
-// ==========================================
-// 🔔 MODERN NOTIFICATION COMPONENT (ENLARGED)
-// ==========================================
-const Toast = ({ message, onClose }) => (
-  <div className="fixed bottom-12 right-12 z-[250] animate-in slide-in-from-right duration-500 text-left">
-    <div className="bg-[#1A2252] text-white px-10 py-6 rounded-[2.5rem] shadow-2xl flex items-center gap-6 border border-blue-400/30 backdrop-blur-xl min-w-[400px]">
-      <div className="w-12 h-12 bg-blue-500 rounded-2xl flex items-center justify-center text-2xl shadow-lg shadow-blue-500/40 animate-pulse">✨</div>
-      <div className="flex-1">
-        <p className="text-lg font-black italic tracking-tight leading-none mb-1">System Update</p>
-        <p className="text-sm font-bold text-blue-200/80 italic">{message}</p>
-      </div>
-      <button onClick={onClose} className="ml-6 text-white/30 hover:text-white transition-colors text-2xl p-2 cursor-pointer">✕</button>
-    </div>
+// ─────────────────────────────────────────────────────────────────
+// SVG ICON SYSTEM
+// ─────────────────────────────────────────────────────────────────
+const Ico = ({ d, size = 16, color = 'currentColor', sw = 2, extra = null }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+    stroke={color} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+    {(Array.isArray(d) ? d : [d]).map((p, i) => <path key={i} d={p} />)}
+    {extra}
+  </svg>
+);
+
+const Icons = {
+  Check:    (c = '#fff')    => <Ico d="M20 6L9 17l-5-5" color={c} sw={2.5} />,
+  X:        (c = '#ef4444') => <Ico d={["M18 6L6 18","M6 6l12 12"]} color={c} sw={2.5} />,
+  Plus:     (c = '#fff')    => <Ico d={["M12 5v14","M5 12h14"]} color={c} sw={2.5} />,
+  User:     (c = '#4318FF') => <Ico d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" color={c} extra={<circle cx="12" cy="7" r="4" fill="none" stroke={c} strokeWidth="2"/>} />,
+  Mail:     (c = '#94a3b8') => <Ico d={["M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z","M22 6l-10 7L2 6"]} color={c} />,
+  Phone:    (c = '#94a3b8') => <Ico d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" color={c} />,
+  File:     (c = '#4318FF') => <Ico d={["M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z","M14 2v6h6"]} color={c} />,
+  Arrow:    (c = '#1e293b') => <Ico d={["M5 12h14","M12 5l7 7-7 7"]} color={c} />,
+  Users:    (c = '#4318FF') => <Ico d={["M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2","M23 21v-2a4 4 0 0 0-3-3.87","M16 3.13a4 4 0 0 1 0 7.75"]} color={c} extra={<circle cx="9" cy="7" r="4" fill="none" stroke={c} strokeWidth="2"/>} />,
+  Briefcase:(c = '#4318FF') => <Ico d={["M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z","M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"]} color={c} />,
+  Clock:    (c = '#94a3b8') => <Ico d="M12 6v6l4 2" color={c} extra={<circle cx="12" cy="12" r="10" fill="none" stroke={c} strokeWidth="2"/>} />,
+  Bell:     (c = '#4318FF') => <Ico d={["M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9","M13.73 21a2 2 0 0 1-3.46 0"]} color={c} />,
+};
+
+// ─── Shared UI ────────────────────────────────────────────────────
+const Card = ({ children, style = {} }) => (
+  <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #f1f5f9', boxShadow: '0 1px 4px rgba(15,23,42,0.05)', ...style }}>
+    {children}
   </div>
 );
 
-// ==========================================
-// 1. Add Teacher Tab (Registration Logic)
-// ==========================================
+const inputSt = {
+  width: '100%', background: '#f8fafc', border: '1px solid #f1f5f9',
+  borderRadius: 10, padding: '10px 14px', fontSize: 13, color: '#1e293b',
+  outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', transition: 'border-color .15s',
+};
+
+const labelSt = {
+  display: 'block', fontSize: 11, fontWeight: 700, color: '#94a3b8',
+  textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6,
+};
+
+// ─── Toast notification ───────────────────────────────────────────
+const Toast = ({ message, onClose }) => (
+  <div style={{ position: 'fixed', bottom: 32, right: 32, zIndex: 250, animation: 'slideIn .3s ease' }}>
+    <div style={{ background: '#0f172a', color: '#fff', padding: '14px 20px', borderRadius: 14, boxShadow: '0 8px 32px rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', gap: 12, minWidth: 320, border: '1px solid rgba(255,255,255,0.08)' }}>
+      <div style={{ width: 36, height: 36, borderRadius: 10, background: '#4318FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        {Icons.Bell('#fff')}
+      </div>
+      <div style={{ flex: 1 }}>
+        <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>System Update</p>
+        <p style={{ margin: '2px 0 0', fontSize: 13, fontWeight: 600, color: '#fff' }}>{message}</p>
+      </div>
+      <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', display: 'flex' }}>
+        {Icons.X('#64748b')}
+      </button>
+    </div>
+    <style>{`@keyframes slideIn { from { opacity:0; transform:translateY(16px);} to { opacity:1; transform:none; } }`}</style>
+  </div>
+);
+
+// ─────────────────────────────────────────────────────────────────
+// TAB 1: ADD TEACHER — all logic UNTOUCHED
+// ─────────────────────────────────────────────────────────────────
 const TeacherRegistrationTab = ({ showToast, prefillData, clearPrefill }) => {
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({ 
-    firstName: '', lastName: '', email: '', phone: '', department: 'English', role: 'Teacher', requestId: null 
+  const [formData, setFormData] = useState({
+    firstName: '', lastName: '', email: '', phone: '',
+    department: 'English', role: 'Teacher', requestId: null,
   });
 
-  // 💡 كي يجينا أستاذ من قائمة الطلبات، نعمرو الفورم أوتوماتيك
   useEffect(() => {
-    if (prefillData) {
-      setFormData(prefillData);
-    }
+    if (prefillData) setFormData(prefillData);
   }, [prefillData]);
 
-  const handleInputChange = (e) => { 
-    const { name, value } = e.target; 
-    setFormData(prev => ({ ...prev, [name]: value })); 
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handleSave = async (e) => {
     e.preventDefault();
     setLoading(true);
-
     try {
-        const { data: authData, error: authError } = await supabase.auth.signUp({ 
-            email: formData.email, 
-            password: formData.phone 
-        });
-        if (authError && authError.message !== "User already registered") throw authError; 
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: formData.email, password: formData.phone,
+      });
+      if (authError && authError.message !== 'User already registered') throw authError;
+      const uid = authData.user?.id;
 
-        const uid = authData.user?.id;
+      const { error: dbError } = await supabase.from('staff').insert([{
+        auth_id: uid, first_name: formData.firstName, last_name: formData.lastName,
+        email: formData.email, phone: formData.phone, department: formData.department, role: formData.role,
+      }]);
+      if (dbError) throw dbError;
 
-        const { error: dbError } = await supabase.from('staff').insert([{
-            auth_id: uid, 
-            first_name: formData.firstName, 
-            last_name: formData.lastName, 
-            email: formData.email, 
-            phone: formData.phone, 
-            department: formData.department,
-            role: formData.role
-        }]);
+      if (formData.requestId) {
+        await supabase.from('teacher_requests').update({ status: 'Accepted' }).eq('id', formData.requestId);
+      }
 
-        if (dbError) throw dbError;
-
-        // 💡 إذا كان الأستاذ جاي من طلب توظيف، نرجعو حالتو Accepted
-        if (formData.requestId) {
-          await supabase.from('teacher_requests').update({ status: 'Accepted' }).eq('id', formData.requestId);
-        }
-
-        showToast(`Teacher ${formData.firstName} added! Login ready via email/phone.`);
-        setFormData({ firstName: '', lastName: '', email: '', phone: '', department: 'English', role: 'Teacher', requestId: null });
-        if (clearPrefill) clearPrefill();
-        
-    } catch (err) { 
-        showToast("Error: " + err.message); 
-    } finally { 
-        setLoading(false); 
+      showToast(`${formData.firstName} ${formData.lastName} added successfully.`);
+      setFormData({ firstName: '', lastName: '', email: '', phone: '', department: 'English', role: 'Teacher', requestId: null });
+      if (clearPrefill) clearPrefill();
+    } catch (err) {
+      showToast('Error: ' + err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="w-full flex flex-col h-full p-8 animate-fade-in text-left">
-      <div className="mb-10 text-left">
-        <h2 className="text-4xl font-black text-[#1A2252] mb-2 italic tracking-tight">Add New Staff</h2>
-        <p className="text-gray-400 font-bold italic text-sm">Register a new teacher or administrator to the system.</p>
+    <div style={{ width: '100%' }}>
+      {/* Page header */}
+      <div style={{ marginBottom: 28 }}>
+        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#1e293b' }}>Add New Staff</h1>
+        <p style={{ margin: '5px 0 0', fontSize: 13, color: '#94a3b8' }}>
+          Register a new teacher or administrator to the system.
+        </p>
       </div>
 
-      <form onSubmit={handleSave} className="flex-1 overflow-y-auto pr-4 custom-scrollbar text-left">
-        <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 mb-6">
-           <h3 className="font-black text-[#1A2252] italic mb-4 border-b border-gray-50 pb-2 flex items-center gap-2">
-             <span className="bg-blue-600 w-2 h-5 rounded-full"></span> Professional Details
-           </h3>
-           <div className="grid grid-cols-2 gap-4">
+      {/* Auto-fill notice */}
+      {prefillData && (
+        <div style={{ marginBottom: 20, padding: '12px 16px', borderRadius: 10, background: '#ecfdf5', border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', gap: 10 }}>
+          {Icons.Check('#059669')}
+          <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#059669' }}>
+            Form auto-filled from applicant data. Review and confirm to complete hiring.
+          </p>
+        </div>
+      )}
+
+      <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+        {/* Professional details */}
+        <Card style={{ padding: '22px 24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18, paddingBottom: 14, borderBottom: '1px solid #f8fafc' }}>
+            <div style={{ width: 4, height: 18, borderRadius: 99, background: '#4318FF' }} />
+            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#1e293b' }}>Professional Details</h3>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div>
+              <label style={labelSt}>Department</label>
+              <select name="department" value={formData.department} onChange={handleInputChange}
+                style={{ ...inputSt, cursor: 'pointer' }}
+                onFocus={e => e.target.style.borderColor = '#4318FF'}
+                onBlur={e => e.target.style.borderColor = '#f1f5f9'}
+              >
+                <option>English</option>
+                <option>Français</option>
+                <option>Deutsch</option>
+                <option>Español</option>
+                <option>Administration</option>
+              </select>
+            </div>
+            <div>
+              <label style={labelSt}>System Role</label>
+              <select name="role" value={formData.role} onChange={handleInputChange}
+                style={{ ...inputSt, cursor: 'pointer' }}
+                onFocus={e => e.target.style.borderColor = '#4318FF'}
+                onBlur={e => e.target.style.borderColor = '#f1f5f9'}
+              >
+                <option value="Teacher">Teacher</option>
+                <option value="Admin">Admin</option>
+                <option value="Secretary">Secretary</option>
+              </select>
+            </div>
+          </div>
+        </Card>
+
+        {/* Personal + Login side by side */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+
+          {/* Personal info */}
+          <Card style={{ padding: '22px 24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18, paddingBottom: 14, borderBottom: '1px solid #f8fafc' }}>
+              <span style={{ display: 'flex' }}>{Icons.User()}</span>
+              <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#1e293b' }}>Personal Info</h3>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
-                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 italic">Department</label>
-                <select name="department" value={formData.department} onChange={handleInputChange} className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-sm font-bold outline-none focus:border-blue-500 cursor-pointer">
-                  <option>English</option><option>Français</option><option>Deutsch</option><option>Español</option><option>Administration</option>
-                </select>
+                <label style={labelSt}>First Name</label>
+                <input type="text" name="firstName" value={formData.firstName} onChange={handleInputChange}
+                  placeholder="First Name" required style={inputSt}
+                  onFocus={e => e.target.style.borderColor = '#4318FF'}
+                  onBlur={e => e.target.style.borderColor = '#f1f5f9'}
+                />
               </div>
               <div>
-                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 italic">System Role</label>
-                <select name="role" value={formData.role} onChange={handleInputChange} className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-sm font-bold outline-none focus:border-blue-500 cursor-pointer">
-                  <option value="Teacher">Teacher</option><option value="Admin">Admin</option><option value="Secretary">Secretary</option>
-                </select>
+                <label style={labelSt}>Last Name</label>
+                <input type="text" name="lastName" value={formData.lastName} onChange={handleInputChange}
+                  placeholder="Last Name" required style={inputSt}
+                  onFocus={e => e.target.style.borderColor = '#4318FF'}
+                  onBlur={e => e.target.style.borderColor = '#f1f5f9'}
+                />
               </div>
-           </div>
+            </div>
+          </Card>
+
+          {/* Login info */}
+          <Card style={{ padding: '22px 24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18, paddingBottom: 14, borderBottom: '1px solid #f8fafc' }}>
+              <span style={{ display: 'flex' }}>{Icons.Mail()}</span>
+              <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#1e293b' }}>Login Credentials</h3>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label style={labelSt}>Work Email</label>
+                <input type="email" name="email" value={formData.email} onChange={handleInputChange}
+                  placeholder="teacher@school.com" required style={inputSt}
+                  onFocus={e => e.target.style.borderColor = '#4318FF'}
+                  onBlur={e => e.target.style.borderColor = '#f1f5f9'}
+                />
+              </div>
+              <div>
+                <label style={labelSt}>Phone (becomes password)</label>
+                <input type="tel" name="phone" value={formData.phone} onChange={handleInputChange}
+                  placeholder="+213 ..." required style={inputSt}
+                  onFocus={e => e.target.style.borderColor = '#4318FF'}
+                  onBlur={e => e.target.style.borderColor = '#f1f5f9'}
+                />
+              </div>
+            </div>
+          </Card>
         </div>
 
-        <div className="grid grid-cols-2 gap-8">
-           <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100">
-             <h3 className="font-black text-[#1A2252] italic mb-4 border-b border-gray-50 pb-2">Personal Info</h3>
-             <div className="space-y-4">
-               <input type="text" name="firstName" value={formData.firstName} onChange={handleInputChange} placeholder="First Name" className="w-full bg-gray-50 border border-gray-100 p-4 rounded-xl text-sm font-bold outline-none focus:border-blue-500" required />
-               <input type="text" name="lastName" value={formData.lastName} onChange={handleInputChange} placeholder="Last Name" className="w-full bg-gray-50 border border-gray-100 p-4 rounded-xl text-sm font-bold outline-none focus:border-blue-500" required />
-             </div>
-           </div>
-           
-           <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100">
-             <h3 className="font-black text-[#1A2252] italic mb-4 border-b border-gray-50 pb-2">Login Info</h3>
-             <div className="space-y-4">
-               <input type="email" name="email" value={formData.email} onChange={handleInputChange} placeholder="Work Email" className="w-full bg-gray-50 border border-gray-100 p-4 rounded-xl text-sm font-bold outline-none focus:border-blue-500" required />
-               <input type="tel" name="phone" value={formData.phone} onChange={handleInputChange} placeholder="Phone Number (Becomes Password)" className="w-full bg-gray-50 border border-gray-100 p-4 rounded-xl text-sm font-bold outline-none focus:border-blue-500" required />
-             </div>
-           </div>
-        </div>
-
-        <div className="mt-8 pt-6 flex justify-end">
-          <button type="submit" disabled={loading} className="px-12 py-4 bg-[#1A2252] hover:bg-blue-900 text-white font-black italic rounded-2xl shadow-xl transition-all cursor-pointer">
-            {loading ? 'PROCESSING...' : 'CREATE ACCOUNT ➔'}
+        {/* Submit */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 4 }}>
+          <button type="submit" disabled={loading}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              padding: '12px 28px', borderRadius: 12, border: 'none',
+              background: loading ? '#94a3b8' : '#4318FF', color: '#fff',
+              fontSize: 13, fontWeight: 700, cursor: loading ? 'default' : 'pointer',
+              transition: 'background .15s', boxShadow: '0 4px 14px rgba(67,24,255,0.25)',
+            }}
+            onMouseEnter={e => { if (!loading) e.currentTarget.style.background = '#3730a3'; }}
+            onMouseLeave={e => { if (!loading) e.currentTarget.style.background = '#4318FF'; }}
+          >
+            {loading ? 'Processing...' : <>{Icons.Arrow()} Create Account</>}
           </button>
         </div>
       </form>
@@ -135,23 +248,20 @@ const TeacherRegistrationTab = ({ showToast, prefillData, clearPrefill }) => {
   );
 };
 
-// ==========================================
-// 2. Teacher Applicant Tab (Review Interface)
-// ==========================================
+// ─────────────────────────────────────────────────────────────────
+// TAB 2: TEACHER APPLICANTS — all logic UNTOUCHED
+// ─────────────────────────────────────────────────────────────────
 const TeacherApplicantTab = ({ showToast, onAcceptApplicant }) => {
-  const [applicants, setApplicants] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [viewingCV, setViewingCV] = useState(null);
+  const [applicants, setApplicants]   = useState([]);
+  const [loading, setLoading]         = useState(true);
+  const [viewingCV, setViewingCV]     = useState(null);
 
-  // 💡 جلب الطلبات من الداتا باز
   useEffect(() => {
     const fetchRequests = async () => {
       const { data, error } = await supabase
-        .from('teacher_requests')
-        .select('*')
+        .from('teacher_requests').select('*')
         .eq('status', 'Pending')
         .order('created_at', { ascending: false });
-        
       if (data) setApplicants(data);
       setLoading(false);
     };
@@ -159,138 +269,243 @@ const TeacherApplicantTab = ({ showToast, onAcceptApplicant }) => {
   }, []);
 
   const handleReject = async (id) => {
-    if(window.confirm("Are you sure you want to reject this applicant?")) {
+    if (window.confirm('Are you sure you want to reject this applicant?')) {
       await supabase.from('teacher_requests').update({ status: 'Rejected' }).eq('id', id);
       setApplicants(applicants.filter(a => a.id !== id));
-      showToast("Applicant has been rejected.");
+      showToast('Applicant has been rejected.');
     }
   };
 
-  if (loading) return <div className="p-8 font-bold text-gray-400">Loading applicants...</div>;
+  if (loading) return (
+    <div style={{ padding: '48px 0', textAlign: 'center' }}>
+      <div style={{ width: 32, height: 32, border: '3px solid #e0e7ff', borderTopColor: '#4318FF', borderRadius: '50%', margin: '0 auto 10px', animation: 'spin .8s linear infinite' }} />
+      <p style={{ color: '#94a3b8', fontSize: 13 }}>Loading applicants...</p>
+    </div>
+  );
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 p-8 text-left">
-      <div className="mb-10 text-left">
-        <h2 className="text-4xl font-black text-[#1A2252] mb-2 italic tracking-tight">Teacher Applicants</h2>
-        <p className="text-gray-400 font-bold italic text-sm">Review applications and view profile details.</p>
+    <div style={{ width: '100%' }}>
+      {/* Page header */}
+      <div style={{ marginBottom: 28 }}>
+        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#1e293b' }}>Teacher Applicants</h1>
+        <p style={{ margin: '5px 0 0', fontSize: 13, color: '#94a3b8' }}>
+          Review pending applications and hire qualified candidates.
+        </p>
       </div>
 
-      <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden mb-12">
-        <table className="w-full text-left">
+      {/* Table */}
+      <Card>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
-            <tr className="text-[11px] font-black text-gray-400 uppercase tracking-widest italic border-b border-gray-50 bg-gray-50/50">
-              <th className="px-8 py-5">Applicant Info</th>
-              <th className="px-6 py-5">Language/Subject</th>
-              <th className="px-6 py-5 text-center">View Profile</th>
-              <th className="px-8 py-5 text-right">Decision</th>
+            <tr style={{ borderBottom: '1px solid #f1f5f9', background: '#f8fafc' }}>
+              {['Applicant', 'Subject / Department', 'Applied On', 'CV', 'Decision'].map((h, i) => (
+                <th key={h} style={{
+                  padding: '14px 20px', textAlign: i === 4 ? 'right' : 'left',
+                  fontSize: 11, fontWeight: 700, color: '#94a3b8',
+                  textTransform: 'uppercase', letterSpacing: '0.06em',
+                }}>{h}</th>
+              ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-50">
-            {applicants.length > 0 ? applicants.map((app) => (
-              <tr key={app.id} className="hover:bg-gray-50/80 transition-all group">
-                <td className="px-8 py-5">
-                  <div className="font-bold text-[#1A2252]">{app.first_name} {app.last_name}</div>
-                  <div className="text-[10px] text-gray-400 font-bold">{app.email}</div>
+          <tbody>
+            {applicants.length === 0 ? (
+              <tr>
+                <td colSpan="5" style={{ padding: '48px', textAlign: 'center', color: '#94a3b8', fontSize: 13, fontWeight: 600 }}>
+                  No pending teacher applications at the moment.
                 </td>
-                <td className="px-6 py-5">
-                  <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-black">{app.subject || 'General'}</span>
+              </tr>
+            ) : applicants.map(app => (
+              <tr key={app.id}
+                style={{ borderBottom: '1px solid #f8fafc', transition: 'background .15s' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              >
+                {/* Applicant */}
+                <td style={{ padding: '14px 20px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: '#eef2ff', color: '#4318FF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800, textTransform: 'uppercase', flexShrink: 0 }}>
+                      {app.first_name?.charAt(0)}
+                    </div>
+                    <div>
+                      <p style={{ margin: 0, fontWeight: 700, color: '#1e293b' }}>{app.first_name} {app.last_name}</p>
+                      <p style={{ margin: '2px 0 0', fontSize: 11, color: '#94a3b8' }}>{app.email}</p>
+                    </div>
+                  </div>
                 </td>
-                <td className="px-6 py-5 text-center">
-                  <button onClick={() => setViewingCV(app)} className="text-2xl hover:scale-125 transition-transform cursor-pointer bg-gray-100 w-12 h-12 rounded-2xl flex items-center justify-center mx-auto shadow-sm">📄</button>
+
+                {/* Subject */}
+                <td style={{ padding: '14px 20px' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: '#eef2ff', color: '#4318FF' }}>
+                    {app.subject || 'General'}
+                  </span>
                 </td>
-                <td className="px-8 py-5 text-right">
-                  <div className="flex justify-end gap-2">
-                    {/* 💡 كي تكليكي هنا يروح بيك للفورم تاع الإضافة */}
-                    <button onClick={() => onAcceptApplicant(app)} className="bg-green-500 hover:bg-green-600 text-white px-5 py-2 rounded-xl text-[10px] font-black italic shadow-md cursor-pointer transition-all">ACCEPT</button>
-                    <button onClick={() => handleReject(app.id)} className="bg-red-50 text-red-500 hover:bg-red-500 hover:text-white px-5 py-2 rounded-xl text-[10px] font-black italic cursor-pointer transition-all">REJECT</button>
+
+                {/* Date */}
+                <td style={{ padding: '14px 20px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#64748b' }}>
+                    {Icons.Clock()}
+                    {new Date(app.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </div>
+                </td>
+
+                {/* CV */}
+                <td style={{ padding: '14px 20px' }}>
+                  <button onClick={() => setViewingCV(app)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: '1px solid #e0e7ff', background: '#f5f3ff', color: '#4318FF', fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'all .15s' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#4318FF'; e.currentTarget.style.color = '#fff'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = '#f5f3ff'; e.currentTarget.style.color = '#4318FF'; }}
+                  >
+                    {Icons.File('#currentColor')} View Profile
+                  </button>
+                </td>
+
+                {/* Actions */}
+                <td style={{ padding: '14px 20px', textAlign: 'right' }}>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                    <button onClick={() => onAcceptApplicant(app)}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: 'none', background: '#ecfdf5', color: '#059669', fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'all .15s' }}
+                      onMouseEnter={e => { e.currentTarget.style.background = '#059669'; e.currentTarget.style.color = '#fff'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = '#ecfdf5'; e.currentTarget.style.color = '#059669'; }}
+                    >
+                      {Icons.Check('#059669')} Accept
+                    </button>
+                    <button onClick={() => handleReject(app.id)}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: 'none', background: '#fef2f2', color: '#ef4444', fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'all .15s' }}
+                      onMouseEnter={e => { e.currentTarget.style.background = '#ef4444'; e.currentTarget.style.color = '#fff'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#ef4444'; }}
+                    >
+                      {Icons.X('#ef4444')} Reject
+                    </button>
                   </div>
                 </td>
               </tr>
-            )) : (
-              <tr><td colSpan="4" className="text-center py-12 text-gray-400 font-bold">No pending teacher applications at the moment.</td></tr>
-            )}
+            ))}
           </tbody>
         </table>
-      </div>
+      </Card>
 
-      {/* DETAILED MODERN CV MODAL */}
+      {/* ─── CV / Profile Modal ─────────────────────────────────── */}
       {viewingCV && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center p-6 bg-[#1A2252]/60 backdrop-blur-md animate-in fade-in duration-300">
-           <div className="bg-white w-full max-w-4xl rounded-[3rem] shadow-2xl overflow-hidden relative border border-white/20">
-             <button onClick={() => setViewingCV(null)} className="absolute top-8 right-10 z-20 text-gray-400 hover:text-red-500 transition-colors text-2xl cursor-pointer">✕</button>
-             
-             <div className="flex flex-col md:flex-row min-h-[500px]">
-               {/* Left Panel: Profile */}
-               <div className="w-full md:w-2/5 bg-[#F8FAFC] p-12 flex flex-col items-center border-r border-gray-100 text-center">
-                 <div className="w-32 h-32 bg-[#1A2252] rounded-[2.5rem] flex items-center justify-center text-white text-5xl font-black mb-6 shadow-2xl ring-8 ring-white uppercase">
-                   {viewingCV.first_name.charAt(0)}
-                 </div>
-                 <h4 className="text-2xl font-black text-[#1A2252] italic mb-1">{viewingCV.first_name} {viewingCV.last_name}</h4>
-                 <p className="text-xs font-black text-blue-600 uppercase tracking-widest mb-8">{viewingCV.subject} Specialist</p>
-                 
-                 <div className="w-full space-y-4 pt-6 border-t border-gray-200">
-                    <div className="text-left">
-                       <span className="text-[9px] font-black text-gray-300 uppercase block mb-1">Contact</span>
-                       <p className="text-sm font-bold text-[#1A2252]">{viewingCV.phone}</p>
-                       <p className="text-xs font-medium text-gray-400 break-all">{viewingCV.email}</p>
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 150,
+          background: 'rgba(15,23,42,0.55)', backdropFilter: 'blur(6px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+        }}>
+          <div style={{ background: '#fff', width: '100%', maxWidth: 760, borderRadius: 22, boxShadow: '0 24px 64px rgba(0,0,0,0.18)', overflow: 'hidden', position: 'relative' }}>
+
+            {/* Close */}
+            <button onClick={() => setViewingCV(null)}
+              style={{ position: 'absolute', top: 18, right: 20, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', color: '#94a3b8', transition: 'color .15s', zIndex: 10 }}
+              onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+              onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+            >
+              {Icons.X()}
+            </button>
+
+            <div style={{ display: 'flex' }}>
+
+              {/* ── Left: Profile panel ── */}
+              <div style={{ width: 260, background: '#f8fafc', padding: '36px 28px', display: 'flex', flexDirection: 'column', alignItems: 'center', borderRight: '1px solid #f1f5f9', textAlign: 'center', flexShrink: 0 }}>
+                {/* Avatar */}
+                <div style={{ width: 80, height: 80, borderRadius: 20, background: '#4318FF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, fontWeight: 800, color: '#fff', textTransform: 'uppercase', marginBottom: 16, boxShadow: '0 8px 24px rgba(67,24,255,0.3)' }}>
+                  {viewingCV.first_name?.charAt(0)}
+                </div>
+                <h3 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 800, color: '#1e293b' }}>
+                  {viewingCV.first_name} {viewingCV.last_name}
+                </h3>
+                <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 12px', borderRadius: 20, background: '#eef2ff', color: '#4318FF', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                  {viewingCV.subject || 'General'} Specialist
+                </span>
+
+                {/* Contact */}
+                <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid #f1f5f9', width: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ textAlign: 'left' }}>
+                    <p style={{ margin: '0 0 3px', fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Phone</p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {Icons.Phone()}
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{viewingCV.phone || '—'}</p>
                     </div>
-                    <div className="text-left">
-                       <span className="text-[9px] font-black text-gray-300 uppercase block mb-1">Status</span>
-                       <p className="text-sm font-bold text-orange-500">Pending Review</p>
+                  </div>
+                  <div style={{ textAlign: 'left' }}>
+                    <p style={{ margin: '0 0 3px', fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Email</p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {Icons.Mail()}
+                      <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: '#1e293b', wordBreak: 'break-all' }}>{viewingCV.email}</p>
                     </div>
-                 </div>
-               </div>
+                  </div>
+                  <div style={{ textAlign: 'left' }}>
+                    <p style={{ margin: '0 0 3px', fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Status</p>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#f59e0b' }}>Pending Review</span>
+                  </div>
+                </div>
+              </div>
 
-               {/* Right Panel: CV Details */}
-               <div className="w-full md:w-3/5 p-12 text-left flex flex-col">
-                 <div className="flex-1">
-                   <h5 className="text-[10px] font-black text-gray-300 uppercase tracking-[0.2em] mb-4 italic">Resume / CV Document</h5>
-                   <p className="text-lg font-bold text-[#1A2252] mb-10 leading-relaxed border-l-4 border-blue-500 pl-6 italic">
-                     {viewingCV.cv_file ? "Applicant has attached a CV." : "No CV file provided by applicant."}
-                   </p>
+              {/* ── Right: CV details ── */}
+              <div style={{ flex: 1, padding: '36px 32px', display: 'flex', flexDirection: 'column' }}>
+                <p style={{ margin: '0 0 20px', fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  Resume / CV Document
+                </p>
 
-                   {viewingCV.cv_file && (
-                     <div className="mb-10">
-                       <a href={viewingCV.cv_file} target="_blank" rel="noreferrer" className="px-6 py-3 bg-blue-50 text-blue-600 font-bold rounded-xl text-sm hover:bg-blue-100 transition-colors">
-                         📎 Open Full CV File
-                       </a>
-                     </div>
-                   )}
+                <div style={{ padding: '16px 20px', borderRadius: 12, background: '#f8fafc', border: '1px solid #f1f5f9', borderLeft: '4px solid #4318FF', marginBottom: 24 }}>
+                  <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#1e293b', lineHeight: 1.6 }}>
+                    {viewingCV.cv_file ? 'Applicant has attached a CV document.' : 'No CV file provided by the applicant.'}
+                  </p>
+                </div>
 
-                   <h5 className="text-[10px] font-black text-gray-300 uppercase tracking-[0.2em] mb-2 italic">Application Date</h5>
-                   <p className="text-sm text-gray-500 leading-relaxed italic font-medium">Submitted on {new Date(viewingCV.created_at).toLocaleDateString()}</p>
-                 </div>
+                {viewingCV.cv_file && (
+                  <a href={viewingCV.cv_file} target="_blank" rel="noreferrer"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderRadius: 10, background: '#eef2ff', color: '#4318FF', fontSize: 13, fontWeight: 700, textDecoration: 'none', marginBottom: 24, transition: 'background .15s' }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#e0e7ff'}
+                    onMouseLeave={e => e.currentTarget.style.background = '#eef2ff'}
+                  >
+                    {Icons.File()} Open Full CV File
+                  </a>
+                )}
 
-                 <div className="mt-12 flex gap-4">
-                    <button onClick={() => setViewingCV(null)} className="px-8 py-4 rounded-2xl font-black italic text-xs text-gray-400 hover:text-red-500 transition-all uppercase tracking-widest cursor-pointer">Cancel</button>
-                    <button onClick={() => { setViewingCV(null); onAcceptApplicant(viewingCV); }} className="flex-1 bg-[#1A2252] text-white py-5 rounded-[1.5rem] font-black italic text-sm shadow-xl hover:bg-blue-900 transition-all cursor-pointer transform hover:-translate-y-1 active:scale-95">
-                      PROCEED TO HIRE ➔
-                    </button>
-                 </div>
-               </div>
-             </div>
-           </div>
+                <div style={{ marginBottom: 24 }}>
+                  <p style={{ margin: '0 0 4px', fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Application Date</p>
+                  <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#1e293b' }}>
+                    {new Date(viewingCV.created_at).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                  </p>
+                </div>
+
+                {/* Actions */}
+                <div style={{ marginTop: 'auto', display: 'flex', gap: 12, paddingTop: 20, borderTop: '1px solid #f1f5f9' }}>
+                  <button onClick={() => setViewingCV(null)}
+                    style={{ padding: '10px 20px', borderRadius: 10, border: '1px solid #f1f5f9', background: '#f8fafc', color: '#64748b', fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all .15s' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.borderColor = '#fecaca'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.color = '#64748b'; e.currentTarget.style.borderColor = '#f1f5f9'; }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => { setViewingCV(null); onAcceptApplicant(viewingCV); }}
+                    style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 0', borderRadius: 12, border: 'none', background: '#4318FF', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'background .15s', boxShadow: '0 4px 14px rgba(67,24,255,0.25)' }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#3730a3'}
+                    onMouseLeave={e => e.currentTarget.style.background = '#4318FF'}
+                  >
+                    {Icons.Arrow('#fff')} Proceed to Hire
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
-
     </div>
   );
 };
 
-// ==========================================
-// 🌟 Master Component: Teacher Management 🌟
-// ==========================================
+// ─────────────────────────────────────────────────────────────────
+// MASTER COMPONENT — all logic UNTOUCHED
+// ─────────────────────────────────────────────────────────────────
 const TeacherManagement = ({ initialAction }) => {
-  const [activeTab, setActiveTab] = useState('applicants');
-  const [toast, setToast] = useState(null);
-  
-  // 💡 State باش نخبوا معلومات الأستاذ اللي قبلناه باش نعمرو بيه الفورم
+  const [activeTab, setActiveTab]   = useState('applicants');
+  const [toast, setToast]           = useState(null);
   const [prefillData, setPrefillData] = useState(null);
 
   useEffect(() => {
-    if (initialAction === 'add') {
-      setActiveTab('add');
-    }
+    if (initialAction === 'add') setActiveTab('add');
   }, [initialAction]);
 
   const showToast = (msg) => {
@@ -298,46 +513,56 @@ const TeacherManagement = ({ initialAction }) => {
     setTimeout(() => setToast(null), 4000);
   };
 
-  // 💡 هاد الفونكسيون تتنفذ كي نكليكيو ACCEPT في باجة الطلبات
   const handleAcceptApplicant = (applicant) => {
     setPrefillData({
-      firstName: applicant.first_name,
-      lastName: applicant.last_name,
-      email: applicant.email,
-      phone: applicant.phone,
-      department: applicant.subject || 'English', // نحطو المادة تاعو
-      role: 'Teacher',
-      requestId: applicant.id // نخبوا الـ ID باش نبدلو الحالة تاعو في الداتا باز مبعد
+      firstName: applicant.first_name, lastName: applicant.last_name,
+      email: applicant.email, phone: applicant.phone,
+      department: applicant.subject || 'English',
+      role: 'Teacher', requestId: applicant.id,
     });
-    setActiveTab('add'); // ندوه ديراكت لفورم التسجيل
-    showToast(`Proceeding to hire ${applicant.first_name}. Form auto-filled!`);
+    setActiveTab('add');
+    showToast(`Proceeding to hire ${applicant.first_name}. Form auto-filled.`);
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F9FA] flex flex-col font-sans">
+    <div style={{ width: '100%', fontFamily: "'Inter','Segoe UI',sans-serif" }}>
       {toast && <Toast message={toast} onClose={() => setToast(null)} />}
 
-      <div className="pt-8 px-8 pb-2 text-left">
-        <div className="flex space-x-2 bg-white p-2 rounded-2xl shadow-sm border border-gray-200 w-max">
-          <button 
-            onClick={() => setActiveTab('applicants')} 
-            className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'applicants' ? 'bg-[#1A2252] text-white shadow-md' : 'text-gray-500 hover:bg-gray-50 cursor-pointer'}`}
+      {/* ── Tab bar — matches site underline style ── */}
+      <div style={{ display: 'flex', borderBottom: '1px solid #f1f5f9', marginBottom: 28 }}>
+        {[
+          { key: 'applicants', label: 'Teacher Applicants', icon: Icons.Users() },
+          { key: 'add',        label: 'Add Teacher',        icon: Icons.Briefcase() },
+        ].map(tab => (
+          <button key={tab.key}
+            onClick={() => { setActiveTab(tab.key); if (tab.key === 'add') setPrefillData(null); }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '12px 20px', fontSize: 13, fontWeight: 700,
+              color: activeTab === tab.key ? '#4318FF' : '#94a3b8',
+              background: 'none', border: 'none', cursor: 'pointer',
+              borderBottom: activeTab === tab.key ? '2px solid #4318FF' : '2px solid transparent',
+              marginBottom: -1, transition: 'all .2s', whiteSpace: 'nowrap',
+            }}
           >
-            📋 Teacher Applicants
+            <span style={{ color: activeTab === tab.key ? '#4318FF' : '#94a3b8' }}>{tab.icon}</span>
+            {tab.label}
           </button>
-          <button 
-            onClick={() => { setActiveTab('add'); setPrefillData(null); }} 
-            className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'add' ? 'bg-[#1A2252] text-white shadow-md' : 'text-gray-500 hover:bg-gray-50 cursor-pointer'}`}
-          >
-            👨‍🏫 Add Teacher
-          </button>
-        </div>
+        ))}
       </div>
 
-      <div className="flex-1 overflow-hidden">
-        {activeTab === 'applicants' && <TeacherApplicantTab showToast={showToast} onAcceptApplicant={handleAcceptApplicant} />}
-        {activeTab === 'add' && <TeacherRegistrationTab showToast={showToast} prefillData={prefillData} clearPrefill={() => setPrefillData(null)} />}
-      </div>
+      {/* Tab content */}
+      {activeTab === 'applicants' && (
+        <TeacherApplicantTab showToast={showToast} onAcceptApplicant={handleAcceptApplicant} />
+      )}
+      {activeTab === 'add' && (
+        <TeacherRegistrationTab showToast={showToast} prefillData={prefillData} clearPrefill={() => setPrefillData(null)} />
+      )}
+
+      <style>{`
+        * { box-sizing: border-box; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+      `}</style>
     </div>
   );
 };
