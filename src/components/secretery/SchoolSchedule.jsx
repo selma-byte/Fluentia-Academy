@@ -17,7 +17,7 @@ const SchoolSchedule = () => {
   const [isDailyViewOpen, setIsDailyViewOpen] = useState(false);
 
   // ==========================================
-  // 💡 1. جلب البيانات الحقيقية من Supabase
+  // 💡 1. جلب البيانات الحقيقية من Supabase وتفكيك الحصص
   // ==========================================
   const [scheduleData, setScheduleData] = useState([]);
   const [formData, setFormData] = useState({ language: 'Spanish', level: 'B1', group: 'Grp1', day: 'Mon', date: 23, time: '10:00', type: 'LECTURE', teacher: '', room: '' });
@@ -25,28 +25,41 @@ const SchoolSchedule = () => {
   const fetchScheduleFromSupabase = async () => {
     const { data, error } = await supabase.from('classes').select('*').not('schedule', 'eq', 'TBD');
     if (!error && data) {
-      const formatted = data.map(item => {
-        // Schedule in DB is usually like: "Mon 10:00 - 12:00 - Room A"
-        const dayMatch = item.schedule.match(/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)/);
-        const timeMatch = item.schedule.match(/\d{2}:\d{2}/); 
-        const roomMatch = item.schedule.split('- ')[1];
-        
-        return {
-          id: item.id, 
-          language: item.language, 
-          level: item.level, 
-          group: item.name,
-          day: dayMatch ? dayMatch[0] : 'Mon', 
-          // Since classes are weekly repeating, the date property is abstract. 
-          // We will assign a created_at date just for fallback, but monthly view needs actual dates.
-          date: new Date(item.created_at).getDate(), 
-          time: timeMatch ? timeMatch[0] : '10:00', 
-          type: 'COURSE', 
-          teacher: item.teacher_name,
-          room: roomMatch || 'TBD',
-          originalSchedule: item.schedule
-        };
+      
+      // 💡 التعديل السحري: استخدام flatMap لتقسيم الحصص المتعددة لنفس الفوج
+      const formatted = data.flatMap(item => {
+        if (!item.schedule) return [];
+
+        // تقسيم الجملة إلى حصص بناءً على الفاصل "|"
+        const sessions = item.schedule.split(' | ');
+
+        // إنشاء حدث لكل حصة
+        return sessions.map((sessionStr, index) => {
+          const dayMatch = sessionStr.match(/(Mon|Tue|Wed|Thu|Fri|Sat|Sun)/);
+          const timeMatch = sessionStr.match(/\d{2}:\d{2}/g); // يجيب وقت البداية والنهاية
+          
+          // فصل اسم القاعة عن التوقيت
+          const roomParts = sessionStr.split(') - ');
+          const roomMatch = roomParts.length > 1 ? roomParts[1].trim() : 'TBD';
+          
+          return {
+            id: `${item.id}-${index}`, // ID فريد لكل حصة
+            classId: item.id,
+            language: item.language, 
+            level: item.level, 
+            group: item.name,
+            day: dayMatch ? dayMatch[0] : 'Mon', 
+            date: new Date(item.created_at).getDate(), 
+            time: timeMatch && timeMatch.length > 0 ? timeMatch[0] : '10:00', 
+            endTime: timeMatch && timeMatch.length > 1 ? timeMatch[1] : '12:00', 
+            type: 'COURSE', 
+            teacher: item.teacher_name || 'TBD',
+            room: roomMatch,
+            originalSchedule: item.schedule
+          };
+        });
       });
+      
       setScheduleData(formatted);
     }
   };
@@ -204,9 +217,9 @@ const SchoolSchedule = () => {
                 {todaysEvents.length > 0 ? todaysEvents.map((event, idx) => (
                    <div key={idx} className="relative pl-6">
                       <div className={`absolute left-0 top-1.5 w-3 h-3 ${getDotColor(event.language)} rounded-full border-2 border-white shadow-sm z-10`}></div>
-                      <p className="text-[10px] text-gray-400 font-bold mb-0.5">{event.time}</p>
+                      <p className="text-[10px] text-gray-400 font-bold mb-0.5">{event.time} - {event.endTime}</p>
                       <p className="font-bold text-sm text-[#0A1128]">{event.group}</p>
-                      <p className="text-xs text-gray-500">{event.teacher}</p>
+                      <p className="text-xs text-gray-500">{event.room} • {event.teacher}</p>
                    </div>
                 )) : <p className="text-xs text-gray-400 italic pl-6">No classes.</p>}
              </div>
@@ -216,8 +229,9 @@ const SchoolSchedule = () => {
              <h3 className="font-bold text-[#0A1128] text-base mb-4">Class Health</h3>
              <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden mb-6"><div className="h-full bg-blue-800 w-[64%]"></div></div>
              <div className="flex justify-between">
-                <div><p className="text-2xl font-bold">{scheduleData.length}</p><p className="text-[10px] font-bold text-gray-400">Total Classes</p></div>
-                <div className="text-right"><p className="text-2xl font-bold text-blue-600">{todaysEvents.length}</p><p className="text-[10px] font-bold text-gray-400">Selected Day</p></div>
+                {/* 💡 Adjusted Total Classes count to use unique class IDs rather than total sessions */}
+                <div><p className="text-2xl font-bold">{[...new Set(scheduleData.map(e => e.classId))].length}</p><p className="text-[10px] font-bold text-gray-400">Total Classes</p></div>
+                <div className="text-right"><p className="text-2xl font-bold text-blue-600">{todaysEvents.length}</p><p className="text-[10px] font-bold text-gray-400">Sessions Today</p></div>
              </div>
           </div>
         </div>
@@ -243,10 +257,10 @@ const SchoolSchedule = () => {
               <div className="bg-gray-50 p-4 rounded-xl">
                 <p className="text-xs font-bold text-gray-400 uppercase mb-2">Detailed Info</p>
                 <p className="text-sm mb-1"><b>Teacher:</b> {formData.teacher}</p>
+                <p className="text-sm mb-1"><b>Session:</b> {formData.day} ({formData.time} - {formData.endTime})</p>
                 <p className="text-sm mb-1"><b>Room:</b> {formData.room}</p>
-                <p className="text-sm mb-1"><b>Schedule:</b> {formData.originalSchedule || `${formData.day} at ${formData.time}`}</p>
+                <p className="text-xs mt-3 text-gray-500 border-t pt-2"><b>Full Schedule:</b><br/>{formData.originalSchedule}</p>
               </div>
-              <p className="text-[10px] text-gray-400 italic">💡 To change this schedule, please go to Groups & Levels Management.</p>
               <button onClick={() => setIsModalOpen(false)} className="w-full bg-[#0A1128] hover:bg-gray-800 text-white py-3 rounded-xl font-bold text-sm transition-colors cursor-pointer">Close</button>
             </div>
           </div>
@@ -264,7 +278,10 @@ const SchoolSchedule = () => {
                 <div className="max-w-3xl mx-auto space-y-6">
                    {todaysEvents.length > 0 ? todaysEvents.map((event, idx) => (
                       <div key={idx} className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm flex items-center transition-transform hover:-translate-y-1">
-                         <div className="w-32 text-center border-r border-gray-100 pr-6 mr-6 shrink-0"><p className="text-2xl font-bold text-[#0A1128]">{event.time}</p></div>
+                         <div className="w-32 text-center border-r border-gray-100 pr-6 mr-6 shrink-0">
+                           <p className="text-2xl font-bold text-[#0A1128]">{event.time}</p>
+                           <p className="text-xs text-gray-400 font-bold">to {event.endTime}</p>
+                         </div>
                          <div className={`w-1.5 h-16 rounded-full mr-6 shrink-0 ${getDotColor(event.language)}`}></div>
                          <div className="flex-1">
                             <h4 className="text-lg font-bold text-[#0A1128] mb-1">{event.group}</h4>

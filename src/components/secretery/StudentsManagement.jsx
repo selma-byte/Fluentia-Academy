@@ -51,6 +51,8 @@ const Ic = {
   Group:     () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
   ChevronDown: () => <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>,
   X:         () => <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+  // 💡 Added Layers icon for the new tab!
+  Layers:    () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
 };
 
 // ─── Helper Logic for Inscriptions & Courses ──────────────────────────────────
@@ -198,7 +200,6 @@ const RegistrationRequestsTab = () => {
   const [schedTime, setSchedTime] = useState('10:00');
   const [schedRoom, setSchedRoom] = useState('');
 
-  // 💡 Updated Fetch to pull requested info properly (using inscriptions mapping or relying on legacy fields if present)
   const fetchRequests = async () => {
     const { data } = await supabase.from('students').select('*').eq('exam_type', 'Placement').order('enrollment_date', { ascending: false });
     if (data) setRequests(data.map(req => ({ ...req, name: `${req.first_name} ${req.last_name}`, type: req.child_name || req.parent_name ? 'Parent' : 'Student', parent: req.child_name || req.parent_name ? 'Parent / Guardian' : null, status: req.status === 'Tested' ? 'Passed' : req.status === 'pending' ? 'Pending' : req.status })));
@@ -259,7 +260,6 @@ const RegistrationRequestsTab = () => {
       if (authError && authError.message !== "User already registered") throw authError;
       await supabase.from('classes').update({ enrolled_count: currentCount + 1 }).eq('id', enrollClassId);
       
-      // 💡 NEW LOGIC: Update student and insert into inscriptions
       await supabase.from('students').update({ status: 'Active', exam_type: 'Course', test_score: enrollGrade }).eq('id', selectedStudent.id);
       const cours = await getOrCreateCours(selectedStudent.language);
       await supabase.from('inscriptions').insert([{ student_id: selectedStudent.id, cours_id: cours.id, groupe: selectedClass.name, annee_scolaire: '2025-2026', statut: 'Active' }]);
@@ -458,7 +458,6 @@ const StudentRecordsTab = () => {
   const [addCourseData, setAddCourseData] = useState({ language: 'English', level: 'A1', classId: '' });
   const [timeConflictMsg, setTimeConflictMsg] = useState(null);
 
-  // 💡 Updated to fetch inscriptions for multi-course display
   const fetchActiveStudents = async () => {
     const { data } = await supabase.from('students').select(`
       *,
@@ -468,7 +467,6 @@ const StudentRecordsTab = () => {
     if (data) {
       setStudentsData(data.map(s => {
         const activeInsc = s.inscriptions?.filter(i => i.statut === 'Active') || [];
-        // Map UI helper fields from inscriptions so the original UI design works without breaking
         const primaryLang = activeInsc.length > 0 ? activeInsc[0].cours?.langue : s.language;
         const allGroups = activeInsc.map(i => i.groupe).join(' & ') || s.group_name || '';
         
@@ -479,7 +477,7 @@ const StudentRecordsTab = () => {
           status: s.status || '', phone: s.phone || '', email: s.email || '', 
           address: s.address || '', enrollmentDate: s.enrollment_date || '', 
           test_score: s.test_score || '',
-          rawInscriptions: activeInsc // Store for Time Conflict checks
+          rawInscriptions: activeInsc
         };
       }));
     }
@@ -500,7 +498,6 @@ const StudentRecordsTab = () => {
       const score = parseFloat(selectedStudent.test_score);
       await supabase.from('enrollment_history').insert([{ student_id: selectedStudent.id, student_name: `${selectedStudent.firstName} ${selectedStudent.lastName}`, level_completed: selectedStudent.level, group_name: selectedStudent.group, grade: isNaN(score) ? null : score }]);
       const isArchiving = processData.newLevel === 'Archived';
-      // 💡 update student
       const { error: updateError } = await supabase.from('students').update({ level: isArchiving ? selectedStudent.level : processData.newLevel, status: isArchiving ? 'Archived' : 'Pending Group', test_score: selectedStudent.test_score }).eq('id', selectedStudent.id);
       if (updateError) throw updateError;
       alert(isArchiving ? `${selectedStudent.firstName} has been archived.` : `${selectedStudent.firstName} moved to level ${processData.newLevel} — awaiting group assignment.`);
@@ -517,7 +514,6 @@ const StudentRecordsTab = () => {
       if (currentCount >= selectedClass.capacity) throw new Error("This group is full.");
       await supabase.from('classes').update({ enrolled_count: currentCount + 1 }).eq('id', assignGroupData.classId);
       
-      // 💡 Also insert into inscriptions
       const cours = await getOrCreateCours(selectedStudent.language);
       await supabase.from('inscriptions').insert([{ student_id: selectedStudent.id, cours_id: cours.id, groupe: selectedClass.name, annee_scolaire: '2025-2026', statut: 'Active' }]);
       await supabase.from('students').update({ status: 'Active' }).eq('id', selectedStudent.id);
@@ -548,20 +544,17 @@ const StudentRecordsTab = () => {
     } catch (err) { alert("Error: " + err.message); } finally { setLoading(false); }
   };
 
-  // 💡 NEW: Time Conflict & Add Course Handlers
   const handleVerifyTimeConflict = (classId) => {
     setAddCourseData({ ...addCourseData, classId });
     setTimeConflictMsg(null);
     if (!classId) return;
     const selectedClass = classesData.find(c => c.id === classId);
     
-    // 1. Check if Locked
     if (selectedClass?.enrollment_status === 'Locked') {
       setTimeConflictMsg("🚨 This group is LOCKED. The program is too advanced for new enrollments.");
       return;
     }
 
-    // 2. Check overlap with current student classes
     const currentClassNames = selectedStudent.rawInscriptions?.map(i => i.groupe) || [];
     const studentClasses = classesData.filter(c => currentClassNames.includes(c.name));
     
@@ -611,7 +604,6 @@ const StudentRecordsTab = () => {
               <h3 style={{ margin: '0 0 4px', fontSize: 17, fontWeight: 800, color: C.textDark }}>{selectedStudent.firstName} {selectedStudent.lastName}</h3>
               <p style={{ margin: 0, fontSize: 12, color: C.textMuted }}>ID: {selectedStudent.id} · Enrolled: {selectedStudent.enrollmentDate}</p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
-                {/* 💡 Display all languages as badges */}
                 {selectedStudent.rawInscriptions?.length > 0 ? selectedStudent.rawInscriptions.map((insc, idx) => (
                   <span key={idx} style={{ display: 'inline-flex', alignItems: 'center', fontSize: 11, fontWeight: 700, color: C.blue, background: C.blueBg, border: '1px solid #bfdbfe', padding: '3px 10px', borderRadius: 20 }}>
                      <span style={{ marginRight: 4 }}>📚</span> {insc.cours?.langue} ({insc.groupe})
@@ -667,7 +659,6 @@ const StudentRecordsTab = () => {
                 {student.status === 'Pending Group' && <span style={{ fontSize: 10.5, fontWeight: 700, color: C.orange }}>Needs Group Assignment</span>}
               </Td>
               <Td>
-                {/* 💡 Display multi-course logic nicely */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {student.rawInscriptions?.length > 0 ? student.rawInscriptions.map((i, idx) => (
                     <span key={idx} style={{ fontSize: 12, fontWeight: 600, color: C.blue }}>• {i.cours?.langue}</span>
@@ -680,7 +671,6 @@ const StudentRecordsTab = () => {
               </Td>
               <Td center>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                  {/* 💡 The new PLUS button for adding a second course */}
                   <ActionBtn icon={Ic.Plus} onClick={() => { setSelectedStudent(student); setAddCourseData({ language: 'English', level: 'A1', classId: '' }); setTimeConflictMsg(null); setIsAddCourseModalOpen(true); }} title="Add Another Course" />
                   
                   <OutlineBtn onClick={() => { setSelectedStudent(student); setCurrentView('profile'); }} style={{ padding: '5px 12px', fontSize: 12 }}>Open Record</OutlineBtn>
@@ -706,7 +696,6 @@ const StudentRecordsTab = () => {
         </tbody>
       </TableCard>
 
-      {/* 💡 NEW MODAL: Add Course Modal (With Time Conflict checking) */}
       {isAddCourseModalOpen && selectedStudent && (
         <Modal title="Enroll in Another Course" subtitle={`Adding course for ${selectedStudent.firstName} ${selectedStudent.lastName}`} onClose={() => setIsAddCourseModalOpen(false)}>
            <form onSubmit={handleSaveNewCourse} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -820,7 +809,6 @@ const StudentArchiveTab = () => {
   const [currentView,      setCurrentView]      = useState('list');
   const [loading,          setLoading]          = useState(false);
 
-  // 💡 Archive uses Inscriptions just like Records to be accurate
   const fetchArchived = async () => {
     const { data } = await supabase.from('students').select(`*, inscriptions(id, groupe, cours(langue))`).eq('status', 'Archived');
     if (data) setArchivedStudents(data.map(s => {
@@ -950,7 +938,6 @@ const StudentRegistrationTab = () => {
   const [parentData,  setParentData]  = useState({ firstName: '', lastName: '', email: '', phone: '' });
   const [kidsList,    setKidsList]    = useState([{ firstName: '', lastName: '', language: 'English', level: 'A1', classId: '', phone: '', email: '', exam_type: 'Course' }]);
   
-  // 💡 Conflict State for Manual Registration
   const [singleConflictMsg, setSingleConflictMsg] = useState(null);
 
   useEffect(() => { const f = async () => { const { data } = await supabase.from('classes').select('*'); if (data) setClassesData(data); }; f(); }, []);
@@ -987,7 +974,6 @@ const StudentRegistrationTab = () => {
         if (authError && authError.message !== "User already registered") throw authError;
         if (singleData.parentEmail) { const { error: pErr } = await supabase.auth.signUp({ email: singleData.parentEmail, password: singleData.phone }); if (pErr && pErr.message !== "User already registered") console.error(pErr); }
         
-        // 💡 Save Student & Inscription
         const { data: newStudent, error: dbError } = await supabase.from('students').insert([{ first_name: singleData.firstName, last_name: singleData.lastName, email: singleData.email, phone: singleData.phone, parent_email: singleData.parentEmail || null, language: singleData.language, level: singleData.level, exam_type: singleData.exam_type, status: isPlacement ? 'Pending' : 'Active', enrollment_date: new Date().toISOString().split('T')[0] }]).select().single();
         if (dbError) throw dbError;
 
@@ -1091,7 +1077,7 @@ const StudentRegistrationTab = () => {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               <SectionCard title="Personal Info">
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <input type="text"  value={singleData.firstName}   onChange={e => setSingleData({ ...singleData, firstName: e.target.value })}   placeholder="First Name"  style={inputBase} onFocus={onFocus} onBlur={onBlur} required />
+                  <input type="text"  value={singleData.firstName}  onChange={e => setSingleData({ ...singleData, firstName: e.target.value })}  placeholder="First Name"  style={inputBase} onFocus={onFocus} onBlur={onBlur} required />
                   <input type="text"  value={singleData.lastName}    onChange={e => setSingleData({ ...singleData, lastName: e.target.value })}    placeholder="Last Name"   style={inputBase} onFocus={onFocus} onBlur={onBlur} required />
                 </div>
               </SectionCard>
@@ -1182,6 +1168,153 @@ const StudentRegistrationTab = () => {
   );
 };
 
+// ─── NEW TAB 6: Classes & Rooms ───────────────────────────────────────────────
+const ClassesRoomsTab = () => {
+  const [loading, setLoading] = useState(false);
+  const [teachers, setTeachers] = useState([]);
+  const [classes, setClasses] = useState([]);
+  const [rooms, setRooms] = useState([]);
+
+  const [classForm, setClassForm] = useState({ name: '', language: 'English', level: 'A1', teacher_name: '', capacity: 20 });
+  const [roomForm, setRoomForm] = useState({ name: '', capacity: 20 });
+
+  const fetchData = async () => {
+    const { data: staff } = await supabase.from('staff').select('*').ilike('role', 'Teacher');
+    if (staff) setTeachers(staff);
+    const { data: cls } = await supabase.from('classes').select('*').order('created_at', { ascending: false });
+    if (cls) setClasses(cls);
+    const { data: rms } = await supabase.from('rooms').select('*').order('name');
+    if (rms) setRooms(rms);
+  };
+
+  useEffect(() => { fetchData(); }, []);
+
+  const handleAddClass = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const { error } = await supabase.from('classes').insert([classForm]);
+      if (error) throw error;
+      alert("Class created successfully!");
+      setClassForm({ name: '', language: 'English', level: 'A1', teacher_name: '', capacity: 20 });
+      fetchData();
+    } catch(err) {
+      alert("Error creating class: " + err.message);
+    }
+    setLoading(false);
+  };
+
+  const handleAddRoom = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const { error } = await supabase.from('rooms').insert([roomForm]);
+      if (error) throw error;
+      alert("Room added successfully!");
+      setRoomForm({ name: '', capacity: 20 });
+      fetchData();
+    } catch(err) {
+      alert("Error adding room: " + err.message);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div style={{ flex: 1, overflowY: 'auto', padding: 28, display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div>
+        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: C.textDark }}>Manage Classes & Rooms</h2>
+        <p style={{ margin: '4px 0 0', fontSize: 12, color: C.textMuted }}>Quickly setup new study groups and campus rooms</p>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 24 }}>
+        
+        {/* Left Col: Classes */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <SectionCard title="Create New Class (Simple)">
+            <form onSubmit={handleAddClass} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <FormField label="Group Name (e.g. ENG-A1-01)">
+                  <input type="text" value={classForm.name} onChange={e => setClassForm({...classForm, name: e.target.value})} style={inputBase} required onFocus={onFocus} onBlur={onBlur} />
+                </FormField>
+                <FormField label="Language">
+                  <select value={classForm.language} onChange={e => setClassForm({...classForm, language: e.target.value})} style={selectStyle} onFocus={onFocus} onBlur={onBlur}>
+                    <option>English</option><option>Français</option><option>Deutsch</option><option>Español</option>
+                  </select>
+                </FormField>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <FormField label="Level">
+                  <select value={classForm.level} onChange={e => setClassForm({...classForm, level: e.target.value})} style={selectStyle} onFocus={onFocus} onBlur={onBlur}>
+                    {['A1','A2','B1','B2','C1','C2'].map(l => <option key={l}>{l}</option>)}
+                  </select>
+                </FormField>
+                <FormField label="Max Capacity">
+                  <input type="number" value={classForm.capacity} onChange={e => setClassForm({...classForm, capacity: e.target.value})} style={inputBase} required onFocus={onFocus} onBlur={onBlur} />
+                </FormField>
+              </div>
+              <FormField label="Assign Teacher">
+                <select value={classForm.teacher_name} onChange={e => setClassForm({...classForm, teacher_name: e.target.value})} style={selectStyle} onFocus={onFocus} onBlur={onBlur}>
+                  <option value="">— Select Teacher —</option>
+                  {teachers.map(t => <option key={t.id} value={`${t.first_name} ${t.last_name}`}>{t.first_name} {t.last_name}</option>)}
+                </select>
+              </FormField>
+              <PrimaryBtn type="submit" disabled={loading} style={{ justifyContent: 'center', marginTop: 8 }}><Ic.Check /> Create Class</PrimaryBtn>
+            </form>
+          </SectionCard>
+
+          <SectionCard title={`Recent Classes (${classes.length})`}>
+            <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+              {classes.slice(0,5).map(c => (
+                <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: `1px solid ${C.border}` }}>
+                  <div>
+                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.textDark }}>{c.name}</p>
+                    <p style={{ margin: 0, fontSize: 11, color: C.textMuted }}>{c.language} · {c.level} · Prof: {c.teacher_name || 'TBD'}</p>
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: C.blue, background: C.blueBg, padding: '4px 10px', borderRadius: 8, height: 'fit-content' }}>
+                    {c.enrolled_count || 0}/{c.capacity}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </SectionCard>
+        </div>
+
+        {/* Right Col: Rooms */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <SectionCard title="Add New Room">
+            <form onSubmit={handleAddRoom} style={{ display: 'flex', gap: 12, alignItems: 'flex-end' }}>
+              <div style={{ flex: 2 }}>
+                <FormField label="Room Name">
+                  <input type="text" value={roomForm.name} onChange={e => setRoomForm({...roomForm, name: e.target.value})} style={inputBase} required placeholder="e.g. Lab 01" onFocus={onFocus} onBlur={onBlur} />
+                </FormField>
+              </div>
+              <div style={{ flex: 1 }}>
+                <FormField label="Capacity">
+                  <input type="number" value={roomForm.capacity} onChange={e => setRoomForm({...roomForm, capacity: e.target.value})} style={inputBase} required onFocus={onFocus} onBlur={onBlur} />
+                </FormField>
+              </div>
+              <PrimaryBtn type="submit" disabled={loading} style={{ height: 38 }}><Ic.Plus /></PrimaryBtn>
+            </form>
+          </SectionCard>
+
+          <SectionCard title={`Available Rooms (${rooms.length})`}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 300, overflowY: 'auto' }}>
+              {rooms.map(r => (
+                <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: C.pageBg, borderRadius: 10, border: `1px solid ${C.borderMid}` }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: C.textDark }}>{r.name}</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: C.textMuted }}>{r.capacity} seats</span>
+                </div>
+              ))}
+              {rooms.length === 0 && <p style={{ fontSize: 12, color: C.textMuted, textAlign: 'center', padding: 20 }}>No rooms added yet.</p>}
+            </div>
+          </SectionCard>
+        </div>
+
+      </div>
+    </div>
+  );
+};
+
 // ─── TAB 5: Add Staff ─────────────────────────────────────────────────────────
 const StaffRegistrationTab = () => {
   const [loading,  setLoading]  = useState(false);
@@ -1249,16 +1382,18 @@ const StaffRegistrationTab = () => {
   );
 };
 
+
 // ─── Master Hub ───────────────────────────────────────────────────────────────
 const StudentsManagement = () => {
   const [activeTab, setActiveTab] = useState('requests');
 
   const tabs = [
-    { key: 'requests', label: 'Requests Pipeline', Icon: Ic.Requests },
-    { key: 'records',  label: 'Active Records',    Icon: Ic.Records  },
-    { key: 'archive',  label: 'Archive',           Icon: Ic.Archive  },
-    { key: 'add',      label: 'Manual Registration', Icon: Ic.AddUser },
-    { key: 'addStaff', label: 'Add Staff',         Icon: Ic.AddStaff },
+    { key: 'requests',     label: 'Requests',     Icon: Ic.Requests },
+    { key: 'records',      label: 'Active',       Icon: Ic.Records  },
+    { key: 'archive',      label: 'Archive',      Icon: Ic.Archive  },
+    { key: 'add',          label: 'Register',     Icon: Ic.AddUser  },
+    { key: 'classesRooms', label: 'Classes & Rooms', Icon: Ic.Layers },
+    { key: 'addStaff',     label: 'Add Staff',    Icon: Ic.AddStaff },
   ];
 
   return (
@@ -1277,11 +1412,11 @@ const StudentsManagement = () => {
 
         {/* ── Page header ── */}
         <div style={{ padding: '24px 28px 0', flexShrink: 0 }}>
-          <h1 style={{ margin: '0 0 4px', fontSize: 22, fontWeight: 800, color: C.textDark }}>Students Management</h1>
-          <p style={{ margin: '0 0 20px', fontSize: 13, color: C.textMuted }}>Registration pipeline, records, archive and staff management</p>
+          <h1 style={{ margin: '0 0 4px', fontSize: 22, fontWeight: 800, color: C.textDark }}>Management Hub</h1>
+          <p style={{ margin: '0 0 20px', fontSize: 13, color: C.textMuted }}>Registration pipeline, records, classes and staff management</p>
 
           {/* Tab bar */}
-          <div style={{ display: 'flex', borderBottom: `1px solid ${C.border}` }}>
+          <div style={{ display: 'flex', borderBottom: `1px solid ${C.border}`, overflowX: 'auto' }}>
             {tabs.map((tab, i) => {
               const isActive = activeTab === tab.key;
               const isStaff  = tab.key === 'addStaff';
@@ -1289,7 +1424,7 @@ const StudentsManagement = () => {
                 <button key={tab.key} onClick={() => setActiveTab(tab.key)}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 7,
-                    padding: '10px 18px', border: 'none',
+                    padding: '10px 16px', border: 'none',
                     borderBottom: isActive ? `2px solid ${isStaff ? C.blue : C.primary}` : '2px solid transparent',
                     marginBottom: -1,
                     fontSize: 12.5, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s',
@@ -1297,6 +1432,7 @@ const StudentsManagement = () => {
                     color: isActive ? (isStaff ? C.blue : C.primary) : C.textMuted,
                     marginLeft: isStaff && i > 0 ? 'auto' : 0,
                     fontFamily: "'Inter','Segoe UI',sans-serif",
+                    whiteSpace: 'nowrap'
                   }}
                   onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = C.textDark; }}
                   onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = C.textMuted; }}
@@ -1315,6 +1451,7 @@ const StudentsManagement = () => {
           {activeTab === 'records'  && <StudentRecordsTab />}
           {activeTab === 'archive'  && <StudentArchiveTab />}
           {activeTab === 'add'      && <StudentRegistrationTab />}
+          {activeTab === 'classesRooms' && <ClassesRoomsTab />}
           {activeTab === 'addStaff' && <StaffRegistrationTab />}
         </div>
       </div>
