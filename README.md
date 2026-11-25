@@ -158,8 +158,8 @@ You need these installed before you begin:
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/<your-username>/<your-repository>.git
-cd <your-repository>
+git clone https://github.com/selma-byte/Fluenita-Academy.git
+cd Fluentia-Academy
 ```
 
 ### 2. Install dependencies
@@ -294,7 +294,7 @@ Department of Computer Science, Faculty of Exact Sciences and Computer Science, 
 
 ## Acknowledgements
 
-- The administrative staff, teachers and secretaries of the local languages academy who took part in the observation sessions and interviews.
+- The administrative staff, professors who took part in this work.
 - The open-source communities behind React, Vite, Tailwind CSS and Supabase.
 
 ---
